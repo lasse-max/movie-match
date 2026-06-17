@@ -4,8 +4,10 @@ import "server-only";
 
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
-// Default region for watch-provider availability (configurable later via setup).
-export const DEFAULT_REGION = "US";
+// Re-exported for convenience so server callers can import it alongside the
+// client; the single source of truth lives in lib/constants.ts.
+export { DEFAULT_REGION } from "./constants";
+import { DEFAULT_REGION } from "./constants";
 
 function authHeaders(): Record<string, string> {
   // TMDB v4 Read Access Token, used as a bearer token. Server-side only — it is
