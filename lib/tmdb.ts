@@ -89,3 +89,49 @@ export interface TmdbMovie {
 export function getMovie(movieId: number) {
   return tmdbGet<TmdbMovie>(`/movie/${movieId}`);
 }
+
+// ---- Images ----------------------------------------------------------------
+
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
+
+/** Full URL for a TMDB image path (e.g. a provider logo), or null if absent. */
+export function tmdbImageUrl(path: string | null, size = "w92"): string | null {
+  return path ? `${TMDB_IMAGE_BASE}/${size}${path}` : null;
+}
+
+// ---- Watch-provider regions & per-region provider list ---------------------
+
+export interface TmdbWatchRegion {
+  iso_3166_1: string;
+  english_name: string;
+  native_name: string;
+}
+
+/** Countries TMDB has watch-provider data for. */
+export function getWatchProviderRegions() {
+  return tmdbGet<{ results: TmdbWatchRegion[] }>("/watch/providers/regions", {
+    language: "en-US",
+  });
+}
+
+export interface TmdbWatchProviderListItem {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string | null;
+  display_priority: number;
+  /** Per-region popularity ranking (lower = more prominent). */
+  display_priorities?: Record<string, number>;
+}
+
+/** All movie watch providers available in a region (subscription, rent, buy). */
+export function getRegionWatchProviders(region: string) {
+  return tmdbGet<{ results: TmdbWatchProviderListItem[] }>("/watch/providers/movie", {
+    language: "en-US",
+    watch_region: region,
+  });
+}
+
+/** Region-specific popularity rank for a provider (lower sorts first). */
+export function providerPriority(p: TmdbWatchProviderListItem, region: string): number {
+  return p.display_priorities?.[region] ?? p.display_priority ?? Number.MAX_SAFE_INTEGER;
+}

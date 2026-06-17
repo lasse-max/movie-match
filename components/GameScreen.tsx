@@ -1,6 +1,7 @@
 "use client";
 
 import { useGame } from "./GameProvider";
+import { SetupScreen } from "./SetupScreen";
 import type { Phase } from "@/lib/gameMachine";
 
 // Phase router for step 2. Every screen below is a placeholder that a later
@@ -32,7 +33,7 @@ export function GameScreen() {
         <span aria-hidden>🎬</span> Movie Match
       </header>
 
-      <section className="flex w-full max-w-sm flex-col items-center gap-6 rounded-2xl border border-foreground/10 p-8">
+      <section className="flex w-full max-w-sm flex-col items-center gap-6 rounded-2xl border border-foreground/10 p-6">
         <PhaseView phase={state.phase} />
       </section>
 
@@ -47,14 +48,7 @@ function PhaseView({ phase }: { phase: Phase }) {
 
   switch (phase) {
     case "setup":
-      return (
-        <Placeholder
-          title="Setup"
-          body="Pick your region, the services you subscribe to, and whether you'll pay to rent tonight. (Full setup UI — step 3.)"
-          actionLabel="Start game"
-          onAction={advance}
-        />
-      );
+      return <SetupScreen />;
 
     case "round1":
     case "round2":

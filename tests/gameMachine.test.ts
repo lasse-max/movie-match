@@ -68,6 +68,18 @@ describe("gameMachine reducer", () => {
     expect(s.matchId).toBe(3);
   });
 
+  it("clears subscribed services when the region changes", () => {
+    let s = run(
+      initialState,
+      { type: "TOGGLE_SERVICE", serviceId: 8 },
+      { type: "TOGGLE_SERVICE", serviceId: 337 }
+    );
+    expect(s.setup.services).toEqual([8, 337]);
+    s = run(s, { type: "SET_REGION", region: "DE" });
+    expect(s.setup.region).toBe("DE");
+    expect(s.setup.services).toEqual([]); // region-specific ids reset
+  });
+
   it("captures setup edits and RESET restores the initial state", () => {
     let s = run(
       initialState,

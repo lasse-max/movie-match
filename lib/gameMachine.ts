@@ -118,7 +118,11 @@ export function gameReducer(state: GameState, action: Action): GameState {
       return initialState;
 
     case "SET_REGION":
-      return { ...state, setup: { ...state.setup, region: action.region } };
+      // Provider ids are region-specific, so a region change resets the picks.
+      return {
+        ...state,
+        setup: { ...state.setup, region: action.region, services: [] },
+      };
 
     case "TOGGLE_SERVICE": {
       const has = state.setup.services.includes(action.serviceId);
