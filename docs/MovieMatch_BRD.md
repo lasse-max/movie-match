@@ -49,6 +49,9 @@ API keys for TMDB and Claude must never ship to the client; all external calls r
 
 ## 5. Game Flow & Requirements
 
+### Availability & ranking rule. 
+Eligible = on a selected subscription (flatrate), OR — only if willing-to-pay is on — available to rent/buy. Willing-to-pay expands eligibility, never ranking. Rank by match quality / mood fit / mutual willingness only; price is never a ranking factor (never demote a better paid title beneath a weaker included one). Display availability type per result: "Included with X" / "Rent on X" / "Buy on X
+
 ### Round 1 — Categories & Mood
 Each player picks 2–3 categories or moods, passing the phone between turns. The AI takes both sets plus the stated mood and proposes the blended themes and a candidate pool to pull from TMDB. Simple overlaps are direct (Action ∩ Comedy → action-comedies); the value is in fuzzy blends a tag intersection misses — e.g. apocalyptic horror + action → Train to Busan, A Quiet Place, 28 Days Later. **(AI call #1.)**
 
