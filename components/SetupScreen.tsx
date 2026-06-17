@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
+import { SUPPORTED_REGIONS } from "@/lib/constants";
 
-interface Region {
-  code: string;
-  name: string;
-}
 interface Provider {
   id: number;
   name: string;
@@ -17,26 +14,9 @@ export function SetupScreen() {
   const { state, dispatch } = useGame();
   const { region, services, willingToPay } = state.setup;
 
-  const [regions, setRegions] = useState<Region[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Region list (fixed) — fetched once.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/regions")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled && Array.isArray(d.regions)) setRegions(d.regions);
-      })
-      .catch(() => {
-        /* region picker falls back to the current region only */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Provider list — re-fetched whenever the region changes.
   useEffect(() => {
@@ -81,9 +61,7 @@ export function SetupScreen() {
           onChange={(e) => dispatch({ type: "SET_REGION", region: e.target.value })}
           className="rounded-lg border border-foreground/15 bg-transparent px-3 py-2 text-sm"
         >
-          {/* Ensure the current region is always selectable even before the list loads. */}
-          {regions.length === 0 && <option value={region}>{region}</option>}
-          {regions.map((r) => (
+          {SUPPORTED_REGIONS.map((r) => (
             <option key={r.code} value={r.code}>
               {r.name}
             </option>

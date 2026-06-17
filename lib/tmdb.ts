@@ -99,20 +99,7 @@ export function tmdbImageUrl(path: string | null, size = "w92"): string | null {
   return path ? `${TMDB_IMAGE_BASE}/${size}${path}` : null;
 }
 
-// ---- Watch-provider regions & per-region provider list ---------------------
-
-export interface TmdbWatchRegion {
-  iso_3166_1: string;
-  english_name: string;
-  native_name: string;
-}
-
-/** Countries TMDB has watch-provider data for. */
-export function getWatchProviderRegions() {
-  return tmdbGet<{ results: TmdbWatchRegion[] }>("/watch/providers/regions", {
-    language: "en-US",
-  });
-}
+// ---- Per-region watch-provider list ----------------------------------------
 
 export interface TmdbWatchProviderListItem {
   provider_id: number;
