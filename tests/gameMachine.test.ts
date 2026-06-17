@@ -68,6 +68,14 @@ describe("gameMachine reducer", () => {
     expect(s.matchId).toBe(3);
   });
 
+  it("records each player's Round 1 category picks independently", () => {
+    let s: GameState = { ...initialState, phase: "round1" };
+    s = run(s, { type: "SET_CATEGORIES", player: 1, categories: ["action", "apocalyptic"] });
+    s = run(s, { type: "SET_CATEGORIES", player: 2, categories: ["comedy", "cozy", "romance"] });
+    expect(s.round.categories[1]).toEqual(["action", "apocalyptic"]);
+    expect(s.round.categories[2]).toEqual(["comedy", "cozy", "romance"]);
+  });
+
   it("clears subscribed services when the region changes", () => {
     let s = run(
       initialState,
