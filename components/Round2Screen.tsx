@@ -11,9 +11,9 @@ const primaryBtn =
 export function Round2Screen() {
   const { state } = useGame();
   const pool = state.blend?.pool ?? [];
-  // Spread samples across the 1–3 directions so the swipes reveal which the
-  // couple leans toward. Stable per render (pure selection).
-  const samples = selectSwipeSamples(pool);
+  // Each player gets their own distinct set (both span the directions), so the
+  // other player's positives become genuinely-new Round 3 candidates.
+  const samples = selectSwipeSamples(pool)[state.currentPlayer];
 
   if (samples.length === 0) {
     return (

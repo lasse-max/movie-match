@@ -5,7 +5,9 @@
 // round data slots (categories/swipes/picks) are filled in by later steps; this
 // step establishes the phases, transitions, and pass-the-phone turn tracking.
 import { DEFAULT_REGION } from "./constants";
+import { pickMatch } from "./overlap";
 import type { BlendResult } from "./blendTypes";
+import type { InferResult, MatchResult, PlayerRec } from "./inferTypes";
 
 export type Phase =
   | "setup"
@@ -56,8 +58,10 @@ export interface GameState {
   round: RoundData;
   /** Prefetched AI #1 result (mood read, directions, candidate pool). */
   blend: BlendResult | null;
-  /** The agreed movie id, set when we reach the match phase. */
-  matchId: number | null;
+  /** AI #2 result: per-player mood read + ranked Round 3 recs. */
+  inference: InferResult | null;
+  /** The agreed movie, set at the match phase (overlap or bridge). */
+  match: MatchResult | null;
 }
 
 export const initialState: GameState = {
@@ -70,7 +74,8 @@ export const initialState: GameState = {
     picks: { 1: [], 2: [] },
   },
   blend: null,
-  matchId: null,
+  inference: null,
+  match: null,
 };
 
 export type Action =
@@ -82,25 +87,28 @@ export type Action =
   | { type: "SET_SWIPES"; player: Player; yes: number[]; no: number[] }
   | { type: "SET_PICKS"; player: Player; movieIds: number[] }
   | { type: "SET_BLEND"; blend: BlendResult }
+  | { type: "SET_INFERENCE"; inference: InferResult }
+  | { type: "SET_MATCH"; match: MatchResult }
   // The current player finishes their turn. Carries the player so a stray/
   // double dispatch from the wrong turn is ignored (can't skip a player).
   | { type: "COMPLETE_TURN"; player: Player };
 
-// NOTE: Round 3 → match | tiebreak branching is a placeholder here. The real,
-// unit-tested overlap/tiebreak computation lands in step 7 (lib/overlap.ts) and
-// replaces both helpers below.
-function hasOverlap(state: GameState): boolean {
-  const [a, b] = [state.round.picks[1], state.round.picks[2]];
-  return a.some((id) => b.includes(id));
+function recsOf(state: GameState, player: Player): PlayerRec[] {
+  return state.inference ? state.inference[player].recs : [];
+}
+
+/** Overlap match from Round 3 picks (ranked by combined fit), or null → tiebreak. */
+function round3Match(state: GameState): MatchResult | null {
+  return pickMatch(
+    recsOf(state, 1),
+    recsOf(state, 2),
+    state.round.picks[1],
+    state.round.picks[2]
+  );
 }
 
 function resolveRound3(state: GameState): Phase {
-  return hasOverlap(state) ? "match" : "tiebreak";
-}
-
-function pickMatchId(state: GameState): number | null {
-  const [a, b] = [state.round.picks[1], state.round.picks[2]];
-  return a.find((id) => b.includes(id)) ?? null;
+  return round3Match(state) ? "match" : "tiebreak";
 }
 
 /** Whether the current player has submitted the data their turn requires. */
@@ -189,6 +197,12 @@ export function gameReducer(state: GameState, action: Action): GameState {
     case "SET_BLEND":
       return { ...state, blend: action.blend };
 
+    case "SET_INFERENCE":
+      return { ...state, inference: action.inference };
+
+    case "SET_MATCH":
+      return { ...state, match: action.match };
+
     case "SET_PICKS":
       return {
         ...state,
@@ -211,11 +225,15 @@ export function gameReducer(state: GameState, action: Action): GameState {
         return { ...state, currentPlayer: 2 };
       }
       const phase = nextPhase(state);
+      // Overlap match is computed when leaving Round 3; a bridge match (set via
+      // SET_MATCH during the tiebreak phase) is kept as-is.
+      const match =
+        phase === "match" && state.phase === "round3" ? round3Match(state) : state.match;
       return {
         ...state,
         phase,
         currentPlayer: 1, // reset whose-turn for the next round
-        matchId: phase === "match" ? pickMatchId(state) : state.matchId,
+        match,
       };
     }
 

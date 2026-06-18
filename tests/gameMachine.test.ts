@@ -18,6 +18,21 @@ const completeRound1 = (s: GameState, player: 1 | 2, categories = ["action", "co
 const completeRound2 = (s: GameState, player: 1 | 2) =>
   run(s, { type: "SET_SWIPES", player, yes: [1], no: [2] }, { type: "COMPLETE_TURN", player });
 
+const recList = (ids: number[]) =>
+  ids.map((id) => ({
+    id,
+    title: `M${id}`,
+    year: null,
+    overview: "",
+    posterUrl: null,
+    genreIds: [],
+    source: "swipe" as const,
+  }));
+const inferenceWith = (ids1: number[], ids2: number[]) => ({
+  1: { moodRead: { summary: "", axes: [] }, recs: recList(ids1) },
+  2: { moodRead: { summary: "", axes: [] }, recs: recList(ids2) },
+});
+
 describe("gameMachine reducer", () => {
   it("starts in setup with Player 1", () => {
     expect(initialState.phase).toBe("setup");
@@ -47,22 +62,33 @@ describe("gameMachine reducer", () => {
     expect([s.phase, s.currentPlayer]).toEqual(["round3", 1]);
   });
 
-  it("Round 3 with no overlap routes to tiebreak, then to match", () => {
-    let s: GameState = { ...initialState, phase: "round3" };
+  it("Round 3 with no overlap routes to tiebreak; the bridge sets the match there", () => {
+    let s: GameState = { ...initialState, phase: "round3", inference: inferenceWith([1, 2], [3, 4]) };
     s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2] }, { type: "COMPLETE_TURN", player: 1 });
     s = run(s, { type: "SET_PICKS", player: 2, movieIds: [3, 4] }, { type: "COMPLETE_TURN", player: 2 });
     expect(s.phase).toBe("tiebreak");
-    expect(s.matchId).toBeNull();
-    s = run(s, { type: "COMPLETE_TURN", player: 1 });
+    expect(s.match).toBeNull();
+    // The tiebreak (bridge) sets the match, then completes to the match phase.
+    const bridge = {
+      movie: { id: 7, title: "Bridge", year: null, posterUrl: null, genreIds: [] },
+      reason: "bridge" as const,
+    };
+    s = run(s, { type: "SET_MATCH", match: bridge }, { type: "COMPLETE_TURN", player: 1 });
     expect(s.phase).toBe("match");
+    expect(s.match).toBe(bridge); // bridge result kept, not overwritten
   });
 
-  it("Round 3 with overlap routes to match and records the shared movie id", () => {
-    let s: GameState = { ...initialState, phase: "round3" };
+  it("Round 3 with overlap routes to match with the best-fit shared movie", () => {
+    let s: GameState = {
+      ...initialState,
+      phase: "round3",
+      inference: inferenceWith([1, 2, 3], [3, 4, 5]),
+    };
     s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2, 3] }, { type: "COMPLETE_TURN", player: 1 });
     s = run(s, { type: "SET_PICKS", player: 2, movieIds: [3, 4, 5] }, { type: "COMPLETE_TURN", player: 2 });
     expect(s.phase).toBe("match");
-    expect(s.matchId).toBe(3);
+    expect(s.match?.movie.id).toBe(3); // only shared pick
+    expect(s.match?.reason).toBe("overlap");
   });
 
   it("ignores a COMPLETE_TURN from the wrong player (a double-tap can't skip P2)", () => {

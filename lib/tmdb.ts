@@ -133,6 +133,26 @@ export async function discoverMovies(
   return data.results;
 }
 
+/**
+ * Movies the recommendation graph links to a seed movie — the deterministic
+ * source for Round 3 "fresh expansion" and the tiebreak bridge. Falls back to
+ * /similar when /recommendations is empty.
+ */
+export async function getRecommendations(
+  movieId: number
+): Promise<TmdbDiscoverMovie[]> {
+  const recs = await tmdbGet<{ results: TmdbDiscoverMovie[] }>(
+    `/movie/${movieId}/recommendations`,
+    { language: "en-US" }
+  );
+  if (recs.results.length > 0) return recs.results;
+  const similar = await tmdbGet<{ results: TmdbDiscoverMovie[] }>(
+    `/movie/${movieId}/similar`,
+    { language: "en-US" }
+  );
+  return similar.results;
+}
+
 // ---- Images ----------------------------------------------------------------
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";

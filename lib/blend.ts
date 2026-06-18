@@ -8,6 +8,7 @@
 import "server-only";
 import { CLAUDE_MODEL, getAnthropic } from "./anthropic";
 import { categoryGenreId } from "./categories";
+import { ANIMATION_GENRE_ID, isKidsFare } from "./genres";
 import {
   discoverMovies,
   searchKeyword,
@@ -25,8 +26,6 @@ const MIN_VOTES = 100;
 const VALID_GENRE_IDS = new Set([
   28, 12, 16, 35, 80, 99, 18, 14, 36, 27, 10402, 9648, 10749, 878, 53, 10752, 37,
 ]);
-const FAMILY_GENRE_ID = 10751;
-const ANIMATION_GENRE_ID = 16;
 
 // ---- AI strategy -----------------------------------------------------------
 
@@ -217,17 +216,6 @@ export function fallbackStrategy(p1: string[], p2: string[]): BlendStrategy {
 
 // ---- Deterministic pool ----------------------------------------------------
 
-/**
- * Kids' fare = tagged BOTH Animation AND Family (Mario, Zootopia, Toy Story).
- * That pairing is the kids'-movie signature: it keeps adult comedy (Grown Ups,
- * Elf — Family but not Animation) and adult animation (Spider-Verse — Animation
- * but not Family), and drops only the children's tentpoles.
- */
-export function isKidsFare(genreIds: number[] | undefined): boolean {
-  if (!genreIds) return false;
-  return genreIds.includes(ANIMATION_GENRE_ID) && genreIds.includes(FAMILY_GENRE_ID);
-}
-
 async function fetchForDirection(
   dir: Direction,
   perDirection: number
@@ -291,6 +279,7 @@ async function buildPool(
         year: m.release_date ? m.release_date.slice(0, 4) : null,
         overview: m.overview,
         posterUrl: tmdbImageUrl(m.poster_path, "w342"),
+        genreIds: m.genre_ids ?? [],
         voteAverage: m.vote_average,
         voteCount: m.vote_count,
         directionIndex: i,

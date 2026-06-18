@@ -21,7 +21,8 @@ vi.mock("@/lib/tmdb", () => ({
   tmdbImageUrl: (p: string | null) => (p ? `https://img.test${p}` : null),
 }));
 
-import { validateStrategy, fallbackStrategy, blendTastes, isKidsFare } from "@/lib/blend";
+import { validateStrategy, fallbackStrategy, blendTastes } from "@/lib/blend";
+import { isKidsFare } from "@/lib/genres";
 
 // ---- fixtures --------------------------------------------------------------
 
