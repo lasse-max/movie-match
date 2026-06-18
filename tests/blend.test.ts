@@ -21,7 +21,7 @@ vi.mock("@/lib/tmdb", () => ({
   tmdbImageUrl: (p: string | null) => (p ? `https://img.test${p}` : null),
 }));
 
-import { validateStrategy, fallbackStrategy, blendTastes } from "@/lib/blend";
+import { validateStrategy, fallbackStrategy, blendTastes, isKidsFare } from "@/lib/blend";
 
 // ---- fixtures --------------------------------------------------------------
 
@@ -32,6 +32,7 @@ const movie = (over: Record<string, unknown> = {}) => ({
   release_date: "2012-05-01",
   overview: "",
   poster_path: "/poster.jpg",
+  genre_ids: [] as number[],
   vote_average: 7.2,
   vote_count: 800,
   popularity: 40,
@@ -126,37 +127,43 @@ describe("fallbackStrategy", () => {
   });
 });
 
-// ---- blendTastes: Family guard (#7) ----------------------------------------
+// ---- Kids'-fare guard (Option A) -------------------------------------------
 
-describe("blendTastes Family guard", () => {
-  it("excludes the Family genre for a non-animation direction", async () => {
-    await blendTastes(["Horror"], ["Comedy"]);
-    const usedWithoutFamily = discoverMock.mock.calls.some(
-      ([p]) => p.without_genres === "10751"
-    );
-    expect(usedWithoutFamily).toBe(true);
+describe("isKidsFare", () => {
+  it("flags Animation AND Family", () => {
+    expect(isKidsFare([16, 10751, 35])).toBe(true);
+  });
+  it("does not flag adult animation (Animation, no Family)", () => {
+    expect(isKidsFare([16, 28, 878])).toBe(false); // Spider-Verse
+  });
+  it("does not flag adult family comedy (Family, no Animation)", () => {
+    expect(isKidsFare([35, 10751])).toBe(false); // Elf / Home Alone
+  });
+  it("handles missing genre_ids", () => {
+    expect(isKidsFare(undefined)).toBe(false);
+  });
+});
+
+describe("blendTastes kids'-fare guard", () => {
+  it("drops kids' fare by default but keeps adult animation and adult family", async () => {
+    const kids = movie({ genre_ids: [16, 10751] }); // Mario / Zootopia signature
+    const adultAnimation = movie({ genre_ids: [16, 28] }); // Spider-Verse
+    const adultFamily = movie({ genre_ids: [35, 10751] }); // Elf
+    discoverMock.mockImplementation(() => [kids, adultAnimation, adultFamily, ...movies(15)]);
+
+    const { pool } = await blendTastes(["Horror"], ["Comedy"]);
+    const ids = pool.map((m) => m.id);
+    expect(ids).not.toContain(kids.id);
+    expect(ids).toContain(adultAnimation.id);
+    expect(ids).toContain(adultFamily.id);
   });
 
-  it("keeps Family eligible for an animation-led direction", async () => {
-    createMock.mockResolvedValue(
-      aiResponse({
-        moodRead: { summary: "playful", axes: [] },
-        directions: [
-          {
-            theme: "Animated",
-            genreIds: [16],
-            keywords: [],
-            tone: ["fun"],
-            sourcePicks: ["P1: Animated"],
-          },
-        ],
-      })
-    );
-    await blendTastes(["Animated"], ["Comedy"]);
-    const everUsedWithoutFamily = discoverMock.mock.calls.some(
-      ([p]) => p.without_genres === "10751"
-    );
-    expect(everUsedWithoutFamily).toBe(false);
+  it("keeps kids' fare when a player explicitly picked Animated", async () => {
+    const kids = movie({ genre_ids: [16, 10751] });
+    discoverMock.mockImplementation(() => [kids, ...movies(15)]);
+
+    const { pool } = await blendTastes(["Animated"], ["Comedy"]);
+    expect(pool.map((m) => m.id)).toContain(kids.id);
   });
 });
 

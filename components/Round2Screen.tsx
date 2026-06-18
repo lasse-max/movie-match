@@ -51,7 +51,7 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
         <span className="text-4xl" aria-hidden>📲</span>
         <h2 className="text-xl font-semibold">Pass the phone to Player 2</h2>
         <p className="text-sm text-foreground/60">
-          Same titles, your turn — swipe what fits your mood tonight.
+          Same titles, your turn — swipe on the vibe, not whether you’ve seen them.
         </p>
         <button className={primaryBtn} onClick={() => setReady(true)}>
           I’m ready
@@ -91,8 +91,12 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
         <span className="rounded-full bg-foreground/10 px-3 py-1 text-xs font-medium uppercase tracking-wide">
           Round 2 of 3 · Player {player}
         </span>
-        <p className="mt-3 text-sm text-foreground/60">
-          In the mood for this tonight? ({index + 1}/{samples.length})
+        <p className="mt-3 text-sm font-medium">
+          In the mood for something <span className="italic">like</span> this? ({index + 1}/
+          {samples.length})
+        </p>
+        <p className="text-xs text-foreground/50">
+          Swipe on the vibe — it’s fine if you’ve already seen it.
         </p>
       </div>
 
@@ -120,13 +124,13 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
           onClick={() => swipe(false)}
           className="flex-1 rounded-full border border-foreground/20 px-4 py-3 text-sm font-semibold transition hover:bg-foreground/5 active:scale-[0.98]"
         >
-          👎 Not tonight
+          👎 Not the vibe
         </button>
         <button
           onClick={() => swipe(true)}
           className="flex-1 rounded-full bg-foreground px-4 py-3 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]"
         >
-          👍 I’d watch this
+          👍 This vibe
         </button>
       </div>
     </div>

@@ -114,6 +114,7 @@ export interface TmdbDiscoverMovie {
   release_date: string;
   overview: string;
   poster_path: string | null;
+  genre_ids: number[];
   vote_average: number;
   vote_count: number;
   popularity: number;

@@ -217,6 +217,17 @@ export function fallbackStrategy(p1: string[], p2: string[]): BlendStrategy {
 
 // ---- Deterministic pool ----------------------------------------------------
 
+/**
+ * Kids' fare = tagged BOTH Animation AND Family (Mario, Zootopia, Toy Story).
+ * That pairing is the kids'-movie signature: it keeps adult comedy (Grown Ups,
+ * Elf — Family but not Animation) and adult animation (Spider-Verse — Animation
+ * but not Family), and drops only the children's tentpoles.
+ */
+export function isKidsFare(genreIds: number[] | undefined): boolean {
+  if (!genreIds) return false;
+  return genreIds.includes(ANIMATION_GENRE_ID) && genreIds.includes(FAMILY_GENRE_ID);
+}
+
 async function fetchForDirection(
   dir: Direction,
   perDirection: number
@@ -227,12 +238,6 @@ async function fetchForDirection(
 
   const base: Record<string, string> = { "vote_count.gte": String(MIN_VOTES) };
   if (keywordIds.length) base.with_keywords = keywordIds.join("|"); // OR
-  // Per-direction Family guard: drop the Family genre (kids' tentpoles like
-  // Mario/Zootopia) UNLESS this direction is animation-led — i.e. it came from
-  // an explicit Animated pick. Adult animation (Spider-Verse) stays eligible.
-  if (!dir.genreIds.includes(ANIMATION_GENRE_ID)) {
-    base.without_genres = String(FAMILY_GENRE_ID);
-  }
 
   const collect = async (genreJoin: string) => {
     const params = { ...base };
@@ -263,7 +268,10 @@ async function fetchForDirection(
   return results;
 }
 
-async function buildPool(directions: Direction[]): Promise<PoolMovie[]> {
+async function buildPool(
+  directions: Direction[],
+  excludeKidsFare: boolean
+): Promise<PoolMovie[]> {
   const perDirection = Math.ceil(TARGET_POOL / directions.length);
   const seen = new Set<number>();
   const pool: PoolMovie[] = [];
@@ -275,6 +283,7 @@ async function buildPool(directions: Direction[]): Promise<PoolMovie[]> {
     for (const m of movies) {
       if (added >= perDirection) break;
       if (seen.has(m.id) || !m.poster_path) continue; // need a poster for the swipe UI
+      if (excludeKidsFare && isKidsFare(m.genre_ids)) continue; // drop kids' tentpoles
       seen.add(m.id);
       pool.push({
         id: m.id,
@@ -303,19 +312,20 @@ async function buildPool(directions: Direction[]): Promise<PoolMovie[]> {
 export async function buildViablePool(
   directions: Direction[],
   p1: string[],
-  p2: string[]
+  p2: string[],
+  excludeKidsFare: boolean
 ): Promise<{ directions: Direction[]; pool: PoolMovie[] }> {
-  let pool = await buildPool(directions);
+  let pool = await buildPool(directions, excludeKidsFare);
   if (pool.length >= VIABLE_POOL) return { directions, pool };
 
   // Relax: drop keyword constraints (genres only).
   const noKeywords = directions.map((d) => ({ ...d, keywords: [] }));
-  pool = await buildPool(noKeywords);
+  pool = await buildPool(noKeywords, excludeKidsFare);
   if (pool.length >= VIABLE_POOL) return { directions: noKeywords, pool };
 
   // Last resort: rebuild from each player's genres (always yields popular films).
   const fallback = fallbackStrategy(p1, p2).directions;
-  pool = await buildPool(fallback);
+  pool = await buildPool(fallback, excludeKidsFare);
   return { directions: fallback, pool };
 }
 
@@ -323,6 +333,19 @@ export async function buildViablePool(
 
 export async function blendTastes(p1: string[], p2: string[]): Promise<BlendResult> {
   const strategy = (await getStrategy(p1, p2)) ?? fallbackStrategy(p1, p2);
-  const { directions, pool } = await buildViablePool(strategy.directions, p1, p2);
+
+  // Exclude kids' fare (Animation AND Family — Mario/Zootopia) by default,
+  // UNLESS a player explicitly picked an animation category (then they want it).
+  const pickedGenreIds = new Set(
+    [...p1, ...p2].map(categoryGenreId).filter((id): id is number => id != null)
+  );
+  const excludeKidsFare = !pickedGenreIds.has(ANIMATION_GENRE_ID);
+
+  const { directions, pool } = await buildViablePool(
+    strategy.directions,
+    p1,
+    p2,
+    excludeKidsFare
+  );
   return { moodRead: strategy.moodRead, directions, pool };
 }
