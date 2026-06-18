@@ -57,7 +57,7 @@ setup → Round 1 → [AI: blend] → Round 2 → [AI: infer pattern] → Round 
 
 ```bash
 # TODO: fill in as you build
-git clone https://github.com/<you>/movie-match.git
+git clone https://github.com/lasse-max/movie-match.git
 cd movie-match
 npm install
 cp .env.example .env.local   # add TMDB_READ_ACCESS_TOKEN and ANTHROPIC_API_KEY
