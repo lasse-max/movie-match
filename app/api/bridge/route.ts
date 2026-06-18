@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { bridge } from "@/lib/bridge";
 import { categoryGenreId } from "@/lib/categories";
+import { DEFAULT_REGION } from "@/lib/constants";
 import type { MatchMovie } from "@/lib/inferTypes";
 import type { PoolMovie } from "@/lib/blendTypes";
 
-// Zero-overlap tiebreak: bridge to a film fitting both players' moods.
-// Body: { pool, positives1, positives2, categories:{1,2}, allowKidsFare, fallback }.
+// Zero-overlap tiebreak: bridge to a watchable film fitting both players' moods.
+// Body: { pool, positives1, positives2, categories:{1,2}, allowKidsFare,
+//         region, services, willingToPay, fallback }.
 const toIdArray = (x: unknown): number[] =>
   Array.isArray(x) ? x.filter((n): n is number => Number.isInteger(n)) : [];
 const anchorOf = (cats: unknown): number[] =>
@@ -22,6 +24,9 @@ export async function POST(request: Request) {
     const anchor1 = anchorOf(body?.categories?.[1]);
     const anchor2 = anchorOf(body?.categories?.[2]);
     const allowKidsFare = body?.allowKidsFare === true;
+    const region = typeof body?.region === "string" ? body.region : DEFAULT_REGION;
+    const services = toIdArray(body?.services);
+    const willingToPay = body?.willingToPay === true;
     const fallback = (body?.fallback ?? null) as MatchMovie | null;
 
     const movie = await bridge(
@@ -31,6 +36,9 @@ export async function POST(request: Request) {
       anchor1,
       anchor2,
       allowKidsFare,
+      region,
+      services,
+      willingToPay,
       fallback
     );
     if (!movie) {

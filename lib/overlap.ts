@@ -13,6 +13,7 @@ export function recToMovie(r: PlayerRec): MatchMovie {
     year: r.year,
     posterUrl: r.posterUrl,
     genreIds: r.genreIds,
+    availability: r.availability,
   };
 }
 

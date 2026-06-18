@@ -5,6 +5,7 @@ import {
   type Action,
   type GameState,
 } from "@/lib/gameMachine";
+import { NO_AVAILABILITY } from "@/lib/filter";
 
 // One of the three permanent pure-logic suites (reducer / filter / overlap).
 // Covers phase sequencing, pass-the-phone turn tracking, the Round 3
@@ -27,6 +28,7 @@ const recList = (ids: number[]) =>
     posterUrl: null,
     genreIds: [],
     source: "swipe" as const,
+    availability: NO_AVAILABILITY,
   }));
 const inferenceWith = (ids1: number[], ids2: number[]) => ({
   1: { moodRead: { summary: "", axes: [] }, recs: recList(ids1) },
@@ -70,7 +72,14 @@ describe("gameMachine reducer", () => {
     expect(s.match).toBeNull();
     // The tiebreak (bridge) sets the match, then completes to the match phase.
     const bridge = {
-      movie: { id: 7, title: "Bridge", year: null, posterUrl: null, genreIds: [] },
+      movie: {
+        id: 7,
+        title: "Bridge",
+        year: null,
+        posterUrl: null,
+        genreIds: [],
+        availability: NO_AVAILABILITY,
+      },
       reason: "bridge" as const,
     };
     s = run(s, { type: "SET_MATCH", match: bridge }, { type: "COMPLETE_TURN", player: 1 });

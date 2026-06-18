@@ -50,7 +50,8 @@ export function SetupScreen() {
     };
   }, [region]);
 
-  const canContinue = services.length > 0;
+  // Continue rule (BRD): start with at least one subscription OR willing-to-pay.
+  const canContinue = services.length > 0 || willingToPay;
 
   return (
     <div className="flex w-full flex-col gap-6 text-left">
@@ -173,7 +174,9 @@ export function SetupScreen() {
           Start game
         </button>
         {!canContinue && (
-          <p className="text-xs text-foreground/50">Pick at least one service to continue.</p>
+          <p className="text-xs text-foreground/50">
+            Pick at least one service, or turn on renting/buying to continue.
+          </p>
         )}
       </div>
     </div>

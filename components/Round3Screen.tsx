@@ -2,8 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
+import { evaluateAvailability, labelText, type AvailabilityLabel } from "@/lib/filter";
 import type { Player } from "@/lib/gameMachine";
 import type { PlayerRec, RecSource } from "@/lib/inferTypes";
+
+const TARGET = 5;
 
 const primaryBtn =
   "w-full rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background transition enabled:hover:opacity-90 enabled:active:scale-[0.98] disabled:opacity-40";
@@ -21,12 +24,21 @@ export function Round3Screen() {
 function PlayerPicks({ player }: { player: Player }) {
   const { state, dispatch } = useGame();
   const inference = state.inference?.[player];
-  const recs = inference?.recs ?? [];
+  const finalists = inference?.recs ?? [];
+  const { services, willingToPay } = state.setup;
 
   const [ready, setReady] = useState(player === 1);
   const [selected, setSelected] = useState<number[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const submittedRef = useRef(false);
+
+  // Apply the (pure) eligibility filter — only what they can actually watch.
+  const evaluated = finalists.map((rec) => ({
+    rec,
+    ...evaluateAvailability(rec.availability, services, willingToPay),
+  }));
+  const eligible = evaluated.filter((e) => e.eligible).slice(0, TARGET);
+  const couldRent = evaluated.some((e) => e.rentBuyAvailable);
 
   if (!ready) {
     return (
@@ -43,6 +55,30 @@ function PlayerPicks({ player }: { player: Player }) {
     );
   }
 
+  // Never dead-end: nothing included, but rentals would unlock titles → offer it.
+  if (eligible.length === 0 && !willingToPay && couldRent) {
+    return (
+      <div className="flex flex-col items-center gap-5 text-center">
+        <span className="text-4xl" aria-hidden>💸</span>
+        <h2 className="text-xl font-semibold">Nothing’s included tonight</h2>
+        <p className="text-sm text-foreground/60">
+          None of your picks are on your subscriptions — but they’re available to rent or buy.
+        </p>
+        <button
+          className={primaryBtn}
+          onClick={() => dispatch({ type: "SET_WILLING_TO_PAY", value: true })}
+        >
+          Include rentals &amp; purchases
+        </button>
+      </div>
+    );
+  }
+
+  // Absolute fallback (rare — nothing watchable in the region at all): show the
+  // finalists anyway so the round never ends empty.
+  const degraded = eligible.length === 0;
+  const rows = degraded ? evaluated.slice(0, TARGET) : eligible;
+
   const toggle = (id: number) =>
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
 
@@ -51,7 +87,7 @@ function PlayerPicks({ player }: { player: Player }) {
     submittedRef.current = true;
     setSubmitted(true);
     dispatch({ type: "SET_PICKS", player, movieIds: selected });
-    dispatch({ type: "COMPLETE_TURN", player }); // P1 → pass phone; P2 → resolve
+    dispatch({ type: "COMPLETE_TURN", player });
   };
 
   return (
@@ -66,11 +102,18 @@ function PlayerPicks({ player }: { player: Player }) {
         )}
       </div>
 
+      {degraded && (
+        <p className="rounded-lg bg-foreground/5 px-3 py-2 text-center text-xs text-foreground/60">
+          Couldn’t confirm these on your services — pick anyway, or hit Reset to retune.
+        </p>
+      )}
+
       <ul className="flex flex-col gap-2">
-        {recs.map((rec) => (
+        {rows.map(({ rec, label }) => (
           <RecRow
             key={rec.id}
             rec={rec}
+            label={label}
             selected={selected.includes(rec.id)}
             onToggle={() => toggle(rec.id)}
           />
@@ -82,9 +125,7 @@ function PlayerPicks({ player }: { player: Player }) {
           {player === 1 ? "Done — pass the phone" : "Find your match"}
         </button>
         <p className="text-xs text-foreground/50">
-          {selected.length === 0
-            ? "Tap every title you'd be up for."
-            : `${selected.length} selected`}
+          {selected.length === 0 ? "Tap every title you'd be up for." : `${selected.length} selected`}
         </p>
       </div>
     </div>
@@ -93,10 +134,12 @@ function PlayerPicks({ player }: { player: Player }) {
 
 function RecRow({
   rec,
+  label,
   selected,
   onToggle,
 }: {
   rec: PlayerRec;
+  label: AvailabilityLabel | null;
   selected: boolean;
   onToggle: () => void;
 }) {
@@ -130,7 +173,10 @@ function RecRow({
             {rec.title}
             {rec.year ? <span className="font-normal text-foreground/50"> · {rec.year}</span> : null}
           </div>
-          {badge && <div className="text-[11px] text-foreground/60">{badge}</div>}
+          <div className="text-[11px] text-foreground/60">
+            {label ? labelText(label) : "Not on your services"}
+          </div>
+          {badge && <div className="text-[11px] text-foreground/50">{badge}</div>}
         </div>
         <span
           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${

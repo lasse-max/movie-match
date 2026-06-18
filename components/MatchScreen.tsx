@@ -1,6 +1,7 @@
 "use client";
 
 import { useGame } from "./GameProvider";
+import { evaluateAvailability, labelText } from "@/lib/filter";
 
 const primaryBtn =
   "rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]";
@@ -24,6 +25,12 @@ export function MatchScreen() {
 
   const { movie, reason } = match;
   const overlap = reason === "overlap";
+  const { label } = evaluateAvailability(
+    movie.availability,
+    state.setup.services,
+    state.setup.willingToPay
+  );
+  const justWatch = movie.availability.justWatchLink;
 
   return (
     <div className="flex flex-col items-center gap-5 text-center">
@@ -55,14 +62,23 @@ export function MatchScreen() {
             ? "You both picked it — settle in."
             : "Your lists didn’t overlap, so we bridged your tastes into this."}
         </p>
+        {label && <p className="mt-2 text-sm font-medium">{labelText(label)}</p>}
       </div>
+
+      {justWatch && (
+        <a
+          href={justWatch}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-foreground/70 underline underline-offset-4 hover:text-foreground"
+        >
+          Where to watch ↗
+        </a>
+      )}
 
       <button className={primaryBtn} onClick={() => dispatch({ type: "RESET" })}>
         Play again
       </button>
-      <p className="text-xs text-foreground/40">
-        Where to stream + a JustWatch link land in the next step.
-      </p>
     </div>
   );
 }

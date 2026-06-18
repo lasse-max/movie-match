@@ -13,6 +13,7 @@ vi.mock("@/lib/anthropic", () => ({
 const { recMock } = vi.hoisted(() => ({ recMock: vi.fn() }));
 vi.mock("@/lib/tmdb", () => ({
   getRecommendations: recMock,
+  getWatchProvidersForRegion: () => Promise.resolve(null), // no availability in these unit tests
   tmdbImageUrl: (p: string | null) => (p ? `https://img.test${p}` : null),
 }));
 
@@ -53,7 +54,8 @@ describe("inferMoods", () => {
     const result = await inferMoods(
       pool,
       { 1: { yes: [1], no: [] }, 2: { yes: [2], no: [] } },
-      noCategories
+      noCategories,
+      "US"
     );
 
     const p1 = result[1].recs;
@@ -72,7 +74,8 @@ describe("inferMoods", () => {
     const result = await inferMoods(
       pool,
       { 1: { yes: [3], no: [] }, 2: { yes: [1, 2], no: [] } },
-      { 1: ["Sci-Fi"], 2: ["Action"] }
+      { 1: ["Sci-Fi"], 2: ["Action"] },
+      "US"
     );
     const p1ids = result[1].recs.map((r) => r.id);
     expect(p1ids).toContain(2); // sci-fi cross-player kept
@@ -96,7 +99,8 @@ describe("inferMoods", () => {
     const result = await inferMoods(
       [pm(1)],
       { 1: { yes: [1], no: [] }, 2: { yes: [], no: [] } },
-      noCategories
+      noCategories,
+      "US"
     );
     expect(result[1].recs.find((r) => r.source === "fresh")?.id).toBe(99);
   });
@@ -109,7 +113,8 @@ describe("inferMoods", () => {
     const result = await inferMoods(
       [pm(1)],
       { 1: { yes: [1], no: [] }, 2: { yes: [], no: [] } },
-      noCategories
+      noCategories,
+      "US"
     );
     const freshIds = result[1].recs.filter((r) => r.source === "fresh").map((r) => r.id);
     expect(freshIds).toContain(51); // well-rated kept
@@ -126,7 +131,8 @@ describe("inferMoods", () => {
     const result = await inferMoods(
       [pm(1), pm(2), pm(3)],
       { 1: { yes: [1], no: [] }, 2: { yes: [2], no: [] } },
-      noCategories
+      noCategories,
+      "US"
     );
     const p1ids = result[1].recs.map((r) => r.id);
     expect(p1ids).not.toContain(999); // invented id dropped

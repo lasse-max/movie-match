@@ -19,6 +19,7 @@ export function TiebreakScreen() {
   const categories = state.round.categories;
   const blend = state.blend;
   const inference = state.inference;
+  const setup = state.setup;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,6 +39,9 @@ export function TiebreakScreen() {
         positives2: swipes[2].yes,
         categories,
         allowKidsFare,
+        region: setup.region,
+        services: setup.services,
+        willingToPay: setup.willingToPay,
         fallback,
       }),
       signal: controller.signal,
@@ -61,7 +65,7 @@ export function TiebreakScreen() {
       cancelled = true;
       controller.abort();
     };
-  }, [attempt, swipes, categories, blend, inference, dispatch]);
+  }, [attempt, swipes, categories, blend, inference, setup, dispatch]);
 
   if (error) {
     return (

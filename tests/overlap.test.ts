@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { findOverlap, pickMatch } from "@/lib/overlap";
+import { NO_AVAILABILITY } from "@/lib/filter";
 import type { PlayerRec } from "@/lib/inferTypes";
 
 // One of the three permanent pure-logic suites (reducer / filter / overlap).
@@ -11,6 +12,7 @@ const rec = (id: number): PlayerRec => ({
   posterUrl: null,
   genreIds: [],
   source: "swipe",
+  availability: NO_AVAILABILITY,
 });
 
 describe("findOverlap", () => {

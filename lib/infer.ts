@@ -11,6 +11,8 @@ import "server-only";
 import { CLAUDE_MODEL, getAnthropic } from "./anthropic";
 import { categoryGenreId } from "./categories";
 import { genreNames, isKidsFare } from "./genres";
+import { attachAvailability } from "./availability";
+import { NO_AVAILABILITY } from "./filter";
 import { getRecommendations, tmdbImageUrl, type TmdbDiscoverMovie } from "./tmdb";
 import type { MoodRead, PoolMovie } from "./blendTypes";
 import type { InferResult, PlayerInference, PlayerRec, RecSource } from "./inferTypes";
@@ -27,6 +29,7 @@ const TARGET_RECS = 5;
 const MAX_FRESH = 2;
 const FRESH_SEEDS = 3;
 const MAX_CANDIDATES = 12;
+const BACKFILL = 4; // extra mood-fit pool titles so the availability filter never empties the list
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2; // quality floor for fresh expansion
 
@@ -84,6 +87,7 @@ const candidateToRec = (c: Candidate): PlayerRec => ({
   posterUrl: c.posterUrl,
   genreIds: c.genreIds,
   source: c.source,
+  availability: NO_AVAILABILITY, // replaced by the availability step
 });
 
 // ---- candidate assembly ----------------------------------------------------
@@ -320,10 +324,26 @@ async function callInferAI(
 
 // ---- orchestration ---------------------------------------------------------
 
+/** Extra mood-fit pool titles (beyond the ~5 recs) so the availability filter
+ * has alternatives to fall back on rather than emptying a player's list. */
+function backfillCandidates(
+  pool: PoolMovie[],
+  exclude: Set<number>,
+  anchor: Set<number>
+): Candidate[] {
+  const fits = (g: number[]) => anchor.size === 0 || g.some((x) => anchor.has(x));
+  return [...pool]
+    .sort((a, b) => b.voteCount - a.voteCount)
+    .filter((m) => !exclude.has(m.id) && fits(m.genreIds))
+    .slice(0, BACKFILL)
+    .map((m) => poolToCandidate(m, "swipe"));
+}
+
 export async function inferMoods(
   pool: PoolMovie[],
   swipes: Swipes,
-  categories: Categories
+  categories: Categories,
+  region: string
 ): Promise<InferResult> {
   // If the pool already carries kids' fare, the couple opted into it (Animated
   // pick), so fresh expansion may too.
@@ -335,19 +355,34 @@ export async function inferMoods(
       .filter((m): m is PoolMovie => !!m)
       .sort((a, b) => b.voteCount - a.voteCount);
 
+  const anchor1 = anchorGenres(categories[1]);
+  const anchor2 = anchorGenres(categories[2]);
   const poolIds = new Set(pool.map((m) => m.id));
   const fresh1 = await freshExpansion(positives(1), poolIds, allowKidsFare);
   const fresh2 = await freshExpansion(positives(2), poolIds, allowKidsFare);
 
-  const cand1 = assembleCandidates(1, pool, swipes, fresh1, anchorGenres(categories[1]));
-  const cand2 = assembleCandidates(2, pool, swipes, fresh2, anchorGenres(categories[2]));
+  const cand1 = assembleCandidates(1, pool, swipes, fresh1, anchor1);
+  const cand2 = assembleCandidates(2, pool, swipes, fresh2, anchor2);
 
   const ai = await callInferAI(pool, swipes, cand1, cand2);
 
-  const inference = (player: Player, cands: Candidate[]): PlayerInference => ({
-    moodRead: ai ? ai[player].moodRead : { summary: "mixed", axes: [] },
-    recs: finalizeRecs(cands, ai ? ai[player].recIds : []),
-  });
+  // Build finalists (recs + mood-fit backfill) and attach region availability —
+  // for the finalists only, never the whole pool.
+  const build = async (
+    player: Player,
+    cands: Candidate[],
+    anchor: Set<number>
+  ): Promise<PlayerInference> => {
+    const recs = finalizeRecs(cands, ai ? ai[player].recIds : []);
+    const recIds = new Set(recs.map((r) => r.id));
+    const backfill = backfillCandidates(pool, recIds, anchor).map(candidateToRec);
+    const finalists = await attachAvailability([...recs, ...backfill], region);
+    return {
+      moodRead: ai ? ai[player].moodRead : { summary: "mixed", axes: [] },
+      recs: finalists,
+    };
+  };
 
-  return { 1: inference(1, cand1), 2: inference(2, cand2) };
+  const [p1, p2] = await Promise.all([build(1, cand1, anchor1), build(2, cand2, anchor2)]);
+  return { 1: p1, 2: p2 };
 }
