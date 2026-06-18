@@ -16,6 +16,7 @@ export function TiebreakScreen() {
   const [attempt, setAttempt] = useState(0);
 
   const swipes = state.round.swipes;
+  const categories = state.round.categories;
   const blend = state.blend;
   const inference = state.inference;
 
@@ -32,8 +33,10 @@ export function TiebreakScreen() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        pool,
         positives1: swipes[1].yes,
         positives2: swipes[2].yes,
+        categories,
         allowKidsFare,
         fallback,
       }),
@@ -58,7 +61,7 @@ export function TiebreakScreen() {
       cancelled = true;
       controller.abort();
     };
-  }, [attempt, swipes, blend, inference, dispatch]);
+  }, [attempt, swipes, categories, blend, inference, dispatch]);
 
   if (error) {
     return (

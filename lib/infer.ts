@@ -9,6 +9,7 @@
 // shortfalls are filled deterministically, so it never crashes.
 import "server-only";
 import { CLAUDE_MODEL, getAnthropic } from "./anthropic";
+import { categoryGenreId } from "./categories";
 import { genreNames, isKidsFare } from "./genres";
 import { getRecommendations, tmdbImageUrl, type TmdbDiscoverMovie } from "./tmdb";
 import type { MoodRead, PoolMovie } from "./blendTypes";
@@ -20,12 +21,14 @@ export interface PlayerSwipes {
   no: number[];
 }
 export type Swipes = Record<Player, PlayerSwipes>;
+export type Categories = Record<Player, string[]>;
 
 const TARGET_RECS = 5;
 const MAX_FRESH = 2;
 const FRESH_SEEDS = 3;
 const MAX_CANDIDATES = 12;
 const MIN_VOTES = 100;
+const MIN_VOTE_AVERAGE = 6.2; // quality floor for fresh expansion
 
 interface Candidate {
   id: number;
@@ -34,6 +37,7 @@ interface Candidate {
   overview: string;
   posterUrl: string | null;
   genreIds: number[];
+  voteAverage: number;
   voteCount: number;
   directionTheme: string;
   source: RecSource;
@@ -46,6 +50,7 @@ const poolToCandidate = (m: PoolMovie, source: RecSource): Candidate => ({
   overview: m.overview,
   posterUrl: m.posterUrl,
   genreIds: m.genreIds,
+  voteAverage: m.voteAverage,
   voteCount: m.voteCount,
   directionTheme: m.directionTheme,
   source,
@@ -58,10 +63,18 @@ const discoverToCandidate = (m: TmdbDiscoverMovie, source: RecSource): Candidate
   overview: m.overview,
   posterUrl: tmdbImageUrl(m.poster_path, "w342"),
   genreIds: m.genre_ids ?? [],
+  voteAverage: m.vote_average,
   voteCount: m.vote_count,
   directionTheme: "Fresh pick",
   source,
 });
+
+/** Anchor genres = the TMDB genres behind a player's Round 1 category picks. */
+function anchorGenres(categories: string[]): Set<number> {
+  return new Set(
+    categories.map(categoryGenreId).filter((g): g is number => g != null)
+  );
+}
 
 const candidateToRec = (c: Candidate): PlayerRec => ({
   id: c.id,
@@ -75,16 +88,15 @@ const candidateToRec = (c: Candidate): PlayerRec => ({
 
 // ---- candidate assembly ----------------------------------------------------
 
-/** ≤2 fresh titles from the recommendation graph, seeded by strongest positives. */
+/** ≤2 best-rated fresh titles from the recommendation graph (quality-floored). */
 async function freshExpansion(
   seeds: PoolMovie[],
   excludeIds: Set<number>,
   allowKidsFare: boolean
 ): Promise<Candidate[]> {
-  const fresh: Candidate[] = [];
+  const eligible: Candidate[] = [];
   const seen = new Set(excludeIds);
   for (const seed of seeds.slice(0, FRESH_SEEDS)) {
-    if (fresh.length >= MAX_FRESH) break;
     let recs: TmdbDiscoverMovie[] = [];
     try {
       recs = await getRecommendations(seed.id);
@@ -92,21 +104,23 @@ async function freshExpansion(
       continue;
     }
     for (const m of recs) {
-      if (fresh.length >= MAX_FRESH) break;
-      if (seen.has(m.id) || !m.poster_path || m.vote_count < MIN_VOTES) continue;
+      if (seen.has(m.id) || !m.poster_path) continue;
+      if (m.vote_count < MIN_VOTES || m.vote_average < MIN_VOTE_AVERAGE) continue;
       if (!allowKidsFare && isKidsFare(m.genre_ids)) continue;
       seen.add(m.id);
-      fresh.push(discoverToCandidate(m, "fresh"));
+      eligible.push(discoverToCandidate(m, "fresh"));
     }
   }
-  return fresh;
+  // Prefer the best-rated fits rather than the first ones the graph returned.
+  return eligible.sort((a, b) => b.voteAverage - a.voteAverage).slice(0, MAX_FRESH);
 }
 
 function assembleCandidates(
   player: Player,
   pool: PoolMovie[],
   swipes: Swipes,
-  fresh: Candidate[]
+  fresh: Candidate[],
+  anchor: Set<number>
 ): Candidate[] {
   const other: Player = player === 1 ? 2 : 1;
   const byId = new Map(pool.map((m) => [m.id, m]));
@@ -125,17 +139,26 @@ function assembleCandidates(
     }
   };
 
-  // (a) cross-player positives — the other player already validated these.
-  for (const m of lookup(swipes[other].yes)) add(poolToCandidate(m, "cross-player"));
+  // A cross-player title is eligible only if it shares one of THIS player's
+  // anchor genres — keeps the other player's likes that clash with this player's
+  // mood out of the list (no pure-action title in a sci-fi list).
+  const fitsMood = (genreIds: number[]) =>
+    anchor.size === 0 || genreIds.some((g) => anchor.has(g));
+
+  // (a) cross-player positives that fit this player's mood — the easiest match.
+  for (const m of lookup(swipes[other].yes)) {
+    if (fitsMood(m.genreIds)) add(poolToCandidate(m, "cross-player"));
+  }
   // (b) this player's own positives.
   for (const m of lookup(swipes[player].yes)) add(poolToCandidate(m, "swipe"));
   // (c) fresh expansion.
   for (const c of fresh) add(c);
-  // Pad with the strongest remaining pool titles so the AI always has ≥5 to rank.
+  // Pad with the strongest remaining MOOD-FIT pool titles so the AI always has
+  // ≥5 to rank (off-mood titles stay out — same gate as cross-player).
   if (candidates.length < TARGET_RECS + 1) {
     for (const m of [...pool].sort((a, b) => b.voteCount - a.voteCount)) {
       if (candidates.length >= MAX_CANDIDATES) break;
-      add(poolToCandidate(m, "swipe"));
+      if (fitsMood(m.genreIds)) add(poolToCandidate(m, "swipe"));
     }
   }
   return candidates.slice(0, MAX_CANDIDATES);
@@ -204,7 +227,7 @@ For EACH player:
 1. Infer their underlying mood — a one-line summary and a couple of axis words — from what they leaned toward vs away.
 2. From THAT player's candidate list, SELECT and RANK the best ~5 fits for the mood, best first. Return candidate IDs only — never invent titles or ids, and only use ids from that player's list.
 
-A candidate the OTHER player already liked is valuable (easiest match) — include it when it genuinely fits this player's mood; never force a clashing title.
+The candidate list already includes some titles the OTHER player liked — these are the easiest path to a mutual match, so prefer them WHEN they fit this player's mood. But fit comes first: never pick a title that clashes with the mood just because the other player liked it (e.g. a pure action film for someone after sci-fi). A clashing title should be left out of the 5 entirely.
 
 Respond only with the structured JSON.`;
 
@@ -297,7 +320,11 @@ async function callInferAI(
 
 // ---- orchestration ---------------------------------------------------------
 
-export async function inferMoods(pool: PoolMovie[], swipes: Swipes): Promise<InferResult> {
+export async function inferMoods(
+  pool: PoolMovie[],
+  swipes: Swipes,
+  categories: Categories
+): Promise<InferResult> {
   // If the pool already carries kids' fare, the couple opted into it (Animated
   // pick), so fresh expansion may too.
   const allowKidsFare = pool.some((m) => isKidsFare(m.genreIds));
@@ -312,8 +339,8 @@ export async function inferMoods(pool: PoolMovie[], swipes: Swipes): Promise<Inf
   const fresh1 = await freshExpansion(positives(1), poolIds, allowKidsFare);
   const fresh2 = await freshExpansion(positives(2), poolIds, allowKidsFare);
 
-  const cand1 = assembleCandidates(1, pool, swipes, fresh1);
-  const cand2 = assembleCandidates(2, pool, swipes, fresh2);
+  const cand1 = assembleCandidates(1, pool, swipes, fresh1, anchorGenres(categories[1]));
+  const cand2 = assembleCandidates(2, pool, swipes, fresh2, anchorGenres(categories[2]));
 
   const ai = await callInferAI(pool, swipes, cand1, cand2);
 

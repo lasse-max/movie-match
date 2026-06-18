@@ -15,6 +15,7 @@ export function InferringScreen() {
 
   const blend = state.blend;
   const swipes = state.round.swipes;
+  const categories = state.round.categories;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -24,7 +25,7 @@ export function InferringScreen() {
     fetch("/api/infer", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pool, swipes }),
+      body: JSON.stringify({ pool, swipes, categories }),
       signal: controller.signal,
     })
       .then((r) => r.json())
@@ -46,7 +47,7 @@ export function InferringScreen() {
       cancelled = true;
       controller.abort();
     };
-  }, [attempt, blend, swipes, dispatch]);
+  }, [attempt, blend, swipes, categories, dispatch]);
 
   if (error) {
     return (
