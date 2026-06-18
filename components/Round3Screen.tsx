@@ -4,17 +4,17 @@ import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
 import { evaluateAvailability, labelText, type AvailabilityLabel } from "@/lib/filter";
 import type { Player } from "@/lib/gameMachine";
-import type { PlayerRec, RecSource } from "@/lib/inferTypes";
+import type { PlayerRec } from "@/lib/inferTypes";
 
 const TARGET = 5;
 
 const primaryBtn =
   "w-full rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background transition enabled:hover:opacity-90 enabled:active:scale-[0.98] disabled:opacity-40";
 
-const SOURCE_BADGE: Partial<Record<RecSource, string>> = {
-  "cross-player": "💜 They’re into this",
-  fresh: "✨ Fresh pick",
-};
+// No source attribution is shown here. Cross-player positives are a SILENT
+// seeding mechanism (lib/infer.ts) — surfacing "they're into this" would nudge
+// compromise picks and spoil the "you both picked it!" reveal on the match
+// screen. Each card stays a clean, genuine "would I watch this?".
 
 export function Round3Screen() {
   const { state } = useGame();
@@ -143,7 +143,6 @@ function RecRow({
   selected: boolean;
   onToggle: () => void;
 }) {
-  const badge = SOURCE_BADGE[rec.source];
   return (
     <li>
       <button
@@ -176,7 +175,6 @@ function RecRow({
           <div className="text-[11px] text-foreground/60">
             {label ? labelText(label) : "Not on your services"}
           </div>
-          {badge && <div className="text-[11px] text-foreground/50">{badge}</div>}
         </div>
         <span
           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
