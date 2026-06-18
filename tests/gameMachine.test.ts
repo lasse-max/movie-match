@@ -8,9 +8,15 @@ import {
 
 // One of the three permanent pure-logic suites (reducer / filter / overlap).
 // Covers phase sequencing, pass-the-phone turn tracking, the Round 3
-// match/tiebreak branch, and setup edits.
+// match/tiebreak branch, setup edits, and the COMPLETE_TURN advancement guard.
 
 const run = (s: GameState, ...actions: Action[]) => actions.reduce(gameReducer, s);
+
+// Complete the current player's round turn (set their data, then COMPLETE_TURN).
+const completeRound1 = (s: GameState, player: 1 | 2, categories = ["action", "comedy"]) =>
+  run(s, { type: "SET_CATEGORIES", player, categories }, { type: "COMPLETE_TURN", player });
+const completeRound2 = (s: GameState, player: 1 | 2) =>
+  run(s, { type: "SET_SWIPES", player, yes: [1], no: [2] }, { type: "COMPLETE_TURN", player });
 
 describe("gameMachine reducer", () => {
   it("starts in setup with Player 1", () => {
@@ -19,53 +25,61 @@ describe("gameMachine reducer", () => {
   });
 
   it("advances setup → round1, then passes the phone before completing the round", () => {
-    let s = run(initialState, { type: "ADVANCE" }); // setup -> round1
+    let s = run(initialState, { type: "COMPLETE_TURN", player: 1 }); // setup -> round1
     expect([s.phase, s.currentPlayer]).toEqual(["round1", 1]);
-    s = run(s, { type: "ADVANCE" }); // P1 done -> hand off to P2 (same phase)
+    s = completeRound1(s, 1); // P1 done -> hand off to P2 (same phase)
     expect([s.phase, s.currentPlayer]).toEqual(["round1", 2]);
-    s = run(s, { type: "ADVANCE" }); // P2 done -> round complete
+    s = completeRound1(s, 2); // P2 done -> round complete
     expect([s.phase, s.currentPlayer]).toEqual(["blending", 1]);
   });
 
   it("does not pass-the-phone on the AI phases (blending/inferring)", () => {
-    // Drive to blending: setup -> round1 (P1,P2) -> blending
-    let s = run(initialState, { type: "ADVANCE" }, { type: "ADVANCE" }, { type: "ADVANCE" });
+    let s = run(initialState, { type: "COMPLETE_TURN", player: 1 }); // -> round1
+    s = completeRound1(s, 1);
+    s = completeRound1(s, 2); // -> blending
     expect(s.phase).toBe("blending");
-    s = run(s, { type: "ADVANCE" }); // single advance leaves blending -> round2
+    s = run(s, { type: "COMPLETE_TURN", player: 1 }); // single advance: blending -> round2
     expect(s.phase).toBe("round2");
-    // round2 P1,P2 -> inferring -> single advance -> round3
-    s = run(s, { type: "ADVANCE" }, { type: "ADVANCE" });
+    s = completeRound2(s, 1);
+    s = completeRound2(s, 2); // -> inferring
     expect(s.phase).toBe("inferring");
-    s = run(s, { type: "ADVANCE" });
+    s = run(s, { type: "COMPLETE_TURN", player: 1 }); // inferring -> round3
     expect([s.phase, s.currentPlayer]).toEqual(["round3", 1]);
   });
 
   it("Round 3 with no overlap routes to tiebreak, then to match", () => {
     let s: GameState = { ...initialState, phase: "round3" };
-    s = run(
-      s,
-      { type: "SET_PICKS", player: 1, movieIds: [1, 2] },
-      { type: "SET_PICKS", player: 2, movieIds: [3, 4] },
-      { type: "ADVANCE" }, // P1
-      { type: "ADVANCE" } // P2 -> resolve
-    );
+    s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2] }, { type: "COMPLETE_TURN", player: 1 });
+    s = run(s, { type: "SET_PICKS", player: 2, movieIds: [3, 4] }, { type: "COMPLETE_TURN", player: 2 });
     expect(s.phase).toBe("tiebreak");
     expect(s.matchId).toBeNull();
-    s = run(s, { type: "ADVANCE" });
+    s = run(s, { type: "COMPLETE_TURN", player: 1 });
     expect(s.phase).toBe("match");
   });
 
   it("Round 3 with overlap routes to match and records the shared movie id", () => {
     let s: GameState = { ...initialState, phase: "round3" };
-    s = run(
-      s,
-      { type: "SET_PICKS", player: 1, movieIds: [1, 2, 3] },
-      { type: "SET_PICKS", player: 2, movieIds: [3, 4, 5] },
-      { type: "ADVANCE" },
-      { type: "ADVANCE" }
-    );
+    s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2, 3] }, { type: "COMPLETE_TURN", player: 1 });
+    s = run(s, { type: "SET_PICKS", player: 2, movieIds: [3, 4, 5] }, { type: "COMPLETE_TURN", player: 2 });
     expect(s.phase).toBe("match");
     expect(s.matchId).toBe(3);
+  });
+
+  it("ignores a COMPLETE_TURN from the wrong player (a double-tap can't skip P2)", () => {
+    let s: GameState = { ...initialState, phase: "round1" };
+    s = completeRound1(s, 1); // -> P2's turn
+    expect(s.currentPlayer).toBe(2);
+    // a stale second tap still bound to Player 1 must be a no-op
+    const after = gameReducer(s, { type: "COMPLETE_TURN", player: 1 });
+    expect(after).toBe(s); // unchanged — Player 2 not skipped
+  });
+
+  it("ignores COMPLETE_TURN until the current player has data", () => {
+    const empty: GameState = { ...initialState, phase: "round1" }; // no categories yet
+    const blocked = gameReducer(empty, { type: "COMPLETE_TURN", player: 1 });
+    expect(blocked).toBe(empty); // can't advance an unfinished turn
+    const ready = completeRound1(empty, 1);
+    expect(ready.currentPlayer).toBe(2); // with data, it advances
   });
 
   it("records each player's Round 1 category picks independently", () => {

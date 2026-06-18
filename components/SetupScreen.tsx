@@ -18,12 +18,15 @@ export function SetupScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Provider list — re-fetched whenever the region changes.
+  // Provider list — re-fetched whenever the region changes. Loading/error are
+  // set in the region-change handler (and via initial state) so the effect never
+  // calls setState synchronously. Cancellation-safe via AbortController.
   useEffect(() => {
+    const controller = new AbortController();
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetch(`/api/providers?region=${encodeURIComponent(region)}`)
+    fetch(`/api/providers?region=${encodeURIComponent(region)}`, {
+      signal: controller.signal,
+    })
       .then((r) => r.json())
       .then((d) => {
         if (cancelled) return;
@@ -34,10 +37,16 @@ export function SetupScreen() {
           setProviders(d.providers ?? []);
         }
       })
-      .catch((e) => !cancelled && setError(String(e)))
-      .finally(() => !cancelled && setLoading(false));
+      .catch((e: unknown) => {
+        if (cancelled || (e instanceof DOMException && e.name === "AbortError")) return;
+        setError(e instanceof Error ? e.message : "Network error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [region]);
 
@@ -58,7 +67,12 @@ export function SetupScreen() {
         <span className="text-sm font-medium">Region</span>
         <select
           value={region}
-          onChange={(e) => dispatch({ type: "SET_REGION", region: e.target.value })}
+          onChange={(e) => {
+            // Set loading/clear error here (event handler) — not in the effect.
+            setError(null);
+            setLoading(true);
+            dispatch({ type: "SET_REGION", region: e.target.value });
+          }}
           className="rounded-lg border border-foreground/15 bg-transparent px-3 py-2 text-sm"
         >
           {SUPPORTED_REGIONS.map((r) => (
@@ -153,7 +167,7 @@ export function SetupScreen() {
         <button
           type="button"
           disabled={!canContinue}
-          onClick={() => dispatch({ type: "ADVANCE" })}
+          onClick={() => dispatch({ type: "COMPLETE_TURN", player: state.currentPlayer })}
           className="w-full rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background transition enabled:hover:opacity-90 enabled:active:scale-[0.98] disabled:opacity-40"
         >
           Start game

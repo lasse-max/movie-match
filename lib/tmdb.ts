@@ -92,13 +92,20 @@ export function getMovie(movieId: number) {
 
 // ---- Keyword resolution & Discover -----------------------------------------
 
-/** Resolve a free-text keyword term to its top TMDB keyword id (or null). */
+/**
+ * Resolve a free-text keyword term to a TMDB keyword id. Prefers an exact
+ * (case/whitespace-normalized) name match and otherwise discards the result —
+ * a loose top hit ("dark" → "Darkroom") pollutes the pool more than it helps.
+ */
 export async function searchKeyword(term: string): Promise<number | null> {
+  const normalized = term.trim().toLowerCase();
+  if (!normalized) return null;
   const data = await tmdbGet<{ results: { id: number; name: string }[] }>(
     "/search/keyword",
     { query: term }
   );
-  return data.results[0]?.id ?? null;
+  const exact = data.results.find((r) => r.name.trim().toLowerCase() === normalized);
+  return exact?.id ?? null;
 }
 
 export interface TmdbDiscoverMovie {

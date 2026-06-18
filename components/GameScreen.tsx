@@ -47,7 +47,7 @@ export function GameScreen() {
 
 function PhaseView({ phase }: { phase: Phase }) {
   const { state, dispatch } = useGame();
-  const advance = () => dispatch({ type: "ADVANCE" });
+  const advance = () => dispatch({ type: "COMPLETE_TURN", player: state.currentPlayer });
 
   switch (phase) {
     case "setup":
@@ -122,7 +122,7 @@ function RoundPlaceholder({ n }: { n: 1 | 2 | 3 }) {
         )}
       </div>
 
-      <button className={btn} onClick={() => dispatch({ type: "ADVANCE" })}>
+      <button className={btn} onClick={() => dispatch({ type: "COMPLETE_TURN", player })}>
         {player === 1 ? "Done — pass the phone" : "Finish round"}
       </button>
     </div>

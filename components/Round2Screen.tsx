@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
 import { selectSwipeSamples, type PoolMovie } from "@/lib/blendTypes";
 import type { Player } from "@/lib/gameMachine";
@@ -33,6 +33,16 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
   const [index, setIndex] = useState(0);
   const [yes, setYes] = useState<number[]>([]);
   const [no, setNo] = useState<number[]>([]);
+  const [submitted, setSubmitted] = useState(false);
+  const submittedRef = useRef(false); // blocks a synchronous double-tap
+
+  const finishTurn = () => {
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+    setSubmitted(true);
+    dispatch({ type: "SET_SWIPES", player, yes, no });
+    dispatch({ type: "COMPLETE_TURN", player }); // P1 → pass phone; P2 → infer mood
+  };
 
   // Pass-the-phone handoff before Player 2.
   if (!ready) {
@@ -66,13 +76,7 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
         <p className="text-sm text-foreground/60">
           {yes.length} in the mood · {no.length} not tonight
         </p>
-        <button
-          className={primaryBtn}
-          onClick={() => {
-            dispatch({ type: "SET_SWIPES", player, yes, no });
-            dispatch({ type: "ADVANCE" }); // P1 → pass phone; P2 → infer mood
-          }}
-        >
+        <button className={primaryBtn} disabled={submitted} onClick={finishTurn}>
           {player === 1 ? "Done — pass the phone" : "See where you land"}
         </button>
       </div>

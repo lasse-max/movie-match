@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
 import { CATEGORIES } from "@/lib/categories";
 import type { Player } from "@/lib/gameMachine";
@@ -22,6 +22,8 @@ function PlayerTurn({ player }: { player: Player }) {
   const { dispatch } = useGame();
   const [ready, setReady] = useState(player === 1); // P1 starts immediately
   const [selected, setSelected] = useState<string[]>([]);
+  const [submitted, setSubmitted] = useState(false);
+  const submittedRef = useRef(false); // blocks a synchronous double-tap
 
   // Pass-the-phone handoff before Player 2 picks.
   if (!ready) {
@@ -53,8 +55,11 @@ function PlayerTurn({ player }: { player: Player }) {
   const canContinue = selected.length >= MIN_PICKS;
 
   const lockIn = () => {
+    if (submittedRef.current || !canContinue) return;
+    submittedRef.current = true;
+    setSubmitted(true);
     dispatch({ type: "SET_CATEGORIES", player, categories: selected });
-    dispatch({ type: "ADVANCE" }); // P1 → pass phone; P2 → round complete
+    dispatch({ type: "COMPLETE_TURN", player }); // P1 → pass phone; P2 → round complete
   };
 
   return (
@@ -94,7 +99,11 @@ function PlayerTurn({ player }: { player: Player }) {
       </div>
 
       <div className="flex flex-col items-center gap-2">
-        <button className={primaryBtn} disabled={!canContinue} onClick={lockIn}>
+        <button
+          className={primaryBtn}
+          disabled={!canContinue || submitted}
+          onClick={lockIn}
+        >
           {player === 1 ? "Done — pass the phone" : "Lock in picks"}
         </button>
         {!canContinue && (

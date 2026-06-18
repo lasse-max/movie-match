@@ -82,7 +82,9 @@ export type Action =
   | { type: "SET_SWIPES"; player: Player; yes: number[]; no: number[] }
   | { type: "SET_PICKS"; player: Player; movieIds: number[] }
   | { type: "SET_BLEND"; blend: BlendResult }
-  | { type: "ADVANCE" }; // finish the current turn/phase; handles pass-the-phone
+  // The current player finishes their turn. Carries the player so a stray/
+  // double dispatch from the wrong turn is ignored (can't skip a player).
+  | { type: "COMPLETE_TURN"; player: Player };
 
 // NOTE: Round 3 → match | tiebreak branching is a placeholder here. The real,
 // unit-tested overlap/tiebreak computation lands in step 7 (lib/overlap.ts) and
@@ -99,6 +101,23 @@ function resolveRound3(state: GameState): Phase {
 function pickMatchId(state: GameState): number | null {
   const [a, b] = [state.round.picks[1], state.round.picks[2]];
   return a.find((id) => b.includes(id)) ?? null;
+}
+
+/** Whether the current player has submitted the data their turn requires. */
+function currentPlayerHasData(state: GameState): boolean {
+  const cp = state.currentPlayer;
+  switch (state.phase) {
+    case "round1":
+      return state.round.categories[cp].length > 0;
+    case "round2": {
+      const s = state.round.swipes[cp];
+      return s.yes.length + s.no.length > 0;
+    }
+    case "round3":
+      return true; // picking nothing is a valid choice
+    default:
+      return true; // setup / AI phases / terminal advance programmatically
+  }
 }
 
 /** The phase reached when the current phase completes (both players done). */
@@ -179,7 +198,13 @@ export function gameReducer(state: GameState, action: Action): GameState {
         },
       };
 
-    case "ADVANCE": {
+    case "COMPLETE_TURN": {
+      // Guard: only the current player can complete the current turn, and only
+      // once their data exists. A double-tap or stale dispatch is a no-op, so it
+      // can never skip a player or advance an unfinished turn.
+      if (action.player !== state.currentPlayer) return state;
+      if (!currentPlayerHasData(state)) return state;
+
       // Pass-the-phone: inside a round, Player 1 finishing hands off to Player 2
       // before the round itself completes.
       if (isRoundPhase(state.phase) && state.currentPlayer === 1) {

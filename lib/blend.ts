@@ -3,9 +3,8 @@
 // Claude reads the couple's underlying mood and returns SEARCH STRATEGY ONLY:
 // 1–3 ranked blend directions (TMDB genre ids + keyword terms + tone). It never
 // names or invents movies. Every real movie comes from deterministic TMDB
-// Discover queries built from that strategy. If the model output is malformed or
-// empty, we fall back to each player's selected genres as separate directions —
-// no AI, never crash.
+// Discover queries built from that strategy. Anything malformed → no-AI genre
+// fallback; a too-thin pool progressively relaxes, then rebuilds from genres.
 import "server-only";
 import { CLAUDE_MODEL, getAnthropic } from "./anthropic";
 import { categoryGenreId } from "./categories";
@@ -17,11 +16,19 @@ import {
 } from "./tmdb";
 import type { BlendResult, BlendStrategy, Direction, PoolMovie } from "./blendTypes";
 
-// ---- AI strategy -----------------------------------------------------------
-
 const MAX_DIRECTIONS = 3;
 const TARGET_POOL = 45;
+const VIABLE_POOL = 15; // below this, relax constraints / rebuild from genres
 const MIN_VOTES = 100;
+
+// TMDB movie genre ids the AI may use (Family 10751 deliberately omitted).
+const VALID_GENRE_IDS = new Set([
+  28, 12, 16, 35, 80, 99, 18, 14, 36, 27, 10402, 9648, 10749, 878, 53, 10752, 37,
+]);
+const FAMILY_GENRE_ID = 10751;
+const ANIMATION_GENRE_ID = 16;
+
+// ---- AI strategy -----------------------------------------------------------
 
 const STRATEGY_SCHEMA = {
   type: "object",
@@ -73,18 +80,64 @@ For each direction return:
 
 Respond only with the structured JSON.`;
 
-function isValidStrategy(value: unknown): value is BlendStrategy {
-  if (!value || typeof value !== "object") return false;
-  const v = value as BlendStrategy;
-  if (!v.moodRead || typeof v.moodRead.summary !== "string") return false;
-  if (!Array.isArray(v.directions) || v.directions.length === 0) return false;
-  return v.directions.every(
-    (d) =>
-      d &&
-      typeof d.theme === "string" &&
-      Array.isArray(d.genreIds) &&
-      Array.isArray(d.keywords)
-  );
+const isNonEmptyString = (x: unknown): x is string =>
+  typeof x === "string" && x.trim().length > 0;
+
+const isBoundedStringArray = (x: unknown, max: number): x is string[] =>
+  Array.isArray(x) && x.length <= max && x.every(isNonEmptyString);
+
+/**
+ * Strict runtime validation of the model output against the declared schema:
+ * types, non-empty strings, size limits, and a TMDB genre-id allowlist. Anything
+ * off-spec returns null so the caller falls back to the no-AI genre strategy.
+ */
+export function validateStrategy(value: unknown): BlendStrategy | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+
+  const moodRead = v.moodRead as Record<string, unknown> | undefined;
+  if (!moodRead || typeof moodRead !== "object") return null;
+  if (!isNonEmptyString(moodRead.summary)) return null;
+  if (!isBoundedStringArray(moodRead.axes, 6)) return null;
+
+  const directions = v.directions;
+  if (
+    !Array.isArray(directions) ||
+    directions.length < 1 ||
+    directions.length > MAX_DIRECTIONS
+  ) {
+    return null;
+  }
+
+  const cleaned: Direction[] = [];
+  for (const d of directions) {
+    if (!d || typeof d !== "object") return null;
+    const dir = d as Record<string, unknown>;
+    if (!isNonEmptyString(dir.theme)) return null;
+    if (
+      !Array.isArray(dir.genreIds) ||
+      dir.genreIds.length < 1 ||
+      dir.genreIds.length > 4 ||
+      !dir.genreIds.every((g) => Number.isInteger(g) && VALID_GENRE_IDS.has(g as number))
+    ) {
+      return null;
+    }
+    if (!isBoundedStringArray(dir.keywords, 8)) return null;
+    if (!isBoundedStringArray(dir.tone, 8)) return null;
+    if (!isBoundedStringArray(dir.sourcePicks, 8)) return null;
+    cleaned.push({
+      theme: dir.theme,
+      genreIds: dir.genreIds as number[],
+      keywords: dir.keywords as string[],
+      tone: dir.tone as string[],
+      sourcePicks: dir.sourcePicks as string[],
+    });
+  }
+
+  return {
+    moodRead: { summary: moodRead.summary, axes: moodRead.axes as string[] },
+    directions: cleaned,
+  };
 }
 
 async function getStrategy(p1: string[], p2: string[]): Promise<BlendStrategy | null> {
@@ -108,19 +161,20 @@ async function getStrategy(p1: string[], p2: string[]): Promise<BlendStrategy | 
     const textBlock = response.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") return null;
 
-    const parsed = JSON.parse(textBlock.text) as unknown;
-    if (!isValidStrategy(parsed)) return null;
-    return {
-      moodRead: parsed.moodRead,
-      directions: parsed.directions.slice(0, MAX_DIRECTIONS),
-    };
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(textBlock.text);
+    } catch {
+      return null;
+    }
+    return validateStrategy(parsed);
   } catch {
     return null; // never crash the round on an AI hiccup
   }
 }
 
 /** Deterministic fallback: each player's selected genres as separate directions. */
-function fallbackStrategy(p1: string[], p2: string[]): BlendStrategy {
+export function fallbackStrategy(p1: string[], p2: string[]): BlendStrategy {
   const picks = [
     ...p1.map((label) => ({ label, player: "P1" })),
     ...p2.map((label) => ({ label, player: "P2" })),
@@ -165,8 +219,7 @@ function fallbackStrategy(p1: string[], p2: string[]): BlendStrategy {
 
 async function fetchForDirection(
   dir: Direction,
-  perDirection: number,
-  excludeFamily: boolean
+  perDirection: number
 ): Promise<TmdbDiscoverMovie[]> {
   const keywordIds = (await Promise.all(dir.keywords.map(searchKeyword))).filter(
     (id): id is number => id != null
@@ -174,10 +227,12 @@ async function fetchForDirection(
 
   const base: Record<string, string> = { "vote_count.gte": String(MIN_VOTES) };
   if (keywordIds.length) base.with_keywords = keywordIds.join("|"); // OR
-  // Drop the Family genre (kids' tentpoles like Mario/Zootopia) by default;
-  // Animation (e.g. Spider-Verse) stays eligible. Skipped when a player picked
-  // an animation/family vibe (handled by the caller).
-  if (excludeFamily) base.without_genres = "10751";
+  // Per-direction Family guard: drop the Family genre (kids' tentpoles like
+  // Mario/Zootopia) UNLESS this direction is animation-led — i.e. it came from
+  // an explicit Animated pick. Adult animation (Spider-Verse) stays eligible.
+  if (!dir.genreIds.includes(ANIMATION_GENRE_ID)) {
+    base.without_genres = String(FAMILY_GENRE_ID);
+  }
 
   const collect = async (genreJoin: string) => {
     const params = { ...base };
@@ -208,17 +263,14 @@ async function fetchForDirection(
   return results;
 }
 
-async function buildPool(
-  directions: Direction[],
-  excludeFamily: boolean
-): Promise<PoolMovie[]> {
+async function buildPool(directions: Direction[]): Promise<PoolMovie[]> {
   const perDirection = Math.ceil(TARGET_POOL / directions.length);
   const seen = new Set<number>();
   const pool: PoolMovie[] = [];
 
   for (let i = 0; i < directions.length; i++) {
     const dir = directions[i];
-    const movies = await fetchForDirection(dir, perDirection, excludeFamily);
+    const movies = await fetchForDirection(dir, perDirection);
     let added = 0;
     for (const m of movies) {
       if (added >= perDirection) break;
@@ -241,18 +293,36 @@ async function buildPool(
   return pool;
 }
 
+/**
+ * Build a pool big enough to drive Round 2/3. If the strategy's directions come
+ * back too thin, progressively relax — drop keyword constraints, then rebuild
+ * from the deterministic genre fallback — so a retry never hits the same dead
+ * end. Returns the directions that actually produced the pool (so the pool's
+ * direction tags stay consistent).
+ */
+export async function buildViablePool(
+  directions: Direction[],
+  p1: string[],
+  p2: string[]
+): Promise<{ directions: Direction[]; pool: PoolMovie[] }> {
+  let pool = await buildPool(directions);
+  if (pool.length >= VIABLE_POOL) return { directions, pool };
+
+  // Relax: drop keyword constraints (genres only).
+  const noKeywords = directions.map((d) => ({ ...d, keywords: [] }));
+  pool = await buildPool(noKeywords);
+  if (pool.length >= VIABLE_POOL) return { directions: noKeywords, pool };
+
+  // Last resort: rebuild from each player's genres (always yields popular films).
+  const fallback = fallbackStrategy(p1, p2).directions;
+  pool = await buildPool(fallback);
+  return { directions: fallback, pool };
+}
+
 // ---- Orchestration ---------------------------------------------------------
 
 export async function blendTastes(p1: string[], p2: string[]): Promise<BlendResult> {
   const strategy = (await getStrategy(p1, p2)) ?? fallbackStrategy(p1, p2);
-
-  // Default-exclude the Family genre across directions, UNLESS a player
-  // explicitly picked an animation/family vibe (genre 16) — explicit pick wins.
-  const pickedGenreIds = new Set(
-    [...p1, ...p2].map(categoryGenreId).filter((id): id is number => id != null)
-  );
-  const excludeFamily = !pickedGenreIds.has(16);
-
-  const pool = await buildPool(strategy.directions, excludeFamily);
-  return { ...strategy, pool };
+  const { directions, pool } = await buildViablePool(strategy.directions, p1, p2);
+  return { moodRead: strategy.moodRead, directions, pool };
 }

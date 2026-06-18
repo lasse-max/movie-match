@@ -60,7 +60,7 @@ setup → Round 1 → [AI: blend] → Round 2 → [AI: infer pattern] → Round 
 git clone https://github.com/<you>/movie-match.git
 cd movie-match
 npm install
-cp .env.example .env   # add TMDB_API_KEY and ANTHROPIC_API_KEY
+cp .env.example .env.local   # add TMDB_READ_ACCESS_TOKEN and ANTHROPIC_API_KEY
 npm run dev
 ```
 
@@ -68,7 +68,7 @@ npm run dev
 
 | Key | Where to get it |
 |---|---|
-| `TMDB_API_KEY` | https://www.themoviedb.org/settings/api (free) |
+| `TMDB_READ_ACCESS_TOKEN` | https://www.themoviedb.org/settings/api (free) — use the **v4 API Read Access Token** |
 | `ANTHROPIC_API_KEY` | https://console.anthropic.com/ |
 
 > ⚠️ Both keys are used **server-side only** via serverless functions — never exposed to the browser.

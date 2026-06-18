@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
 import { categoryLabel } from "@/lib/categories";
 
@@ -9,24 +9,29 @@ const btn =
 
 // The "blending" phase: AI call #1 runs here, prefetching the candidate pool for
 // Round 2. On success we store it and advance straight into Round 2.
+//
+// The effect is replay-safe: cleanup aborts the in-flight request and flags it
+// cancelled, so under React Strict Mode the first (aborted) run never dispatches
+// and the second run completes normally — it cannot get stuck on "Blending…".
 export function BlendingScreen() {
   const { state, dispatch } = useGame();
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const fetchedAttempt = useRef(-1);
+
+  const categories = state.round.categories;
 
   useEffect(() => {
-    if (fetchedAttempt.current === attempt) return; // once per attempt (also dev-strict-safe)
-    fetchedAttempt.current = attempt;
-
-    const p1 = state.round.categories[1].map(categoryLabel);
-    const p2 = state.round.categories[2].map(categoryLabel);
+    const controller = new AbortController();
     let cancelled = false;
+
+    const p1 = categories[1].map(categoryLabel);
+    const p2 = categories[2].map(categoryLabel);
 
     fetch("/api/blend", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ p1, p2 }),
+      signal: controller.signal,
     })
       .then((r) => r.json())
       .then((data) => {
@@ -37,16 +42,19 @@ export function BlendingScreen() {
           setError("No candidates came back — try different vibes.");
         } else {
           dispatch({ type: "SET_BLEND", blend: data });
-          dispatch({ type: "ADVANCE" }); // → Round 2
+          dispatch({ type: "COMPLETE_TURN", player: 1 }); // → Round 2 (no player turn here)
         }
       })
-      .catch((e) => !cancelled && setError(String(e)));
+      .catch((e: unknown) => {
+        if (cancelled || (e instanceof DOMException && e.name === "AbortError")) return;
+        setError(e instanceof Error ? e.message : "Network error");
+      });
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only on retry
-  }, [attempt]);
+  }, [attempt, categories, dispatch]);
 
   if (error) {
     return (

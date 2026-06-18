@@ -44,3 +44,26 @@ export function categoryGenreId(idOrLabel: string): number | null {
   );
   return match?.tmdbGenreId ?? null;
 }
+
+/**
+ * Sanitize a player's Round 1 picks before they reach the AI: keep only known
+ * category values (matched by id or label), de-duplicate, return canonical
+ * labels, and bound the count. Unknown/garbage input is dropped.
+ */
+export function normalizeCategoryPicks(raw: unknown, max = 3): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const key = item.trim().toLowerCase();
+    const match = CATEGORIES.find(
+      (c) => c.id === key || c.label.toLowerCase() === key
+    );
+    if (!match || seen.has(match.id)) continue;
+    seen.add(match.id);
+    out.push(match.label);
+    if (out.length >= max) break;
+  }
+  return out;
+}
