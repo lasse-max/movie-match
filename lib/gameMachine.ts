@@ -5,6 +5,7 @@
 // round data slots (categories/swipes/picks) are filled in by later steps; this
 // step establishes the phases, transitions, and pass-the-phone turn tracking.
 import { DEFAULT_REGION } from "./constants";
+import type { BlendResult } from "./blendTypes";
 
 export type Phase =
   | "setup"
@@ -34,10 +35,16 @@ export interface SetupConfig {
   willingToPay: boolean;
 }
 
+/** Round 2 leanings — captured both ways so AI #2 can read tone from each side. */
+export interface PlayerSwipes {
+  yes: number[]; // leaned toward
+  no: number[]; // leaned away
+}
+
 /** Per-player data captured across the rounds (movie ids unless noted). */
 export interface RoundData {
   categories: Record<Player, string[]>; // R1: category/mood selections
-  swipes: Record<Player, number[]>; // R2: titles each player leaned toward
+  swipes: Record<Player, PlayerSwipes>; // R2: leaned toward / away
   picks: Record<Player, number[]>; // R3: titles each player would watch
 }
 
@@ -47,6 +54,8 @@ export interface GameState {
   currentPlayer: Player;
   setup: SetupConfig;
   round: RoundData;
+  /** Prefetched AI #1 result (mood read, directions, candidate pool). */
+  blend: BlendResult | null;
   /** The agreed movie id, set when we reach the match phase. */
   matchId: number | null;
 }
@@ -57,9 +66,10 @@ export const initialState: GameState = {
   setup: { region: DEFAULT_REGION, services: [], willingToPay: false },
   round: {
     categories: { 1: [], 2: [] },
-    swipes: { 1: [], 2: [] },
+    swipes: { 1: { yes: [], no: [] }, 2: { yes: [], no: [] } },
     picks: { 1: [], 2: [] },
   },
+  blend: null,
   matchId: null,
 };
 
@@ -69,8 +79,9 @@ export type Action =
   | { type: "TOGGLE_SERVICE"; serviceId: number }
   | { type: "SET_WILLING_TO_PAY"; value: boolean }
   | { type: "SET_CATEGORIES"; player: Player; categories: string[] }
-  | { type: "SET_SWIPES"; player: Player; movieIds: number[] }
+  | { type: "SET_SWIPES"; player: Player; yes: number[]; no: number[] }
   | { type: "SET_PICKS"; player: Player; movieIds: number[] }
+  | { type: "SET_BLEND"; blend: BlendResult }
   | { type: "ADVANCE" }; // finish the current turn/phase; handles pass-the-phone
 
 // NOTE: Round 3 → match | tiebreak branching is a placeholder here. The real,
@@ -149,9 +160,15 @@ export function gameReducer(state: GameState, action: Action): GameState {
         ...state,
         round: {
           ...state.round,
-          swipes: { ...state.round.swipes, [action.player]: action.movieIds },
+          swipes: {
+            ...state.round.swipes,
+            [action.player]: { yes: action.yes, no: action.no },
+          },
         },
       };
+
+    case "SET_BLEND":
+      return { ...state, blend: action.blend };
 
     case "SET_PICKS":
       return {

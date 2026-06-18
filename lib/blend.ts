@@ -15,39 +15,7 @@ import {
   tmdbImageUrl,
   type TmdbDiscoverMovie,
 } from "./tmdb";
-
-export interface MoodRead {
-  summary: string;
-  axes: string[];
-}
-
-export interface Direction {
-  theme: string;
-  genreIds: number[];
-  keywords: string[];
-  tone: string[];
-  sourcePicks: string[];
-}
-
-export interface BlendStrategy {
-  moodRead: MoodRead;
-  directions: Direction[];
-}
-
-export interface PoolMovie {
-  id: number;
-  title: string;
-  year: string | null;
-  overview: string;
-  posterUrl: string | null;
-  voteAverage: number;
-  directionIndex: number;
-  directionTheme: string;
-}
-
-export interface BlendResult extends BlendStrategy {
-  pool: PoolMovie[];
-}
+import type { BlendResult, BlendStrategy, Direction, PoolMovie } from "./blendTypes";
 
 // ---- AI strategy -----------------------------------------------------------
 
@@ -98,7 +66,7 @@ Steps:
 
 For each direction return:
 - theme: one human-readable line.
-- genreIds: TMDB movie genre ids from this list — 28 Action, 12 Adventure, 16 Animation, 35 Comedy, 80 Crime, 99 Documentary, 18 Drama, 10751 Family, 14 Fantasy, 36 History, 27 Horror, 10402 Music, 9648 Mystery, 10749 Romance, 878 Science Fiction, 53 Thriller, 10752 War, 37 Western. Keep it tight (usually 1–2) so the sub-genre stays coherent.
+- genreIds: TMDB movie genre ids from this list — 28 Action, 12 Adventure, 16 Animation, 35 Comedy, 80 Crime, 99 Documentary, 18 Drama, 14 Fantasy, 36 History, 27 Horror, 10402 Music, 9648 Mystery, 10749 Romance, 878 Science Fiction, 53 Thriller, 10752 War, 37 Western. Keep it tight (usually 1–2) so the sub-genre stays coherent.
 - keywords: 2–5 SINGLE-CONCEPT terms TMDB tags movies with — concrete nouns or short phrases like "zombie", "heist", "time travel", "dystopia", "road trip". Lowercase. NOT descriptive sentences (e.g. "love across time" will not match anything).
 - tone: a few tone words consistent with the mood read.
 - sourcePicks: which picks this came from, e.g. ["P1: Horror", "P2: Comedy"].
@@ -197,7 +165,8 @@ function fallbackStrategy(p1: string[], p2: string[]): BlendStrategy {
 
 async function fetchForDirection(
   dir: Direction,
-  perDirection: number
+  perDirection: number,
+  excludeFamily: boolean
 ): Promise<TmdbDiscoverMovie[]> {
   const keywordIds = (await Promise.all(dir.keywords.map(searchKeyword))).filter(
     (id): id is number => id != null
@@ -205,6 +174,10 @@ async function fetchForDirection(
 
   const base: Record<string, string> = { "vote_count.gte": String(MIN_VOTES) };
   if (keywordIds.length) base.with_keywords = keywordIds.join("|"); // OR
+  // Drop the Family genre (kids' tentpoles like Mario/Zootopia) by default;
+  // Animation (e.g. Spider-Verse) stays eligible. Skipped when a player picked
+  // an animation/family vibe (handled by the caller).
+  if (excludeFamily) base.without_genres = "10751";
 
   const collect = async (genreJoin: string) => {
     const params = { ...base };
@@ -235,14 +208,17 @@ async function fetchForDirection(
   return results;
 }
 
-async function buildPool(directions: Direction[]): Promise<PoolMovie[]> {
+async function buildPool(
+  directions: Direction[],
+  excludeFamily: boolean
+): Promise<PoolMovie[]> {
   const perDirection = Math.ceil(TARGET_POOL / directions.length);
   const seen = new Set<number>();
   const pool: PoolMovie[] = [];
 
   for (let i = 0; i < directions.length; i++) {
     const dir = directions[i];
-    const movies = await fetchForDirection(dir, perDirection);
+    const movies = await fetchForDirection(dir, perDirection, excludeFamily);
     let added = 0;
     for (const m of movies) {
       if (added >= perDirection) break;
@@ -255,6 +231,7 @@ async function buildPool(directions: Direction[]): Promise<PoolMovie[]> {
         overview: m.overview,
         posterUrl: tmdbImageUrl(m.poster_path, "w342"),
         voteAverage: m.vote_average,
+        voteCount: m.vote_count,
         directionIndex: i,
         directionTheme: dir.theme,
       });
@@ -268,6 +245,14 @@ async function buildPool(directions: Direction[]): Promise<PoolMovie[]> {
 
 export async function blendTastes(p1: string[], p2: string[]): Promise<BlendResult> {
   const strategy = (await getStrategy(p1, p2)) ?? fallbackStrategy(p1, p2);
-  const pool = await buildPool(strategy.directions);
+
+  // Default-exclude the Family genre across directions, UNLESS a player
+  // explicitly picked an animation/family vibe (genre 16) — explicit pick wins.
+  const pickedGenreIds = new Set(
+    [...p1, ...p2].map(categoryGenreId).filter((id): id is number => id != null)
+  );
+  const excludeFamily = !pickedGenreIds.has(16);
+
+  const pool = await buildPool(strategy.directions, excludeFamily);
   return { ...strategy, pool };
 }

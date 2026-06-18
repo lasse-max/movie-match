@@ -3,6 +3,8 @@
 import { useGame } from "./GameProvider";
 import { SetupScreen } from "./SetupScreen";
 import { Round1Screen } from "./Round1Screen";
+import { BlendingScreen } from "./BlendingScreen";
+import { Round2Screen } from "./Round2Screen";
 import type { Phase } from "@/lib/gameMachine";
 
 // Phase router for step 2. Every screen below is a placeholder that a later
@@ -54,19 +56,14 @@ function PhaseView({ phase }: { phase: Phase }) {
     case "round1":
       return <Round1Screen />;
 
+    case "blending":
+      return <BlendingScreen />;
+
     case "round2":
+      return <Round2Screen />;
+
     case "round3":
       return <RoundPlaceholder n={ROUND_NUMBER[phase]!} />;
-
-    case "blending":
-      return (
-        <Placeholder
-          title="Blending your tastes…"
-          body="AI call #1 turns both players' picks into shared themes + a TMDB candidate pool. (Step 5.)"
-          actionLabel="Continue"
-          onAction={advance}
-        />
-      );
 
     case "inferring":
       return (

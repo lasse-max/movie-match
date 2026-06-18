@@ -76,6 +76,19 @@ describe("gameMachine reducer", () => {
     expect(s.round.categories[2]).toEqual(["comedy", "cozy", "romance"]);
   });
 
+  it("records each player's Round 2 swipes both ways", () => {
+    let s: GameState = { ...initialState, phase: "round2" };
+    s = run(s, { type: "SET_SWIPES", player: 1, yes: [10, 20], no: [30] });
+    expect(s.round.swipes[1]).toEqual({ yes: [10, 20], no: [30] });
+    expect(s.round.swipes[2]).toEqual({ yes: [], no: [] }); // P2 untouched
+  });
+
+  it("stores the prefetched blend result", () => {
+    const blend = { moodRead: { summary: "dark", axes: [] }, directions: [], pool: [] };
+    const s = gameReducer(initialState, { type: "SET_BLEND", blend });
+    expect(s.blend).toBe(blend);
+  });
+
   it("clears subscribed services when the region changes", () => {
     let s = run(
       initialState,
