@@ -1,0 +1,273 @@
+// AI call #1 — the "taste" layer, strictly facts/taste split.
+//
+// Claude reads the couple's underlying mood and returns SEARCH STRATEGY ONLY:
+// 1–3 ranked blend directions (TMDB genre ids + keyword terms + tone). It never
+// names or invents movies. Every real movie comes from deterministic TMDB
+// Discover queries built from that strategy. If the model output is malformed or
+// empty, we fall back to each player's selected genres as separate directions —
+// no AI, never crash.
+import "server-only";
+import { CLAUDE_MODEL, getAnthropic } from "./anthropic";
+import { categoryGenreId } from "./categories";
+import {
+  discoverMovies,
+  searchKeyword,
+  tmdbImageUrl,
+  type TmdbDiscoverMovie,
+} from "./tmdb";
+
+export interface MoodRead {
+  summary: string;
+  axes: string[];
+}
+
+export interface Direction {
+  theme: string;
+  genreIds: number[];
+  keywords: string[];
+  tone: string[];
+  sourcePicks: string[];
+}
+
+export interface BlendStrategy {
+  moodRead: MoodRead;
+  directions: Direction[];
+}
+
+export interface PoolMovie {
+  id: number;
+  title: string;
+  year: string | null;
+  overview: string;
+  posterUrl: string | null;
+  voteAverage: number;
+  directionIndex: number;
+  directionTheme: string;
+}
+
+export interface BlendResult extends BlendStrategy {
+  pool: PoolMovie[];
+}
+
+// ---- AI strategy -----------------------------------------------------------
+
+const MAX_DIRECTIONS = 3;
+const TARGET_POOL = 45;
+const MIN_VOTES = 100;
+
+const STRATEGY_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    moodRead: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        summary: { type: "string" },
+        axes: { type: "array", items: { type: "string" } },
+      },
+      required: ["summary", "axes"],
+    },
+    directions: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          theme: { type: "string" },
+          genreIds: { type: "array", items: { type: "integer" } },
+          keywords: { type: "array", items: { type: "string" } },
+          tone: { type: "array", items: { type: "string" } },
+          sourcePicks: { type: "array", items: { type: "string" } },
+        },
+        required: ["theme", "genreIds", "keywords", "tone", "sourcePicks"],
+      },
+    },
+  },
+  required: ["moodRead", "directions"],
+} as const;
+
+const SYSTEM_PROMPT = `You are the taste strategist for Movie Match, a couples movie picker. In Round 1 two players each picked 2–3 "vibes" (genres and/or moods). Each player's picks are a MENU of acceptable moods (OR within a player), not a single combined demand.
+
+Your job is taste only — you NEVER name movies, franchises, or IDs. You return search strategy that a separate system turns into real movies.
+
+Steps:
+1. Read the couple's UNDERLYING MOOD from the combined picks — the tone the genres share (e.g. dark/tense, light/warm, cozy, adrenaline, thoughtful, playful). If there is no clear shared mood, set summary to "mixed".
+2. Choose 1–${MAX_DIRECTIONS} COHERENT, RANKED blend directions across all picks. Priority: (a) shared picks both chose — strongest; (b) cross-player combos that form a real sub-genre/mood (Horror+Comedy → horror-comedy); (c) never force incoherent combos. If nothing blends well, return each side's strongest single pick as separate directions. Do NOT merge every pick into one direction.
+3. Mood is a LENS for ranking and tone, never a veto — do not bury an explicit pick just because it is off-mood.
+
+For each direction return:
+- theme: one human-readable line.
+- genreIds: TMDB movie genre ids from this list — 28 Action, 12 Adventure, 16 Animation, 35 Comedy, 80 Crime, 99 Documentary, 18 Drama, 10751 Family, 14 Fantasy, 36 History, 27 Horror, 10402 Music, 9648 Mystery, 10749 Romance, 878 Science Fiction, 53 Thriller, 10752 War, 37 Western. Keep it tight (usually 1–2) so the sub-genre stays coherent.
+- keywords: 2–5 SINGLE-CONCEPT terms TMDB tags movies with — concrete nouns or short phrases like "zombie", "heist", "time travel", "dystopia", "road trip". Lowercase. NOT descriptive sentences (e.g. "love across time" will not match anything).
+- tone: a few tone words consistent with the mood read.
+- sourcePicks: which picks this came from, e.g. ["P1: Horror", "P2: Comedy"].
+
+Respond only with the structured JSON.`;
+
+function isValidStrategy(value: unknown): value is BlendStrategy {
+  if (!value || typeof value !== "object") return false;
+  const v = value as BlendStrategy;
+  if (!v.moodRead || typeof v.moodRead.summary !== "string") return false;
+  if (!Array.isArray(v.directions) || v.directions.length === 0) return false;
+  return v.directions.every(
+    (d) =>
+      d &&
+      typeof d.theme === "string" &&
+      Array.isArray(d.genreIds) &&
+      Array.isArray(d.keywords)
+  );
+}
+
+async function getStrategy(p1: string[], p2: string[]): Promise<BlendStrategy | null> {
+  try {
+    const anthropic = getAnthropic();
+    const response = await anthropic.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 1024,
+      thinking: { type: "disabled" }, // lean + fast (BRD flags AI latency)
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `Player 1's picks: ${p1.join(", ")}\nPlayer 2's picks: ${p2.join(", ")}`,
+        },
+      ],
+      output_config: { format: { type: "json_schema", schema: STRATEGY_SCHEMA } },
+    });
+
+    if (response.stop_reason === "refusal") return null;
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") return null;
+
+    const parsed = JSON.parse(textBlock.text) as unknown;
+    if (!isValidStrategy(parsed)) return null;
+    return {
+      moodRead: parsed.moodRead,
+      directions: parsed.directions.slice(0, MAX_DIRECTIONS),
+    };
+  } catch {
+    return null; // never crash the round on an AI hiccup
+  }
+}
+
+/** Deterministic fallback: each player's selected genres as separate directions. */
+function fallbackStrategy(p1: string[], p2: string[]): BlendStrategy {
+  const picks = [
+    ...p1.map((label) => ({ label, player: "P1" })),
+    ...p2.map((label) => ({ label, player: "P2" })),
+  ];
+
+  const byGenre = new Map<number, { label: string; players: Set<string> }>();
+  for (const { label, player } of picks) {
+    const gid = categoryGenreId(label);
+    if (gid == null) continue;
+    const entry = byGenre.get(gid) ?? { label, players: new Set<string>() };
+    entry.players.add(player);
+    byGenre.set(gid, entry);
+  }
+
+  // Shared genres (both players) rank first.
+  const directions: Direction[] = [...byGenre.entries()]
+    .sort((a, b) => b[1].players.size - a[1].players.size)
+    .slice(0, MAX_DIRECTIONS)
+    .map(([gid, entry]) => ({
+      theme: entry.label,
+      genreIds: [gid],
+      keywords: [],
+      tone: [],
+      sourcePicks: [...entry.players].map((p) => `${p}: ${entry.label}`),
+    }));
+
+  // All-mood edge case: no genres at all → top popular as a single direction.
+  if (directions.length === 0) {
+    directions.push({
+      theme: "Popular picks",
+      genreIds: [],
+      keywords: [],
+      tone: [],
+      sourcePicks: [],
+    });
+  }
+
+  return { moodRead: { summary: "mixed", axes: [] }, directions };
+}
+
+// ---- Deterministic pool ----------------------------------------------------
+
+async function fetchForDirection(
+  dir: Direction,
+  perDirection: number
+): Promise<TmdbDiscoverMovie[]> {
+  const keywordIds = (await Promise.all(dir.keywords.map(searchKeyword))).filter(
+    (id): id is number => id != null
+  );
+
+  const base: Record<string, string> = { "vote_count.gte": String(MIN_VOTES) };
+  if (keywordIds.length) base.with_keywords = keywordIds.join("|"); // OR
+
+  const collect = async (genreJoin: string) => {
+    const params = { ...base };
+    if (dir.genreIds.length) params.with_genres = dir.genreIds.join(genreJoin);
+    const out: TmdbDiscoverMovie[] = [];
+    for (let page = 1; page <= 3 && out.length < perDirection; page++) {
+      const res = await discoverMovies({ ...params, page: String(page) });
+      if (res.length === 0) break;
+      out.push(...res);
+    }
+    return out;
+  };
+
+  // Genres AND keeps a sub-genre tight (horror-comedy = tagged both). But many
+  // real blends aren't co-tagged on TMDB (e.g. "Her" isn't tagged Romance), so a
+  // multi-genre AND can come back too thin. Keep the precise AND matches first,
+  // then broaden to OR (keyword filter preserved) to fill toward the target.
+  const results = await collect(",");
+  if (dir.genreIds.length > 1 && results.length < perDirection) {
+    const seen = new Set(results.map((m) => m.id));
+    for (const m of await collect("|")) {
+      if (!seen.has(m.id)) {
+        seen.add(m.id);
+        results.push(m);
+      }
+    }
+  }
+  return results;
+}
+
+async function buildPool(directions: Direction[]): Promise<PoolMovie[]> {
+  const perDirection = Math.ceil(TARGET_POOL / directions.length);
+  const seen = new Set<number>();
+  const pool: PoolMovie[] = [];
+
+  for (let i = 0; i < directions.length; i++) {
+    const dir = directions[i];
+    const movies = await fetchForDirection(dir, perDirection);
+    let added = 0;
+    for (const m of movies) {
+      if (added >= perDirection) break;
+      if (seen.has(m.id) || !m.poster_path) continue; // need a poster for the swipe UI
+      seen.add(m.id);
+      pool.push({
+        id: m.id,
+        title: m.title,
+        year: m.release_date ? m.release_date.slice(0, 4) : null,
+        overview: m.overview,
+        posterUrl: tmdbImageUrl(m.poster_path, "w342"),
+        voteAverage: m.vote_average,
+        directionIndex: i,
+        directionTheme: dir.theme,
+      });
+      added++;
+    }
+  }
+  return pool;
+}
+
+// ---- Orchestration ---------------------------------------------------------
+
+export async function blendTastes(p1: string[], p2: string[]): Promise<BlendResult> {
+  const strategy = (await getStrategy(p1, p2)) ?? fallbackStrategy(p1, p2);
+  const pool = await buildPool(strategy.directions);
+  return { ...strategy, pool };
+}

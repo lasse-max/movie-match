@@ -90,6 +90,41 @@ export function getMovie(movieId: number) {
   return tmdbGet<TmdbMovie>(`/movie/${movieId}`);
 }
 
+// ---- Keyword resolution & Discover -----------------------------------------
+
+/** Resolve a free-text keyword term to its top TMDB keyword id (or null). */
+export async function searchKeyword(term: string): Promise<number | null> {
+  const data = await tmdbGet<{ results: { id: number; name: string }[] }>(
+    "/search/keyword",
+    { query: term }
+  );
+  return data.results[0]?.id ?? null;
+}
+
+export interface TmdbDiscoverMovie {
+  id: number;
+  title: string;
+  release_date: string;
+  overview: string;
+  poster_path: string | null;
+  vote_average: number;
+  vote_count: number;
+  popularity: number;
+}
+
+/** Deterministic candidate query. Sensible defaults; caller adds with_genres etc. */
+export async function discoverMovies(
+  params: Record<string, string>
+): Promise<TmdbDiscoverMovie[]> {
+  const data = await tmdbGet<{ results: TmdbDiscoverMovie[] }>("/discover/movie", {
+    include_adult: "false",
+    language: "en-US",
+    sort_by: "popularity.desc",
+    ...params,
+  });
+  return data.results;
+}
+
 // ---- Images ----------------------------------------------------------------
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
