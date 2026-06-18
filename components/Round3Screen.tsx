@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
 import { evaluateAvailability, labelText, type AvailabilityLabel } from "@/lib/filter";
+import { genreNames } from "@/lib/genres";
+import { blurb } from "@/lib/blurb";
 import type { Player } from "@/lib/gameMachine";
 import type { PlayerRec } from "@/lib/inferTypes";
 
@@ -143,13 +145,15 @@ function RecRow({
   selected: boolean;
   onToggle: () => void;
 }) {
+  const tags = genreNames(rec.genreIds).slice(0, 2);
+  const description = blurb(rec.overview, 140);
   return (
     <li>
       <button
         type="button"
         onClick={onToggle}
         aria-pressed={selected}
-        className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left transition ${
+        className={`flex w-full items-start gap-3 rounded-xl border p-2 text-left transition ${
           selected
             ? "border-foreground ring-1 ring-foreground"
             : "border-foreground/15 hover:border-foreground/40"
@@ -172,12 +176,29 @@ function RecRow({
             {rec.title}
             {rec.year ? <span className="font-normal text-foreground/50"> · {rec.year}</span> : null}
           </div>
-          <div className="text-[11px] text-foreground/60">
+          {tags.length > 0 && (
+            <div className="mt-0.5 flex flex-wrap gap-1">
+              {tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium text-foreground/55"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          {description && (
+            <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-foreground/55">
+              {description}
+            </p>
+          )}
+          <div className="mt-1 text-[11px] font-medium text-foreground/70">
             {label ? labelText(label) : "Not on your services"}
           </div>
         </div>
         <span
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
+          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
             selected ? "border-foreground bg-foreground text-background" : "border-foreground/30"
           }`}
           aria-hidden

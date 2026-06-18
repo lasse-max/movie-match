@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
 import { selectSwipeSamples, type PoolMovie } from "@/lib/blendTypes";
+import { genreNames } from "@/lib/genres";
+import { blurb } from "@/lib/blurb";
 import type { Player } from "@/lib/gameMachine";
 
 const primaryBtn =
@@ -67,6 +69,10 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
     setIndex((i) => i + 1);
   };
 
+  // "Don't know" — neutral. The card is recorded as neither yes nor no, so the
+  // mood inference treats it as no-data (never a false "away"). See lib/infer.ts.
+  const skip = () => setIndex((i) => i + 1);
+
   // Done — lock in this player's leanings (both ways) and pass on.
   if (index >= samples.length) {
     return (
@@ -84,6 +90,8 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
   }
 
   const movie = samples[index];
+  const tags = genreNames(movie.genreIds).slice(0, 2);
+  const description = blurb(movie.overview);
 
   return (
     <div className="flex w-full flex-col items-center gap-4">
@@ -113,22 +121,45 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
             />
           ) : null}
         </div>
-        <div className="text-center">
+        <div className="max-w-xs text-center">
           <div className="font-semibold">{movie.title}</div>
           {movie.year && <div className="text-xs text-foreground/50">{movie.year}</div>}
+          {tags.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap justify-center gap-1">
+              {tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] font-medium text-foreground/60"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          {description && (
+            <p className="mt-2 text-xs leading-relaxed text-foreground/60">{description}</p>
+          )}
         </div>
       </div>
 
-      <div className="flex w-full gap-3">
+      {/* 👎 Not the vibe · 🤷 Don't know · 👍 This vibe — the middle option is
+          deliberately lighter/smaller so it reads as the low-stakes choice. */}
+      <div className="flex w-full items-center gap-2">
         <button
           onClick={() => swipe(false)}
-          className="flex-1 rounded-full border border-foreground/20 px-4 py-3 text-sm font-semibold transition hover:bg-foreground/5 active:scale-[0.98]"
+          className="flex-1 rounded-full border border-foreground/20 px-3 py-3 text-sm font-semibold transition hover:bg-foreground/5 active:scale-[0.98]"
         >
           👎 Not the vibe
         </button>
         <button
+          onClick={skip}
+          className="shrink-0 rounded-full px-3 py-2 text-xs font-medium text-foreground/45 transition hover:bg-foreground/5 hover:text-foreground/70 active:scale-[0.98]"
+        >
+          🤷 Don’t know
+        </button>
+        <button
           onClick={() => swipe(true)}
-          className="flex-1 rounded-full bg-foreground px-4 py-3 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]"
+          className="flex-1 rounded-full bg-foreground px-3 py-3 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]"
         >
           👍 This vibe
         </button>

@@ -225,7 +225,7 @@ const INFER_SCHEMA = {
 
 const INFER_SYSTEM = `You read each player's latent movie mood from their Round 2 swipes and pick their Round 3 shortlist.
 
-Round 2 showed each player a handful of titles; they swiped each toward ("this vibe") or away. Treat swipes as signals about the KIND of movie they're leaning toward tonight — tone, pace, darkness, era — NOT verdicts on the specific titles (someone may swipe away from a film they love but aren't in the mood for).
+Round 2 showed each player a handful of titles; they swiped each toward ("this vibe") or away, or skipped ones they didn't recognize. Skipped titles are omitted from the lists below — treat them as no signal, never as a soft "away". Treat swipes as signals about the KIND of movie they're leaning toward tonight — tone, pace, darkness, era — NOT verdicts on the specific titles (someone may swipe away from a film they love but aren't in the mood for).
 
 For EACH player:
 1. Infer their underlying mood — a one-line summary and a couple of axis words — from what they leaned toward vs away.
