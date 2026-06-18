@@ -49,11 +49,16 @@ API keys for TMDB and Claude must never ship to the client; all external calls r
 
 ## 5. Game Flow & Requirements
 
-### Availability & ranking rule. 
-Eligible = on a selected subscription (flatrate), OR — only if willing-to-pay is on — available to rent/buy. Willing-to-pay expands eligibility, never ranking. Rank by match quality / mood fit / mutual willingness only; price is never a ranking factor (never demote a better paid title beneath a weaker included one). Display availability type per result: "Included with X" / "Rent on X" / "Buy on X
+### Round 1 — Categories & Mood (AI call #1)
+Each player picks 2–3 categories or moods, passing the phone between turns. **Each player's picks are a menu of acceptable moods (OR within a player) — not a single combined demand.** Someone who picks Horror *and* Comedy is open to either, not asking for a horror-comedy.
 
-### Round 1 — Categories & Mood
-Each player picks 2–3 categories or moods, passing the phone between turns. The AI takes both sets plus the stated mood and proposes the blended themes and a candidate pool to pull from TMDB. Simple overlaps are direct (Action ∩ Comedy → action-comedies); the value is in fuzzy blends a tag intersection misses — e.g. apocalyptic horror + action → Train to Busan, A Quiet Place, 28 Days Later. **(AI call #1.)**
+The AI (call #1) does two things:
+1. **Reads the underlying mood** the picks share — what they have in common on a dark↔light / intense↔cozy / serious↔fun axis — or returns "mixed" when there is no shared tone (then Round 2 disambiguates). Mood is an organizing lens, never a veto over an explicit pick.
+2. **Selects 1–3 coherent, ranked blend directions** across both players, prioritizing shared picks, then sensible cross-player combinations (Horror + Comedy → horror-comedy), never forcing incoherent blends.
+
+Crucially, the AI returns **strategy only** — mood read + directions (genre IDs, keyword terms, tone) — and **never names or invents movies.** Every real film comes from deterministic TMDB Discover queries built from that strategy (the facts/taste split). Malformed AI output falls back to each player's genres as directions, so it never crashes. The output is a candidate pool (~30–50 movies) spanning the directions, which Round 2 then disambiguates.
+
+*Validated in build:* Romance + Sci-Fi → mood read "wonder and connection" → romantic sci-fi (*Her*, *Eternal Sunshine*), feel-good mind-benders (*Groundhog Day*, *Edge of Tomorrow*), emotional sci-fi drama (*Blade Runner*, *After Yang*) — capturing canonical titles TMDB doesn't even tag as Romance.
 
 ### Round 2 — Swipe the Vibe
 The app surfaces a handful of well-known films from the blended pool that hit slightly different sub-genres. Each player swipes "in the mood for this / not this," passing the phone. The three titles a player leans toward encode a latent preference — tone, pacing, darkness, era — that no genre tag captures. The AI infers that pattern to shape Round 3. **(AI call #2.)**
@@ -62,7 +67,16 @@ The app surfaces a handful of well-known films from the blended pool that hit sl
 Each player is shown ~5 recommendations and selects every title they'd be willing to watch. If the two selections overlap, that's the match. If not, a short Round 4 surfaces a few more candidates, or the closest near-match is held and offered as the tiebreak.
 
 ### Subscription & Pay Filter
-On setup the user records which services they subscribe to, and is asked upfront whether they're willing to pay to rent/buy tonight. Candidate filtering includes or excludes paid results accordingly, so the final pick is always something they can actually watch.
+On setup the user records which **subscription (flatrate) services** they have, and is asked upfront whether they're **willing to pay** to rent/buy tonight. These two inputs define which titles are *eligible* — never how they are *ranked*.
+
+**Availability & ranking rule (canonical):**
+- **Eligibility:** a movie is eligible if it is available on a selected subscription service (flatrate), OR — only if willing-to-pay is on — available to rent or buy.
+- **Willing-to-pay expands eligibility; it never affects ranking.** Turning it on widens the candidate pool; it does not change the order of results.
+- **Ranking is by fit only:** match quality, mood fit, and mutual willingness. Price is never a ranking factor — a better paid title is never demoted beneath a weaker included one.
+- **Availability type is displayed, not ranked:** each result is labeled "Included with X", "Rent on X", or "Buy on X".
+- **Continue rule:** the user can start if they selected at least one subscription service OR enabled willing-to-pay.
+
+**Data implication:** each candidate must carry its availability type (flatrate vs rent/buy) and the relevant provider through from the TMDB fetch, so the filter can apply eligibility and the UI can show the correct label. The setup "services you have" picker lists subscription (flatrate) providers only; rent/buy marketplaces are handled by the willing-to-pay toggle.
 
 ## 6. Functional Requirements
 
@@ -96,4 +110,3 @@ On setup the user records which services they subscribe to, and is asked upfront
 | Blends feel generic | Kills the core promise | Validate fuzzy-blend quality early; tune the AI prompts before polishing UI |
 | Scope creep into two-phone sync | Likely temptation | Hard-defer sync to a later phase; ship pass-the-phone first |
 | API keys exposed client-side | Security issue | Route every external call through serverless functions |
-
