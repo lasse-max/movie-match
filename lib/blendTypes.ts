@@ -81,3 +81,20 @@ export function selectSwipeSamples(
 
   return { 1: gather(byPlayer[1]), 2: gather(byPlayer[2]) };
 }
+
+/** Minimum distinct Round 2 cards each player needs for a playable swipe round.
+ * The disjoint split means a thin pool can starve Player 2 — this is the floor. */
+export const MIN_SAMPLES_PER_PLAYER = 4;
+
+/**
+ * Viable-pool postcondition: the pool yields enough DISTINCT swipe samples for
+ * BOTH players. A non-empty-but-tiny pool (e.g. 1 title) fails here, so the
+ * Blending screen surfaces a recoverable error instead of dead-ending Player 2.
+ */
+export function hasEnoughSamples(pool: PoolMovie[]): boolean {
+  const samples = selectSwipeSamples(pool);
+  return (
+    samples[1].length >= MIN_SAMPLES_PER_PLAYER &&
+    samples[2].length >= MIN_SAMPLES_PER_PLAYER
+  );
+}

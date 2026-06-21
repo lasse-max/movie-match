@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
 import { categoryLabel } from "@/lib/categories";
+import { hasEnoughSamples } from "@/lib/blendTypes";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
 
 const btn =
@@ -46,8 +47,10 @@ export function BlendingScreen() {
         clearTimeout(timer);
         if (data.error) {
           setError(data.error);
-        } else if (!Array.isArray(data.pool) || data.pool.length === 0) {
-          setError("No candidates came back — try different vibes.");
+        } else if (!Array.isArray(data.pool) || !hasEnoughSamples(data.pool)) {
+          // Postcondition: BOTH players need enough distinct swipe samples. A
+          // non-empty-but-tiny pool would dead-end Player 2 — fail recoverably.
+          setError("Couldn't line up enough titles for both of you — try different vibes.");
         } else {
           dispatch({ type: "SET_BLEND", blend: data });
           dispatch({ type: "COMPLETE_TURN", player: 1 }); // → Round 2 (no player turn here)

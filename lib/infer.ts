@@ -29,8 +29,9 @@ const TARGET_RECS = 5;
 const MAX_FRESH = 2;
 const FRESH_SEEDS = 3;
 const MAX_CANDIDATES = 12;
-const BACKFILL_SCAN = 8; // mood-fit pool titles to availability-check for eligible backfill
-const MAX_FINALISTS = 10; // recs + eligible backfill handed to Round 3
+const BACKFILL_SCAN = 10; // mood-fit pool titles appended after recs (fit-ranked)
+const AVAIL_BATCH = 5; // availability fetched in fit-order batches…
+const MAX_AVAIL_FETCHES = 15; // …up to this ceiling — never the whole pool (latency)
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2; // quality floor for fresh expansion AND backfill
 
@@ -384,10 +385,6 @@ export async function inferMoods(
 
   const ai = await callInferAI(pool, swipes, cand1, cand2);
 
-  // Build finalists (recs + mood-fit, quality-floored backfill) and attach region
-  // availability — finalists only, never the whole pool. The backfill is ordered
-  // ELIGIBLE-first so a narrow-service couple still gets watchable Round 3 options
-  // (the availability-constrained sourcing the never-dead-end rule requires).
   const build = async (
     player: Player,
     cands: Candidate[],
@@ -397,16 +394,25 @@ export async function inferMoods(
     const recIds = new Set(recs.map((r) => r.id));
     const backfill = backfillCandidates(pool, recIds, anchor).map(candidateToRec);
 
-    const withAvail = await attachAvailability([...recs, ...backfill], region);
-    const recsAvail = withAvail.slice(0, recs.length);
-    const backfillAvail = withAvail.slice(recs.length);
-    const isEligible = (r: PlayerRec) =>
-      evaluateAvailability(r.availability, services, willingToPay).eligible;
-    // Stable sort (V8) → eligible backfill first, voteCount order kept within.
-    const orderedBackfill = [...backfillAvail].sort(
-      (a, b) => Number(isEligible(b)) - Number(isEligible(a))
-    );
-    const finalists = [...recsAvail, ...orderedBackfill].slice(0, MAX_FINALISTS);
+    // Fit-ranked candidate list (recs by fit, then backfill by fit/voteCount).
+    // Eligibility NEVER reorders this — willing-to-pay/access-type only FILTERS at
+    // display time (lib/filter selectWatchable), per the canonical ranking rule.
+    const ranked = [...recs, ...backfill];
+
+    // Attach availability in fit order, in BATCHES, until enough eligible options
+    // are found OR we hit the bounded ceiling — so a narrow-service couple is
+    // never falsely told "nothing's watchable" by a too-shallow scan, yet we
+    // never fetch availability for the whole pool.
+    const finalists: PlayerRec[] = [];
+    let eligible = 0;
+    for (let i = 0; i < ranked.length && i < MAX_AVAIL_FETCHES; i += AVAIL_BATCH) {
+      const batch = await attachAvailability(ranked.slice(i, i + AVAIL_BATCH), region);
+      finalists.push(...batch);
+      eligible += batch.filter(
+        (r) => evaluateAvailability(r.availability, services, willingToPay).eligible
+      ).length;
+      if (eligible >= TARGET_RECS) break;
+    }
 
     // Degrade gracefully: a player who handed no swipe signal (all "Don't know")
     // falls back to their Round 1 mood rather than an AI read of nothing.

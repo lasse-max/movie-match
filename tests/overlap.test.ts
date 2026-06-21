@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findOverlap, pickMatch } from "@/lib/overlap";
+import { findOverlap, pickMatch, declinedFrom } from "@/lib/overlap";
 import { NO_AVAILABILITY } from "@/lib/filter";
 import type { PlayerRec } from "@/lib/inferTypes";
 
@@ -52,5 +52,20 @@ describe("pickMatch", () => {
 
   it("returns null when there is no overlap (caller bridges)", () => {
     expect(pickMatch([rec(1)], [rec(2)], [1], [2])).toBeNull();
+  });
+});
+
+describe("declinedFrom", () => {
+  it("declines shown-but-unpicked titles across both players", () => {
+    // P1 saw 1,2,3 and picked 1 → declined 2,3. P2 saw 3,4 and picked 4 → declined 3.
+    const declined = declinedFrom({ 1: [1, 2, 3], 2: [3, 4] }, { 1: [1], 2: [4] });
+    expect([...declined].sort((a, b) => a - b)).toEqual([2, 3]);
+  });
+
+  it("never declines a never-shown finalist (backfill beyond the visible set)", () => {
+    // 99 was never shown to either player → it must stay bridge-eligible.
+    const declined = declinedFrom({ 1: [1, 2], 2: [1] }, { 1: [1], 2: [1] });
+    expect(declined).toContain(2); // shown to P1, not picked → declined
+    expect(declined).not.toContain(99); // never shown → not declined
   });
 });

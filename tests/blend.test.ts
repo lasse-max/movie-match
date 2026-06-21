@@ -23,6 +23,20 @@ vi.mock("@/lib/tmdb", () => ({
 
 import { validateStrategy, fallbackStrategy, blendTastes } from "@/lib/blend";
 import { isKidsFare } from "@/lib/genres";
+import { hasEnoughSamples, MIN_SAMPLES_PER_PLAYER, type PoolMovie } from "@/lib/blendTypes";
+
+const poolMovie = (id: number, directionIndex = 0): PoolMovie => ({
+  id,
+  title: `M${id}`,
+  year: null,
+  overview: "",
+  posterUrl: null,
+  genreIds: [],
+  voteAverage: 7,
+  voteCount: 100 + id,
+  directionIndex,
+  directionTheme: "D",
+});
 
 // ---- fixtures --------------------------------------------------------------
 
@@ -229,5 +243,26 @@ describe("blendTastes pool relaxation", () => {
     expect(
       discoverMock.mock.calls.some(([p]) => p.watch_region && p.with_watch_monetization_types)
     ).toBe(true);
+  });
+
+  it("a thin broad fallback yields a pool the viable-sample postcondition rejects", async () => {
+    // Directioned/genre queries empty; even the broad query is thin → unviable pool.
+    discoverMock.mockImplementation((p: Record<string, string>) => (p.watch_region ? movies(2) : []));
+    const result = await blendTastes(["Horror"], ["Comedy"]);
+    expect(result.pool.length).toBeLessThan(2 * MIN_SAMPLES_PER_PLAYER); // thin
+    expect(hasEnoughSamples(result.pool)).toBe(false); // screen surfaces the recoverable error
+  });
+});
+
+// ---- viable-pool postcondition (Major 4) -----------------------------------
+
+describe("hasEnoughSamples", () => {
+  it("is false for a tiny pool that would starve Player 2", () => {
+    expect(hasEnoughSamples([poolMovie(1)])).toBe(false); // 1 title → P2 gets 0 cards
+  });
+
+  it("is true once both players clear the minimum distinct samples", () => {
+    const pool = Array.from({ length: 2 * MIN_SAMPLES_PER_PLAYER }, (_, i) => poolMovie(i + 1));
+    expect(hasEnoughSamples(pool)).toBe(true);
   });
 });

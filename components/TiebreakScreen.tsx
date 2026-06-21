@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
 import { isKidsFare } from "@/lib/genres";
+import { declinedFrom } from "@/lib/overlap";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
 
 const btn =
@@ -22,8 +23,8 @@ export function TiebreakScreen() {
   const swipes = state.round.swipes;
   const categories = state.round.categories;
   const picks = state.round.picks;
+  const shown = state.round.shown;
   const blend = state.blend;
-  const inference = state.inference;
   const setup = state.setup;
 
   useEffect(() => {
@@ -38,13 +39,8 @@ export function TiebreakScreen() {
     const pool = blend?.pool ?? [];
     const allowKidsFare = pool.some((m) => isKidsFare(m.genreIds));
 
-    // Exclude anything either player was shown in Round 3 but did not pick.
-    const declined = new Set<number>();
-    for (const p of [1, 2] as const) {
-      const shown = inference?.[p].recs ?? [];
-      const picked = new Set(picks[p]);
-      for (const r of shown) if (!picked.has(r.id)) declined.add(r.id);
-    }
+    // Decline = shown-but-unpicked only; never-shown titles stay bridge-eligible.
+    const declinedIds = declinedFrom(shown, picks);
 
     fetch("/api/bridge", {
       method: "POST",
@@ -58,7 +54,7 @@ export function TiebreakScreen() {
         region: setup.region,
         services: setup.services,
         willingToPay: setup.willingToPay,
-        declinedIds: [...declined],
+        declinedIds,
       }),
       signal: controller.signal,
     })
@@ -93,7 +89,7 @@ export function TiebreakScreen() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [attempt, swipes, categories, picks, blend, inference, setup, dispatch]);
+  }, [attempt, swipes, categories, picks, shown, blend, setup, dispatch]);
 
   if (error) {
     return (

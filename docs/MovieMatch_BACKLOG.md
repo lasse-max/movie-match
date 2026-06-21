@@ -38,3 +38,6 @@ Items intentionally deferred during Phase 1. Not bugs to fix now — captured so
 
 ## Reliability
 - **Fonts.** Swap `next/font/google` (Geist) for a local/system font. Production works on Vercel, but the Google-font fetch is network-fragile in restricted build environments. (Cato finding, P2.)
+
+## Security / hardening
+- **Rehydrate factual fields from TMDB IDs.** The infer/bridge routes (`lib/validate.ts`) validate the submitted pool's SHAPE, not its provenance — a client could pair a real TMDB id with a fabricated title/genres. Low-stakes today (stateless, single-session, the abuse is on the sender's own game), but the robust fix is to trust only the ids and re-fetch the factual fields (title, genres, votes) from TMDB server-side. (Cato finding, P2.)

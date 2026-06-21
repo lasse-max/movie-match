@@ -6,7 +6,7 @@
 // unavailable movie dressed up as a match. Round 3 rejections are excluded.
 import "server-only";
 import { attachAvailability } from "./availability";
-import { evaluateAvailability } from "./filter";
+import { evaluateAvailability, type MovieAvailability } from "./filter";
 import { isKidsFare } from "./genres";
 import { getRecommendations, tmdbImageUrl, type TmdbDiscoverMovie } from "./tmdb";
 import type { PoolMovie } from "./blendTypes";
@@ -15,7 +15,8 @@ import type { MatchMovie } from "./inferTypes";
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2;
 const MAX_SEEDS = 3;
-const TOP_TO_CHECK = 10; // bound availability fetches to the best-fit candidates
+const AVAIL_BATCH = 5; // availability fetched in fit-order batches…
+const MAX_AVAIL_FETCHES = 15; // …up to this ceiling — never the whole ranked pool
 
 interface BridgeCand {
   id: number;
@@ -107,12 +108,21 @@ export async function bridge(
 
   if (ranked.length === 0) return { kind: "none" };
 
-  // Eligibility is mandatory: return the best-fit title the couple can ACTUALLY
-  // watch — never a degraded nearest pick with no confirmed way to watch it.
-  const withAvail = await attachAvailability(ranked.slice(0, TOP_TO_CHECK), region);
-  const chosen = withAvail.find(
-    (c) => evaluateAvailability(c.availability, services, willingToPay).eligible
-  );
+  // Eligibility is mandatory. Scan availability in fit order, in BATCHES, until
+  // the first eligible title OR the bounded ceiling — so an eligible candidate
+  // deeper than a fixed top-N isn't missed (a false "none"), without fetching
+  // availability for the entire ranked pool.
+  type Scanned = BridgeCand & { availability: MovieAvailability };
+  const scanned: Scanned[] = [];
+  let chosen: Scanned | undefined;
+  for (let i = 0; i < ranked.length && i < MAX_AVAIL_FETCHES; i += AVAIL_BATCH) {
+    const batch = await attachAvailability(ranked.slice(i, i + AVAIL_BATCH), region);
+    scanned.push(...batch);
+    chosen = batch.find(
+      (c) => evaluateAvailability(c.availability, services, willingToPay).eligible
+    );
+    if (chosen) break;
+  }
   if (chosen) {
     return {
       kind: "match",
@@ -127,9 +137,10 @@ export async function bridge(
     };
   }
 
-  // Nothing's eligible. If paying would unlock a best-fit title, offer the expand;
-  // otherwise it's the honest end-state — never an unavailable match.
-  const couldRent = withAvail.some(
+  // Nothing eligible within the scanned set. If paying would unlock a scanned
+  // title, offer the expand; otherwise the honest end-state — never an
+  // unavailable match.
+  const couldRent = scanned.some(
     (c) => c.availability.rent.length + c.availability.buy.length > 0
   );
   return !willingToPay && couldRent ? { kind: "needs-rentals" } : { kind: "none" };

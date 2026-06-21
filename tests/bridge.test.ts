@@ -110,4 +110,15 @@ describe("bridge", () => {
     const out = await bridge([western], [], [], [878], [28], false, "US", SERVICES, true, []);
     expect(out.kind).toBe("none");
   });
+
+  // Major 3: an eligible candidate deeper than a fixed top-N must still be found
+  // (the batched scan), not produce a false "none".
+  it("finds an eligible candidate deeper than a fixed top-N (no false 'none')", async () => {
+    const ten = Array.from({ length: 10 }, (_, i) => pm(i + 1, [878, 28], 8.0)); // score 2, rank first
+    const eleventh = pm(11, [878], 7.0); // score 1 → ranks 11th
+    providersMock.mockImplementation((id: number) => Promise.resolve(id === 11 ? onNetflix : null));
+    const out = await bridge([...ten, eleventh], [], [], [878], [28], false, "US", SERVICES, false, []);
+    expect(out.kind).toBe("match");
+    if (out.kind === "match") expect(out.movie.id).toBe(11);
+  });
 });

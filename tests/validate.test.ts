@@ -10,7 +10,7 @@ describe("sanitizePool", () => {
     ]);
     expect(pool.map((m) => m.id)).toEqual([1, 2]);
     expect(pool[0].genreIds).toEqual([28, 35]); // non-integer genre stripped
-    expect(pool[1].title).toBe(""); // missing title → safe default, no fabricated fact
+    expect(pool[1].title).toBe(""); // missing title → safe default (shape coercion, not provenance)
   });
 
   it("drops entries without a valid integer id", () => {

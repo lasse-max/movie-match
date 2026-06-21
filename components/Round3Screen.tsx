@@ -111,7 +111,9 @@ function PlayerPicks({ player }: { player: Player }) {
     if (submittedRef.current) return;
     submittedRef.current = true;
     setSubmitted(true);
-    dispatch({ type: "SET_PICKS", player, movieIds: selected });
+    // Record exactly the titles displayed (post rentals-expand) so the bridge can
+    // treat shown-but-unpicked as declined — and never-shown titles as available.
+    dispatch({ type: "SET_PICKS", player, movieIds: selected, shown: rows.map((r) => r.item.id) });
     dispatch({ type: "COMPLETE_TURN", player });
   };
 

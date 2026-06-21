@@ -177,22 +177,22 @@ describe("inferMoods", () => {
     expect(result[2].moodRead.summary).toBe("warm"); // P2 had signal → AI read kept
   });
 
-  // Blocker #2 (server side): the backfill is availability-attached and ordered
-  // eligible-first, so a narrow-service couple still gets watchable Round 3 options.
-  it("surfaces an eligible backfill title ahead of ineligible ones", async () => {
-    // Only movie 3 is on Netflix; the couple subscribes to Netflix (id 8).
-    providersMock.mockImplementation((id: number) => Promise.resolve(id === 3 ? onNetflix : null));
-    const pool = [pm(1), pm(2), pm(3), pm(4), pm(5)]; // all mood-fit (no anchor), strong votes
+  // Major 2: price/access-type must NOT influence ranking. Finalists are ordered
+  // by fit only; eligibility filters at display time, it never reorders.
+  it("ranks finalists by fit only — eligibility never reorders (price-independent)", async () => {
+    // Title 1: higher voteCount (better fit) but NOT on the service. Title 2: lower
+    // voteCount but on Netflix. Fit order must win — 1 before 2 — despite eligibility.
+    providersMock.mockImplementation((id: number) => Promise.resolve(id === 2 ? onNetflix : null));
+    const pool = [pm(1, { voteCount: 900 }), pm(2, { voteCount: 100 })];
     const result = await inferMoods(
       pool,
-      { 1: { yes: [1], no: [] }, 2: { yes: [], no: [] } },
+      { 1: { yes: [], no: [] }, 2: { yes: [], no: [] } },
       noCategories,
       "US",
       [8],
       false
     );
-    // The one eligible title is present in P1's finalists.
-    const eligible = result[1].recs.filter((r) => r.availability.flatrate.some((p) => p.id === 8));
-    expect(eligible.map((r) => r.id)).toContain(3);
+    const ids = result[1].recs.map((r) => r.id);
+    expect(ids.indexOf(1)).toBeLessThan(ids.indexOf(2)); // fit order, not eligible-first
   });
 });

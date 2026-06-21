@@ -108,4 +108,14 @@ describe("selectWatchable", () => {
     const view = selectWatchable([item(1, { flatrate: [HULU] }), item(2)], [8], true);
     expect(view.kind).toBe("none");
   });
+
+  it("widens but never REORDERS when rentals are enabled (price ≠ ranking)", () => {
+    // Input (fit) order: paid title 1 first, free title 2 second.
+    const items = [item(1, { rent: [APPLE] }), item(2, { flatrate: [NETFLIX] })];
+    const free = selectWatchable(items, [8], false);
+    expect(free.kind === "watchable" && free.rows.map((r) => r.item.id)).toEqual([2]); // only the free one
+    const paid = selectWatchable(items, [8], true);
+    // Enabling rentals adds title 1 in its ORIGINAL position — not reordered by access type.
+    expect(paid.kind === "watchable" && paid.rows.map((r) => r.item.id)).toEqual([1, 2]);
+  });
 });

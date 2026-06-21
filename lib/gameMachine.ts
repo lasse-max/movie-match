@@ -50,6 +50,9 @@ export interface RoundData {
   categories: Record<Player, string[]>; // R1: category/mood selections
   swipes: Record<Player, PlayerSwipes>; // R2: leaned toward / away
   picks: Record<Player, number[]>; // R3: titles each player would watch
+  /** R3: the titles each player was actually SHOWN — so a "decline" is a
+   * displayed-but-unselected title, never an unseen backfill/ineligible one. */
+  shown: Record<Player, number[]>;
 }
 
 export interface GameState {
@@ -77,6 +80,7 @@ export const initialState: GameState = {
       2: { yes: [], no: [], neutral: [] },
     },
     picks: { 1: [], 2: [] },
+    shown: { 1: [], 2: [] },
   },
   blend: null,
   inference: null,
@@ -90,7 +94,7 @@ export type Action =
   | { type: "SET_WILLING_TO_PAY"; value: boolean }
   | { type: "SET_CATEGORIES"; player: Player; categories: string[] }
   | { type: "SET_SWIPES"; player: Player; yes: number[]; no: number[]; neutral: number[] }
-  | { type: "SET_PICKS"; player: Player; movieIds: number[] }
+  | { type: "SET_PICKS"; player: Player; movieIds: number[]; shown: number[] }
   | { type: "SET_BLEND"; blend: BlendResult }
   | { type: "SET_INFERENCE"; inference: InferResult }
   | { type: "SET_MATCH"; match: MatchResult }
@@ -217,6 +221,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         round: {
           ...state.round,
           picks: { ...state.round.picks, [action.player]: action.movieIds },
+          shown: { ...state.round.shown, [action.player]: action.shown },
         },
       };
 

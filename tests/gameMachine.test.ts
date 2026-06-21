@@ -66,8 +66,8 @@ describe("gameMachine reducer", () => {
 
   it("Round 3 with no overlap routes to tiebreak; the bridge sets the match there", () => {
     let s: GameState = { ...initialState, phase: "round3", inference: inferenceWith([1, 2], [3, 4]) };
-    s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2] }, { type: "COMPLETE_TURN", player: 1 });
-    s = run(s, { type: "SET_PICKS", player: 2, movieIds: [3, 4] }, { type: "COMPLETE_TURN", player: 2 });
+    s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2], shown: [1, 2] }, { type: "COMPLETE_TURN", player: 1 });
+    s = run(s, { type: "SET_PICKS", player: 2, movieIds: [3, 4], shown: [3, 4] }, { type: "COMPLETE_TURN", player: 2 });
     expect(s.phase).toBe("tiebreak");
     expect(s.match).toBeNull();
     // The tiebreak (bridge) sets the match, then completes to the match phase.
@@ -93,11 +93,18 @@ describe("gameMachine reducer", () => {
       phase: "round3",
       inference: inferenceWith([1, 2, 3], [3, 4, 5]),
     };
-    s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2, 3] }, { type: "COMPLETE_TURN", player: 1 });
-    s = run(s, { type: "SET_PICKS", player: 2, movieIds: [3, 4, 5] }, { type: "COMPLETE_TURN", player: 2 });
+    s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2, 3], shown: [1, 2, 3] }, { type: "COMPLETE_TURN", player: 1 });
+    s = run(s, { type: "SET_PICKS", player: 2, movieIds: [3, 4, 5], shown: [3, 4, 5] }, { type: "COMPLETE_TURN", player: 2 });
     expect(s.phase).toBe("match");
     expect(s.match?.movie.id).toBe(3); // only shared pick
     expect(s.match?.reason).toBe("overlap");
+  });
+
+  it("records the titles SHOWN to each player in Round 3 (for decline detection)", () => {
+    let s: GameState = { ...initialState, phase: "round3" };
+    s = gameReducer(s, { type: "SET_PICKS", player: 1, movieIds: [1], shown: [1, 2, 3] });
+    expect(s.round.picks[1]).toEqual([1]);
+    expect(s.round.shown[1]).toEqual([1, 2, 3]); // saw 3, picked 1 → 2 & 3 declinable
   });
 
   it("ignores a COMPLETE_TURN from the wrong player (a double-tap can't skip P2)", () => {

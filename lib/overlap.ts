@@ -56,3 +56,21 @@ export function pickMatch(
   const overlap = findOverlap(recs1, recs2, picks1, picks2);
   return overlap.length > 0 ? { movie: overlap[0], reason: "overlap" } : null;
 }
+
+/**
+ * Titles a player was SHOWN in Round 3 but did not pick = an explicit decline.
+ * Never-shown finalists (backfill beyond the visible set, or ineligible titles
+ * filtered out before display) are neither picked nor declined — they stay
+ * eligible for the bridge. De-duped across both players.
+ */
+export function declinedFrom(
+  shown: Record<1 | 2, number[]>,
+  picks: Record<1 | 2, number[]>
+): number[] {
+  const declined = new Set<number>();
+  for (const p of [1, 2] as const) {
+    const picked = new Set(picks[p]);
+    for (const id of shown[p]) if (!picked.has(id)) declined.add(id);
+  }
+  return [...declined];
+}

@@ -1,9 +1,14 @@
-// Proportionate request hardening for the infer/bridge routes. The real risk is
-// COST + CORRECTNESS — a huge array inflating the Claude prompt, or fabricated
-// movie facts reaching the AI — NOT multi-user security (the session is the
-// sender's own, stateless). So: bound sizes, validate basic shape, dedup, and
-// check ids against the submitted pool. Deliberately not a fortress; full
-// rate-limiting stays a later concern. Isomorphic so it's unit-testable.
+// Proportionate request hardening for the infer/bridge routes. The risk is COST +
+// basic CORRECTNESS — a huge array inflating the Claude prompt, or malformed
+// entries crashing the pipeline — NOT multi-user security (the session is the
+// sender's own, stateless). So: bound sizes, validate basic SHAPE, dedup, and
+// check ids against the submitted pool.
+//
+// NOTE: this validates shape, NOT provenance. A client could still submit a real
+// TMDB id paired with a fabricated title/genres; we do not guarantee the facts
+// are authentic. Rehydrating factual fields from TMDB ids server-side is a Later
+// option (see backlog). Deliberately not a fortress; full rate-limiting is Later.
+// Isomorphic so it's unit-testable.
 import { SUPPORTED_REGIONS } from "./constants";
 import type { PoolMovie } from "./blendTypes";
 
@@ -20,7 +25,8 @@ const asStrOrNull = (x: unknown): string | null => (typeof x === "string" ? x : 
 /**
  * Validate + bound a client-submitted candidate pool: keep only well-shaped
  * movies (a valid integer id is required; other fields are coerced to safe
- * defaults so fabricated facts can't reach the AI), dedup by id, cap at MAX_POOL.
+ * defaults), dedup by id, cap at MAX_POOL. SHAPE only — not a provenance check
+ * (a real id with fabricated title/genres still passes; see the file note).
  */
 export function sanitizePool(raw: unknown): PoolMovie[] {
   if (!Array.isArray(raw)) return [];
