@@ -35,6 +35,7 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
   const [index, setIndex] = useState(0);
   const [yes, setYes] = useState<number[]>([]);
   const [no, setNo] = useState<number[]>([]);
+  const [neutral, setNeutral] = useState<number[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const submittedRef = useRef(false); // blocks a synchronous double-tap
 
@@ -42,7 +43,9 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
     if (submittedRef.current) return;
     submittedRef.current = true;
     setSubmitted(true);
-    dispatch({ type: "SET_SWIPES", player, yes, no });
+    // Send all three buckets so the reducer sees a fully-processed turn even when
+    // every card was "Don't know" (empty yes+no but a populated neutral list).
+    dispatch({ type: "SET_SWIPES", player, yes, no, neutral });
     dispatch({ type: "COMPLETE_TURN", player }); // P1 → pass phone; P2 → infer mood
   };
 
@@ -53,7 +56,7 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
         <span className="text-4xl" aria-hidden>📲</span>
         <h2 className="text-xl font-semibold">Pass the phone to Player 2</h2>
         <p className="text-sm text-foreground/60">
-          Same titles, your turn — swipe on the vibe, not whether you’ve seen them.
+          A new set of titles, your turn — swipe on the vibe, not whether you’ve seen them.
         </p>
         <button className={primaryBtn} onClick={() => setReady(true)}>
           I’m ready
@@ -69,9 +72,13 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
     setIndex((i) => i + 1);
   };
 
-  // "Don't know" — neutral. The card is recorded as neither yes nor no, so the
-  // mood inference treats it as no-data (never a false "away"). See lib/infer.ts.
-  const skip = () => setIndex((i) => i + 1);
+  // "Don't know" — neutral. Recorded explicitly (so the turn still completes when
+  // every card is skipped), but handed to inference as no-data, never a false
+  // "away". See lib/gameMachine.ts (turn completion) and lib/infer.ts (degrade).
+  const skip = () => {
+    setNeutral((v) => [...v, samples[index].id]);
+    setIndex((i) => i + 1);
+  };
 
   // Done — lock in this player's leanings (both ways) and pass on.
   if (index >= samples.length) {
@@ -81,6 +88,7 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
         <h2 className="text-xl font-semibold">All done, Player {player}!</h2>
         <p className="text-sm text-foreground/60">
           {yes.length} in the mood · {no.length} not tonight
+          {neutral.length > 0 ? ` · ${neutral.length} skipped` : ""}
         </p>
         <button className={primaryBtn} disabled={submitted} onClick={finishTurn}>
           {player === 1 ? "Done — pass the phone" : "See where you land"}

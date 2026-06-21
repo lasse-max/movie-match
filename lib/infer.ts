@@ -12,7 +12,7 @@ import { CLAUDE_MODEL, getAnthropic } from "./anthropic";
 import { categoryGenreId } from "./categories";
 import { genreNames, isKidsFare } from "./genres";
 import { attachAvailability } from "./availability";
-import { NO_AVAILABILITY } from "./filter";
+import { evaluateAvailability, NO_AVAILABILITY } from "./filter";
 import { getRecommendations, tmdbImageUrl, type TmdbDiscoverMovie } from "./tmdb";
 import type { MoodRead, PoolMovie } from "./blendTypes";
 import type { InferResult, PlayerInference, PlayerRec, RecSource } from "./inferTypes";
@@ -29,9 +29,10 @@ const TARGET_RECS = 5;
 const MAX_FRESH = 2;
 const FRESH_SEEDS = 3;
 const MAX_CANDIDATES = 12;
-const BACKFILL = 4; // extra mood-fit pool titles so the availability filter never empties the list
+const BACKFILL_SCAN = 8; // mood-fit pool titles to availability-check for eligible backfill
+const MAX_FINALISTS = 10; // recs + eligible backfill handed to Round 3
 const MIN_VOTES = 100;
-const MIN_VOTE_AVERAGE = 6.2; // quality floor for fresh expansion
+const MIN_VOTE_AVERAGE = 6.2; // quality floor for fresh expansion AND backfill
 
 interface Candidate {
   id: number;
@@ -77,6 +78,17 @@ function anchorGenres(categories: string[]): Set<number> {
   return new Set(
     categories.map(categoryGenreId).filter((g): g is number => g != null)
   );
+}
+
+/** Mood read derived from Round 1 — the graceful fallback when a player handed
+ * no Round 2 swipe signal (all "Don't know"), so inference never guesses from
+ * nothing. Empty categories (shouldn't happen in the real flow) → "mixed". */
+function round1Mood(categories: string[]): MoodRead {
+  if (categories.length === 0) return { summary: "mixed", axes: [] };
+  return {
+    summary: `In the mood for ${categories.map((c) => c.toLowerCase()).join(", ")}`,
+    axes: categories,
+  };
 }
 
 const candidateToRec = (c: Candidate): PlayerRec => ({
@@ -332,10 +344,14 @@ function backfillCandidates(
   anchor: Set<number>
 ): Candidate[] {
   const fits = (g: number[]) => anchor.size === 0 || g.some((x) => anchor.has(x));
+  // Stays mood-fit AND quality-floored: eligibility narrows the GOOD candidates,
+  // it never licenses padding the list with mediocre titles.
   return [...pool]
     .sort((a, b) => b.voteCount - a.voteCount)
-    .filter((m) => !exclude.has(m.id) && fits(m.genreIds))
-    .slice(0, BACKFILL)
+    .filter(
+      (m) => !exclude.has(m.id) && fits(m.genreIds) && m.voteAverage >= MIN_VOTE_AVERAGE
+    )
+    .slice(0, BACKFILL_SCAN)
     .map((m) => poolToCandidate(m, "swipe"));
 }
 
@@ -343,7 +359,9 @@ export async function inferMoods(
   pool: PoolMovie[],
   swipes: Swipes,
   categories: Categories,
-  region: string
+  region: string,
+  services: number[],
+  willingToPay: boolean
 ): Promise<InferResult> {
   // If the pool already carries kids' fare, the couple opted into it (Animated
   // pick), so fresh expansion may too.
@@ -366,8 +384,10 @@ export async function inferMoods(
 
   const ai = await callInferAI(pool, swipes, cand1, cand2);
 
-  // Build finalists (recs + mood-fit backfill) and attach region availability —
-  // for the finalists only, never the whole pool.
+  // Build finalists (recs + mood-fit, quality-floored backfill) and attach region
+  // availability — finalists only, never the whole pool. The backfill is ordered
+  // ELIGIBLE-first so a narrow-service couple still gets watchable Round 3 options
+  // (the availability-constrained sourcing the never-dead-end rule requires).
   const build = async (
     player: Player,
     cands: Candidate[],
@@ -376,11 +396,25 @@ export async function inferMoods(
     const recs = finalizeRecs(cands, ai ? ai[player].recIds : []);
     const recIds = new Set(recs.map((r) => r.id));
     const backfill = backfillCandidates(pool, recIds, anchor).map(candidateToRec);
-    const finalists = await attachAvailability([...recs, ...backfill], region);
-    return {
-      moodRead: ai ? ai[player].moodRead : { summary: "mixed", axes: [] },
-      recs: finalists,
-    };
+
+    const withAvail = await attachAvailability([...recs, ...backfill], region);
+    const recsAvail = withAvail.slice(0, recs.length);
+    const backfillAvail = withAvail.slice(recs.length);
+    const isEligible = (r: PlayerRec) =>
+      evaluateAvailability(r.availability, services, willingToPay).eligible;
+    // Stable sort (V8) → eligible backfill first, voteCount order kept within.
+    const orderedBackfill = [...backfillAvail].sort(
+      (a, b) => Number(isEligible(b)) - Number(isEligible(a))
+    );
+    const finalists = [...recsAvail, ...orderedBackfill].slice(0, MAX_FINALISTS);
+
+    // Degrade gracefully: a player who handed no swipe signal (all "Don't know")
+    // falls back to their Round 1 mood rather than an AI read of nothing.
+    const hasSignal = swipes[player].yes.length + swipes[player].no.length > 0;
+    const moodRead =
+      ai && hasSignal ? ai[player].moodRead : round1Mood(categories[player]);
+
+    return { moodRead, recs: finalists };
   };
 
   const [p1, p2] = await Promise.all([build(1, cand1, anchor1), build(2, cand2, anchor2)]);

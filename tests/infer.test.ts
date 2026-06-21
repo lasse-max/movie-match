@@ -10,12 +10,14 @@ vi.mock("@/lib/anthropic", () => ({
   getAnthropic: () => ({ messages: { create: createMock } }),
 }));
 
-const { recMock } = vi.hoisted(() => ({ recMock: vi.fn() }));
+const { recMock, providersMock } = vi.hoisted(() => ({ recMock: vi.fn(), providersMock: vi.fn() }));
 vi.mock("@/lib/tmdb", () => ({
   getRecommendations: recMock,
-  getWatchProvidersForRegion: () => Promise.resolve(null), // no availability in these unit tests
+  getWatchProvidersForRegion: providersMock,
   tmdbImageUrl: (p: string | null) => (p ? `https://img.test${p}` : null),
 }));
+
+const onNetflix = { link: "https://jw.test", flatrate: [{ provider_id: 8, provider_name: "Netflix", logo_path: null, display_priority: 1 }] };
 
 import { inferMoods } from "@/lib/infer";
 import type { PoolMovie } from "@/lib/blendTypes";
@@ -44,6 +46,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   createMock.mockResolvedValue(refusal); // default: AI declines → deterministic fallback
   recMock.mockResolvedValue([]); // default: no fresh expansion
+  providersMock.mockResolvedValue(null); // default: no availability data
 });
 
 describe("inferMoods", () => {
@@ -55,7 +58,9 @@ describe("inferMoods", () => {
       pool,
       { 1: { yes: [1], no: [] }, 2: { yes: [2], no: [] } },
       noCategories,
-      "US"
+      "US",
+      [],
+      false
     );
 
     const p1 = result[1].recs;
@@ -75,7 +80,9 @@ describe("inferMoods", () => {
       pool,
       { 1: { yes: [3], no: [] }, 2: { yes: [1, 2], no: [] } },
       { 1: ["Sci-Fi"], 2: ["Action"] },
-      "US"
+      "US",
+      [],
+      false
     );
     const p1ids = result[1].recs.map((r) => r.id);
     expect(p1ids).toContain(2); // sci-fi cross-player kept
@@ -100,7 +107,9 @@ describe("inferMoods", () => {
       [pm(1)],
       { 1: { yes: [1], no: [] }, 2: { yes: [], no: [] } },
       noCategories,
-      "US"
+      "US",
+      [],
+      false
     );
     expect(result[1].recs.find((r) => r.source === "fresh")?.id).toBe(99);
   });
@@ -114,7 +123,9 @@ describe("inferMoods", () => {
       [pm(1)],
       { 1: { yes: [1], no: [] }, 2: { yes: [], no: [] } },
       noCategories,
-      "US"
+      "US",
+      [],
+      false
     );
     const freshIds = result[1].recs.filter((r) => r.source === "fresh").map((r) => r.id);
     expect(freshIds).toContain(51); // well-rated kept
@@ -132,11 +143,56 @@ describe("inferMoods", () => {
       [pm(1), pm(2), pm(3)],
       { 1: { yes: [1], no: [] }, 2: { yes: [2], no: [] } },
       noCategories,
-      "US"
+      "US",
+      [],
+      false
     );
     const p1ids = result[1].recs.map((r) => r.id);
     expect(p1ids).not.toContain(999); // invented id dropped
     expect(p1ids).toContain(1);
     expect(result[1].moodRead.summary).toBe("dark and tense"); // AI mood used
+  });
+
+  // Blocker #1 (downstream): an all-"Don't know" Round 2 turn hands no signal, so
+  // inference must degrade to that player's Round 1 mood — never guess from nothing.
+  it("degrades a no-signal player to their Round 1 mood", async () => {
+    createMock.mockResolvedValue(
+      aiInfer([
+        { player: 1, moodRead: { summary: "ai guess from nothing", axes: [] }, recIds: [] },
+        { player: 2, moodRead: { summary: "warm", axes: [] }, recIds: [2] },
+      ])
+    );
+    const pool = [pm(1, { genreIds: [27] }), pm(2, { genreIds: [27] })];
+    const result = await inferMoods(
+      pool,
+      { 1: { yes: [], no: [] }, 2: { yes: [2], no: [] } }, // P1 handed no signal
+      { 1: ["Horror"], 2: ["Comedy"] },
+      "US",
+      [],
+      false
+    );
+    expect(result[1].moodRead.summary.toLowerCase()).toContain("horror"); // from Round 1
+    expect(result[1].moodRead.axes).toEqual(["Horror"]);
+    expect(result[1].recs.length).toBeGreaterThan(0); // still gets mood-fit finalists
+    expect(result[2].moodRead.summary).toBe("warm"); // P2 had signal → AI read kept
+  });
+
+  // Blocker #2 (server side): the backfill is availability-attached and ordered
+  // eligible-first, so a narrow-service couple still gets watchable Round 3 options.
+  it("surfaces an eligible backfill title ahead of ineligible ones", async () => {
+    // Only movie 3 is on Netflix; the couple subscribes to Netflix (id 8).
+    providersMock.mockImplementation((id: number) => Promise.resolve(id === 3 ? onNetflix : null));
+    const pool = [pm(1), pm(2), pm(3), pm(4), pm(5)]; // all mood-fit (no anchor), strong votes
+    const result = await inferMoods(
+      pool,
+      { 1: { yes: [1], no: [] }, 2: { yes: [], no: [] } },
+      noCategories,
+      "US",
+      [8],
+      false
+    );
+    // The one eligible title is present in P1's finalists.
+    const eligible = result[1].recs.filter((r) => r.availability.flatrate.some((p) => p.id === 8));
+    expect(eligible.map((r) => r.id)).toContain(3);
   });
 });

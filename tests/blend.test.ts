@@ -217,9 +217,17 @@ describe("blendTastes pool relaxation", () => {
     expect(result.pool.length).toBeGreaterThan(0);
   });
 
-  it("does not throw if every TMDB query is empty (returns an empty pool)", async () => {
-    discoverMock.mockImplementation(() => []);
+  it("guarantees a viable pool via the broad popular fallback when every directioned query is thin", async () => {
+    // Every genre/keyword-directed query comes back empty; only the final broad,
+    // region-available popular query (watch_region set) returns titles.
+    discoverMock.mockImplementation((p: Record<string, string>) =>
+      p.watch_region ? movies(20) : []
+    );
     const result = await blendTastes(["Horror"], ["Comedy"]);
-    expect(result.pool).toEqual([]);
+    expect(result.pool.length).toBeGreaterThanOrEqual(15); // viable, never starved/empty
+    // and it must have run the eligible-aware broad query
+    expect(
+      discoverMock.mock.calls.some(([p]) => p.watch_region && p.with_watch_monetization_types)
+    ).toBe(true);
   });
 });

@@ -78,3 +78,49 @@ export function labelText(label: AvailabilityLabel): string {
     label.type === "flatrate" ? "Included with" : label.type === "rent" ? "Rent on" : "Buy on";
   return `${prefix} ${label.provider}`;
 }
+
+export interface WatchableRow<T> {
+  item: T;
+  label: AvailabilityLabel;
+}
+
+/**
+ * Exactly one watchable outcome for a set of finalists — never a mix of watchable
+ * and unwatchable:
+ * - `watchable`: eligible titles to pick (each carries its label).
+ * - `offer-rentals`: nothing's included, but paying would unlock `rentable` titles.
+ * - `none`: nothing's watchable even paying → the honest, recoverable end-state.
+ */
+export type WatchableView<T> =
+  | { kind: "watchable"; rows: WatchableRow<T>[] }
+  | { kind: "offer-rentals"; rentable: T[] }
+  | { kind: "none"; rentable: T[] };
+
+/**
+ * Resolve availability-carrying finalists into a single watchable view. We NEVER
+ * fall back to ineligible titles to fill the screen: show the eligible ones, or —
+ * when none are eligible — either offer the rentals expand (paying unlocks
+ * something) or surface the honest "nothing's watchable tonight" end-state.
+ */
+export function selectWatchable<T extends { availability: MovieAvailability }>(
+  items: T[],
+  selectedServices: number[],
+  willingToPay: boolean,
+  limit = 5
+): WatchableView<T> {
+  const evaluated = items.map((item) => ({
+    item,
+    ...evaluateAvailability(item.availability, selectedServices, willingToPay),
+  }));
+
+  const rows: WatchableRow<T>[] = evaluated
+    .filter((e) => e.eligible && e.label !== null)
+    .slice(0, limit)
+    .map((e) => ({ item: e.item, label: e.label as AvailabilityLabel }));
+  if (rows.length > 0) return { kind: "watchable", rows };
+
+  // Nothing's eligible — would paying unlock anything?
+  const rentable = evaluated.filter((e) => e.rentBuyAvailable).map((e) => e.item);
+  if (!willingToPay && rentable.length > 0) return { kind: "offer-rentals", rentable };
+  return { kind: "none", rentable };
+}

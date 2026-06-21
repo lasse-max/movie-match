@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
 import { categoryLabel } from "@/lib/categories";
+import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
 
 const btn =
   "rounded-full bg-foreground px-6 py-2.5 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]";
@@ -19,10 +20,16 @@ export function BlendingScreen() {
   const [attempt, setAttempt] = useState(0);
 
   const categories = state.round.categories;
+  const region = state.setup.region;
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, REQUEST_TIMEOUT_MS);
 
     const p1 = categories[1].map(categoryLabel);
     const p2 = categories[2].map(categoryLabel);
@@ -30,12 +37,13 @@ export function BlendingScreen() {
     fetch("/api/blend", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ p1, p2 }),
+      body: JSON.stringify({ p1, p2, region }),
       signal: controller.signal,
     })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
+        clearTimeout(timer);
         if (data.error) {
           setError(data.error);
         } else if (!Array.isArray(data.pool) || data.pool.length === 0) {
@@ -46,15 +54,22 @@ export function BlendingScreen() {
         }
       })
       .catch((e: unknown) => {
-        if (cancelled || (e instanceof DOMException && e.name === "AbortError")) return;
+        if (cancelled) return;
+        clearTimeout(timer);
+        if (timedOut) {
+          setError("This is taking longer than usual — check your connection and try again.");
+          return;
+        }
+        if (e instanceof DOMException && e.name === "AbortError") return;
         setError(e instanceof Error ? e.message : "Network error");
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
       controller.abort();
     };
-  }, [attempt, categories, dispatch]);
+  }, [attempt, categories, region, dispatch]);
 
   if (error) {
     return (

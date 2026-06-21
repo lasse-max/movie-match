@@ -1,7 +1,9 @@
 // The no-overlap path. Rank candidates by fit to BOTH players' moods, preferring
 // the INTERSECTION of their tastes (sci-fi + action → The Matrix). Eligibility is
-// a gate, not a ranking factor: among the best-fit titles, pick the best one the
-// couple can actually watch. Always a decision (falls back to a nearest pick).
+// MANDATORY, not a soft preference: we only ever return a title the couple can
+// actually watch. When nothing's eligible we hand back a recoverable state
+// (offer rentals, or the honest "nothing watchable" end-state) — never an
+// unavailable movie dressed up as a match. Round 3 rejections are excluded.
 import "server-only";
 import { attachAvailability } from "./availability";
 import { evaluateAvailability } from "./filter";
@@ -60,6 +62,13 @@ async function recommendationsFor(seedIds: number[]): Promise<TmdbDiscoverMovie[
 const fitsAnchor = (genreIds: number[], anchor: number[]) =>
   anchor.length === 0 || genreIds.some((g) => anchor.includes(g));
 
+/** Always a watchable decision OR an honest, recoverable state — never an
+ * unavailable match. */
+export type BridgeOutcome =
+  | { kind: "match"; movie: MatchMovie }
+  | { kind: "needs-rentals" } // a best-fit title is eligible IF they pay → offer the expand
+  | { kind: "none" }; //          nothing watchable even paying → honest end-state
+
 export async function bridge(
   pool: PoolMovie[],
   positives1: number[],
@@ -70,14 +79,15 @@ export async function bridge(
   region: string,
   services: number[],
   willingToPay: boolean,
-  fallback: MatchMovie | null
-): Promise<MatchMovie | null> {
+  declinedIds: number[]
+): Promise<BridgeOutcome> {
   const fresh = await recommendationsFor([...positives1, ...positives2]);
+  const declined = new Set(declinedIds); // titles either player explicitly passed on
   const candidates = [...pool.map(fromPool), ...fresh.map(fromDiscover)];
 
   const seen = new Set<number>();
   const quality = candidates.filter((c) => {
-    if (seen.has(c.id)) return false;
+    if (seen.has(c.id) || declined.has(c.id)) return false; // respect Round 3 rejections
     seen.add(c.id);
     return (
       !!c.posterUrl &&
@@ -95,20 +105,32 @@ export async function bridge(
     .sort((a, b) => b.s - a.s || b.c.voteAverage - a.c.voteAverage)
     .map((x) => x.c);
 
-  if (ranked.length === 0) return fallback;
+  if (ranked.length === 0) return { kind: "none" };
 
-  // Among the best-fit candidates, prefer the best the couple can actually watch.
+  // Eligibility is mandatory: return the best-fit title the couple can ACTUALLY
+  // watch — never a degraded nearest pick with no confirmed way to watch it.
   const withAvail = await attachAvailability(ranked.slice(0, TOP_TO_CHECK), region);
-  const chosen =
-    withAvail.find((c) => evaluateAvailability(c.availability, services, willingToPay).eligible) ??
-    withAvail[0];
+  const chosen = withAvail.find(
+    (c) => evaluateAvailability(c.availability, services, willingToPay).eligible
+  );
+  if (chosen) {
+    return {
+      kind: "match",
+      movie: {
+        id: chosen.id,
+        title: chosen.title,
+        year: chosen.year,
+        posterUrl: chosen.posterUrl,
+        genreIds: chosen.genreIds,
+        availability: chosen.availability,
+      },
+    };
+  }
 
-  return {
-    id: chosen.id,
-    title: chosen.title,
-    year: chosen.year,
-    posterUrl: chosen.posterUrl,
-    genreIds: chosen.genreIds,
-    availability: chosen.availability,
-  };
+  // Nothing's eligible. If paying would unlock a best-fit title, offer the expand;
+  // otherwise it's the honest end-state — never an unavailable match.
+  const couldRent = withAvail.some(
+    (c) => c.availability.rent.length + c.availability.buy.length > 0
+  );
+  return !willingToPay && couldRent ? { kind: "needs-rentals" } : { kind: "none" };
 }

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   evaluateAvailability,
   labelText,
+  selectWatchable,
   type MovieAvailability,
 } from "@/lib/filter";
 
@@ -65,5 +66,46 @@ describe("labelText", () => {
     expect(labelText({ type: "flatrate", provider: "Netflix", justWatchLink: null })).toBe("Included with Netflix");
     expect(labelText({ type: "rent", provider: "Apple TV", justWatchLink: null })).toBe("Rent on Apple TV");
     expect(labelText({ type: "buy", provider: "Amazon", justWatchLink: null })).toBe("Buy on Amazon");
+  });
+});
+
+// selectWatchable is the never-dead-end resolver: exactly one watchable view, and
+// it NEVER mixes unwatchable titles into the pickable rows.
+describe("selectWatchable", () => {
+  const item = (id: number, over: Partial<MovieAvailability> = {}) => ({ id, availability: avail(over) });
+
+  it("returns only eligible rows — never an unwatchable selectable title", () => {
+    const view = selectWatchable(
+      [
+        item(1, { flatrate: [NETFLIX] }), // eligible (on selected service)
+        item(2, { flatrate: [HULU] }), // on an unselected service → excluded
+        item(3, { rent: [APPLE] }), // rent only, not paying → excluded
+      ],
+      [8],
+      false
+    );
+    expect(view.kind).toBe("watchable");
+    if (view.kind === "watchable") {
+      expect(view.rows.map((r) => r.item.id)).toEqual([1]);
+      expect(view.rows.every((r) => r.label.type === "flatrate")).toBe(true);
+    }
+  });
+
+  it("caps eligible rows at the limit", () => {
+    const items = [1, 2, 3, 4, 5, 6].map((id) => item(id, { flatrate: [NETFLIX] }));
+    const view = selectWatchable(items, [8], false, 5);
+    expect(view.kind === "watchable" && view.rows.length).toBe(5);
+  });
+
+  it("offers rentals when nothing's included but paying would unlock a title", () => {
+    const view = selectWatchable([item(1, { flatrate: [HULU] }), item(2, { rent: [APPLE] })], [8], false);
+    expect(view.kind).toBe("offer-rentals");
+    if (view.kind === "offer-rentals") expect(view.rentable.map((i) => i.id)).toContain(2);
+  });
+
+  it("is the honest 'none' end-state when nothing's watchable even paying", () => {
+    // Nothing on the selected service, nothing rentable, already willing to pay.
+    const view = selectWatchable([item(1, { flatrate: [HULU] }), item(2)], [8], true);
+    expect(view.kind).toBe("none");
   });
 });

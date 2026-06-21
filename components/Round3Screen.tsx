@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
-import { evaluateAvailability, labelText, type AvailabilityLabel } from "@/lib/filter";
+import { selectWatchable, labelText, type AvailabilityLabel } from "@/lib/filter";
 import { genreNames } from "@/lib/genres";
 import { blurb } from "@/lib/blurb";
 import type { Player } from "@/lib/gameMachine";
@@ -27,20 +27,16 @@ function PlayerPicks({ player }: { player: Player }) {
   const { state, dispatch } = useGame();
   const inference = state.inference?.[player];
   const finalists = inference?.recs ?? [];
-  const { services, willingToPay } = state.setup;
+  const { services, willingToPay, region } = state.setup;
 
   const [ready, setReady] = useState(player === 1);
   const [selected, setSelected] = useState<number[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const submittedRef = useRef(false);
 
-  // Apply the (pure) eligibility filter — only what they can actually watch.
-  const evaluated = finalists.map((rec) => ({
-    rec,
-    ...evaluateAvailability(rec.availability, services, willingToPay),
-  }));
-  const eligible = evaluated.filter((e) => e.eligible).slice(0, TARGET);
-  const couldRent = evaluated.some((e) => e.rentBuyAvailable);
+  // Resolve to a SINGLE watchable view — eligible titles, the rentals expand, or
+  // the honest end-state. We never render ineligible titles as selectable picks.
+  const view = selectWatchable(finalists, services, willingToPay, TARGET);
 
   if (!ready) {
     return (
@@ -57,14 +53,17 @@ function PlayerPicks({ player }: { player: Player }) {
     );
   }
 
-  // Never dead-end: nothing included, but rentals would unlock titles → offer it.
-  if (eligible.length === 0 && !willingToPay && couldRent) {
+  // Nothing's included, but paying would unlock titles → offer the expand. When
+  // they've selected NO services at all, also surface the path back to setup.
+  if (view.kind === "offer-rentals") {
     return (
       <div className="flex flex-col items-center gap-5 text-center">
         <span className="text-4xl" aria-hidden>💸</span>
         <h2 className="text-xl font-semibold">Nothing’s included tonight</h2>
         <p className="text-sm text-foreground/60">
-          None of your picks are on your subscriptions — but they’re available to rent or buy.
+          {services.length === 0
+            ? "You haven’t added any subscriptions — but these are available to rent or buy."
+            : "None of your picks are on your subscriptions — but they’re available to rent or buy."}
         </p>
         <button
           className={primaryBtn}
@@ -72,14 +71,38 @@ function PlayerPicks({ player }: { player: Player }) {
         >
           Include rentals &amp; purchases
         </button>
+        {services.length === 0 && (
+          <button
+            className="text-xs text-foreground/50 underline underline-offset-4 hover:text-foreground"
+            onClick={() => dispatch({ type: "RESET" })}
+          >
+            …or start over and add a service
+          </button>
+        )}
       </div>
     );
   }
 
-  // Absolute fallback (rare — nothing watchable in the region at all): show the
-  // finalists anyway so the round never ends empty.
-  const degraded = eligible.length === 0;
-  const rows = degraded ? evaluated.slice(0, TARGET) : eligible;
+  // Honest, recoverable end-state: nothing is streamable or rentable for these
+  // picks in this region tonight. We never pad the screen with unwatchable titles
+  // — offer an honest retune instead.
+  if (view.kind === "none") {
+    return (
+      <div className="flex flex-col items-center gap-5 text-center">
+        <span className="text-4xl" aria-hidden>🌧️</span>
+        <h2 className="text-xl font-semibold">Nothing watchable tonight</h2>
+        <p className="text-sm text-foreground/60">
+          We couldn’t find any of these to stream or rent in {region} right now. Retune your
+          vibes and we’ll try again.
+        </p>
+        <button className={primaryBtn} onClick={() => dispatch({ type: "RESET" })}>
+          Start over
+        </button>
+      </div>
+    );
+  }
+
+  const rows = view.rows; // every row is eligible — nothing unwatchable is shown
 
   const toggle = (id: number) =>
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
@@ -104,20 +127,14 @@ function PlayerPicks({ player }: { player: Player }) {
         )}
       </div>
 
-      {degraded && (
-        <p className="rounded-lg bg-foreground/5 px-3 py-2 text-center text-xs text-foreground/60">
-          Couldn’t confirm these on your services — pick anyway, or hit Reset to retune.
-        </p>
-      )}
-
       <ul className="flex flex-col gap-2">
-        {rows.map(({ rec, label }) => (
+        {rows.map(({ item, label }) => (
           <RecRow
-            key={rec.id}
-            rec={rec}
+            key={item.id}
+            rec={item}
             label={label}
-            selected={selected.includes(rec.id)}
-            onToggle={() => toggle(rec.id)}
+            selected={selected.includes(item.id)}
+            onToggle={() => toggle(item.id)}
           />
         ))}
       </ul>
@@ -141,7 +158,7 @@ function RecRow({
   onToggle,
 }: {
   rec: PlayerRec;
-  label: AvailabilityLabel | null;
+  label: AvailabilityLabel; // always present — only eligible titles are rendered
   selected: boolean;
   onToggle: () => void;
 }) {
@@ -194,7 +211,7 @@ function RecRow({
             </p>
           )}
           <div className="mt-1 text-[11px] font-medium text-foreground/70">
-            {label ? labelText(label) : "Not on your services"}
+            {labelText(label)}
           </div>
         </div>
         <span

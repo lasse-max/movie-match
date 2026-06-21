@@ -37,10 +37,12 @@ export interface SetupConfig {
   willingToPay: boolean;
 }
 
-/** Round 2 leanings — captured both ways so AI #2 can read tone from each side. */
+/** Round 2 leanings — captured all three ways so AI #2 can read tone from each
+ * side, and so a fully-processed turn is distinguishable from an untouched one. */
 export interface PlayerSwipes {
   yes: number[]; // leaned toward
   no: number[]; // leaned away
+  neutral: number[]; // "Don't know" — processed but carries no signal
 }
 
 /** Per-player data captured across the rounds (movie ids unless noted). */
@@ -70,7 +72,10 @@ export const initialState: GameState = {
   setup: { region: DEFAULT_REGION, services: [], willingToPay: false },
   round: {
     categories: { 1: [], 2: [] },
-    swipes: { 1: { yes: [], no: [] }, 2: { yes: [], no: [] } },
+    swipes: {
+      1: { yes: [], no: [], neutral: [] },
+      2: { yes: [], no: [], neutral: [] },
+    },
     picks: { 1: [], 2: [] },
   },
   blend: null,
@@ -84,7 +89,7 @@ export type Action =
   | { type: "TOGGLE_SERVICE"; serviceId: number }
   | { type: "SET_WILLING_TO_PAY"; value: boolean }
   | { type: "SET_CATEGORIES"; player: Player; categories: string[] }
-  | { type: "SET_SWIPES"; player: Player; yes: number[]; no: number[] }
+  | { type: "SET_SWIPES"; player: Player; yes: number[]; no: number[]; neutral: number[] }
   | { type: "SET_PICKS"; player: Player; movieIds: number[] }
   | { type: "SET_BLEND"; blend: BlendResult }
   | { type: "SET_INFERENCE"; inference: InferResult }
@@ -118,8 +123,11 @@ function currentPlayerHasData(state: GameState): boolean {
     case "round1":
       return state.round.categories[cp].length > 0;
     case "round2": {
+      // A fully-processed turn counts even with zero yes/no signal — an
+      // all-"Don't know" turn is valid completion (it just hands no signal
+      // downstream, which inference degrades to the player's Round 1 mood).
       const s = state.round.swipes[cp];
-      return s.yes.length + s.no.length > 0;
+      return s.yes.length + s.no.length + s.neutral.length > 0;
     }
     case "round3":
       return true; // picking nothing is a valid choice
@@ -189,7 +197,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ...state.round,
           swipes: {
             ...state.round.swipes,
-            [action.player]: { yes: action.yes, no: action.no },
+            [action.player]: { yes: action.yes, no: action.no, neutral: action.neutral },
           },
         },
       };

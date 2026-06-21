@@ -8,6 +8,7 @@
 import "server-only";
 import { CLAUDE_MODEL, getAnthropic } from "./anthropic";
 import { categoryGenreId } from "./categories";
+import { DEFAULT_REGION } from "./constants";
 import { ANIMATION_GENRE_ID, isKidsFare } from "./genres";
 import {
   discoverMovies,
@@ -256,6 +257,25 @@ async function fetchForDirection(
   return results;
 }
 
+function toPoolMovie(
+  m: TmdbDiscoverMovie,
+  directionIndex: number,
+  theme: string
+): PoolMovie {
+  return {
+    id: m.id,
+    title: m.title,
+    year: m.release_date ? m.release_date.slice(0, 4) : null,
+    overview: m.overview,
+    posterUrl: tmdbImageUrl(m.poster_path, "w342"),
+    genreIds: m.genre_ids ?? [],
+    voteAverage: m.vote_average,
+    voteCount: m.vote_count,
+    directionIndex,
+    directionTheme: theme,
+  };
+}
+
 async function buildPool(
   directions: Direction[],
   excludeKidsFare: boolean
@@ -273,22 +293,28 @@ async function buildPool(
       if (seen.has(m.id) || !m.poster_path) continue; // need a poster for the swipe UI
       if (excludeKidsFare && isKidsFare(m.genre_ids)) continue; // drop kids' tentpoles
       seen.add(m.id);
-      pool.push({
-        id: m.id,
-        title: m.title,
-        year: m.release_date ? m.release_date.slice(0, 4) : null,
-        overview: m.overview,
-        posterUrl: tmdbImageUrl(m.poster_path, "w342"),
-        genreIds: m.genre_ids ?? [],
-        voteAverage: m.vote_average,
-        voteCount: m.vote_count,
-        directionIndex: i,
-        directionTheme: dir.theme,
-      });
+      pool.push(toPoolMovie(m, i, dir.theme));
       added++;
     }
   }
   return pool;
+}
+
+/** Broad, region-AVAILABLE popular titles — the final safety net so a thin or
+ * empty strategy pool can never starve Round 2's distinct per-player samples. */
+async function fetchBroadPopular(region: string): Promise<TmdbDiscoverMovie[]> {
+  const out: TmdbDiscoverMovie[] = [];
+  for (let page = 1; page <= 3 && out.length < TARGET_POOL; page++) {
+    const res = await discoverMovies({
+      "vote_count.gte": String(MIN_VOTES),
+      watch_region: region, // eligible-aware: only titles streamable/rentable here
+      with_watch_monetization_types: "flatrate|rent|buy",
+      page: String(page),
+    });
+    if (res.length === 0) break;
+    out.push(...res);
+  }
+  return out;
 }
 
 /**
@@ -302,7 +328,8 @@ export async function buildViablePool(
   directions: Direction[],
   p1: string[],
   p2: string[],
-  excludeKidsFare: boolean
+  excludeKidsFare: boolean,
+  region: string
 ): Promise<{ directions: Direction[]; pool: PoolMovie[] }> {
   let pool = await buildPool(directions, excludeKidsFare);
   if (pool.length >= VIABLE_POOL) return { directions, pool };
@@ -312,15 +339,50 @@ export async function buildViablePool(
   pool = await buildPool(noKeywords, excludeKidsFare);
   if (pool.length >= VIABLE_POOL) return { directions: noKeywords, pool };
 
-  // Last resort: rebuild from each player's genres (always yields popular films).
+  // Relax further: rebuild from each player's genres.
   const fallback = fallbackStrategy(p1, p2).directions;
-  pool = await buildPool(fallback, excludeKidsFare);
-  return { directions: fallback, pool };
+  const genrePool = await buildPool(fallback, excludeKidsFare);
+  if (genrePool.length >= VIABLE_POOL) return { directions: fallback, pool: genrePool };
+
+  // Final safety net: merge in broad, region-available popular titles so the pool
+  // is ALWAYS viable for Round 2's distinct per-player samples — even if every
+  // directioned/genre query came back thin. (If TMDB itself returns nothing, the
+  // pool is empty and the round honestly surfaces an error rather than stalling.)
+  const broadDir: Direction = {
+    theme: "Crowd-pleasers",
+    genreIds: [],
+    keywords: [],
+    tone: [],
+    sourcePicks: [],
+  };
+  const broadIndex = genrePool.length
+    ? Math.max(...genrePool.map((m) => m.directionIndex)) + 1
+    : 0;
+  const seen = new Set(genrePool.map((m) => m.id));
+  let addedBroad = false;
+  for (const m of await fetchBroadPopular(region)) {
+    if (genrePool.length >= TARGET_POOL) break;
+    if (seen.has(m.id) || !m.poster_path) continue;
+    if (excludeKidsFare && isKidsFare(m.genre_ids)) continue;
+    seen.add(m.id);
+    genrePool.push(toPoolMovie(m, broadIndex, broadDir.theme));
+    addedBroad = true;
+  }
+  const used = !addedBroad
+    ? fallback
+    : broadIndex === 0
+      ? [broadDir]
+      : [...fallback, broadDir];
+  return { directions: used, pool: genrePool };
 }
 
 // ---- Orchestration ---------------------------------------------------------
 
-export async function blendTastes(p1: string[], p2: string[]): Promise<BlendResult> {
+export async function blendTastes(
+  p1: string[],
+  p2: string[],
+  region: string = DEFAULT_REGION
+): Promise<BlendResult> {
   const strategy = (await getStrategy(p1, p2)) ?? fallbackStrategy(p1, p2);
 
   // Exclude kids' fare (Animation AND Family — Mario/Zootopia) by default,
@@ -334,7 +396,8 @@ export async function blendTastes(p1: string[], p2: string[]): Promise<BlendResu
     strategy.directions,
     p1,
     p2,
-    excludeKidsFare
+    excludeKidsFare,
+    region
   );
   return { moodRead: strategy.moodRead, directions, pool };
 }

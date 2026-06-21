@@ -2,10 +2,7 @@
 
 > Two people, one phone, three rounds, ~2 minutes — and a movie you both actually want to watch tonight.
 
-<!-- TODO: replace with a live demo GIF (record it in Phase 2). This is the single most important thing on the page. -->
-![demo](docs/demo.gif)
-
-**Live demo:** <!-- TODO: Vercel URL --> · **Built by:** Lasse
+**Live demo:** _coming soon_ · **Built by:** Lasse
 
 ---
 
@@ -56,7 +53,6 @@ setup → Round 1 → [AI: blend] → Round 2 → [AI: infer pattern] → Round 
 ## Getting started
 
 ```bash
-# TODO: fill in as you build
 git clone https://github.com/lasse-max/movie-match.git
 cd movie-match
 npm install
@@ -88,5 +84,4 @@ npm run dev
 
 ## License
 
-<!-- TODO: MIT is a fine default for a portfolio project -->
 MIT

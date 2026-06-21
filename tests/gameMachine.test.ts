@@ -17,7 +17,7 @@ const run = (s: GameState, ...actions: Action[]) => actions.reduce(gameReducer, 
 const completeRound1 = (s: GameState, player: 1 | 2, categories = ["action", "comedy"]) =>
   run(s, { type: "SET_CATEGORIES", player, categories }, { type: "COMPLETE_TURN", player });
 const completeRound2 = (s: GameState, player: 1 | 2) =>
-  run(s, { type: "SET_SWIPES", player, yes: [1], no: [2] }, { type: "COMPLETE_TURN", player });
+  run(s, { type: "SET_SWIPES", player, yes: [1], no: [2], neutral: [] }, { type: "COMPLETE_TURN", player });
 
 const recList = (ids: number[]) =>
   ids.map((id) => ({
@@ -125,11 +125,22 @@ describe("gameMachine reducer", () => {
     expect(s.round.categories[2]).toEqual(["comedy", "cozy", "romance"]);
   });
 
-  it("records each player's Round 2 swipes both ways", () => {
+  it("records each player's Round 2 swipes all three ways", () => {
     let s: GameState = { ...initialState, phase: "round2" };
-    s = run(s, { type: "SET_SWIPES", player: 1, yes: [10, 20], no: [30] });
-    expect(s.round.swipes[1]).toEqual({ yes: [10, 20], no: [30] });
-    expect(s.round.swipes[2]).toEqual({ yes: [], no: [] }); // P2 untouched
+    s = run(s, { type: "SET_SWIPES", player: 1, yes: [10, 20], no: [30], neutral: [40] });
+    expect(s.round.swipes[1]).toEqual({ yes: [10, 20], no: [30], neutral: [40] });
+    expect(s.round.swipes[2]).toEqual({ yes: [], no: [], neutral: [] }); // P2 untouched
+  });
+
+  it("completes a Round 2 turn made entirely of 'Don't know' (invariant: no stall)", () => {
+    let s: GameState = { ...initialState, phase: "round2" };
+    // P1 processed every card as neutral — empty yes/no, but a populated neutral list.
+    s = run(s, { type: "SET_SWIPES", player: 1, yes: [], no: [], neutral: [10, 20, 30] });
+    const advanced = gameReducer(s, { type: "COMPLETE_TURN", player: 1 });
+    expect(advanced.currentPlayer).toBe(2); // turn completed → handed to P2, not stalled
+    // …while a genuinely untouched turn (no swipes at all) still cannot advance.
+    const untouched: GameState = { ...initialState, phase: "round2" };
+    expect(gameReducer(untouched, { type: "COMPLETE_TURN", player: 1 })).toBe(untouched);
   });
 
   it("stores the prefetched blend result", () => {
