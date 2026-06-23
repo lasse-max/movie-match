@@ -29,9 +29,9 @@ const TARGET_RECS = 5;
 const MAX_FRESH = 2;
 const FRESH_SEEDS = 3;
 const MAX_CANDIDATES = 12;
-const BACKFILL_SCAN = 10; // mood-fit pool titles appended after recs (fit-ranked)
 const AVAIL_BATCH = 5; // availability fetched in fit-order batches…
-const MAX_AVAIL_FETCHES = 15; // …up to this ceiling — never the whole pool (latency)
+const MAX_AVAIL_FETCHES = 15; // …early-stop here ONCE the list is non-empty; a terminal
+//                               "none" exhausts the full ranked pool first (see build).
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2; // quality floor for fresh expansion AND backfill
 
@@ -345,14 +345,15 @@ function backfillCandidates(
   anchor: Set<number>
 ): Candidate[] {
   const fits = (g: number[]) => anchor.size === 0 || g.some((x) => anchor.has(x));
-  // Stays mood-fit AND quality-floored: eligibility narrows the GOOD candidates,
-  // it never licenses padding the list with mediocre titles.
+  // The FULL mood-fit, quality-floored pool in fit order — not a fixed top-N — so
+  // an exhaustive "nothing watchable" check can reach a title deeper than the
+  // early-stop cap. Eligibility narrows the GOOD candidates; it never licenses
+  // padding the list with mediocre titles.
   return [...pool]
     .sort((a, b) => b.voteCount - a.voteCount)
     .filter(
       (m) => !exclude.has(m.id) && fits(m.genreIds) && m.voteAverage >= MIN_VOTE_AVERAGE
     )
-    .slice(0, BACKFILL_SCAN)
     .map((m) => poolToCandidate(m, "swipe"));
 }
 
@@ -399,19 +400,25 @@ export async function inferMoods(
     // display time (lib/filter selectWatchable), per the canonical ranking rule.
     const ranked = [...recs, ...backfill];
 
-    // Attach availability in fit order, in BATCHES, until enough eligible options
-    // are found OR we hit the bounded ceiling — so a narrow-service couple is
-    // never falsely told "nothing's watchable" by a too-shallow scan, yet we
-    // never fetch availability for the whole pool.
+    // Attach availability in fit order, in BATCHES. Early-stop once we've filled
+    // enough eligible options OR hit the cap WITH a non-empty result. But a
+    // terminal "nothing watchable" (no title watchable even when paying) must be
+    // exhaustive — so when nothing watchable has turned up yet, keep scanning the
+    // full ranked pool past the cap rather than falsely declaring none. (The deep
+    // scan only triggers when the top of the list is entirely unavailable — rare,
+    // since most titles are at least rentable — so there's no routine cost.)
     const finalists: PlayerRec[] = [];
     let eligible = 0;
-    for (let i = 0; i < ranked.length && i < MAX_AVAIL_FETCHES; i += AVAIL_BATCH) {
+    let watchableIfPaid = false; // some title is watchable when willing to pay → not a "none"
+    for (let i = 0; i < ranked.length; i += AVAIL_BATCH) {
+      if (eligible >= TARGET_RECS) break;
+      if (i >= MAX_AVAIL_FETCHES && watchableIfPaid) break;
       const batch = await attachAvailability(ranked.slice(i, i + AVAIL_BATCH), region);
       finalists.push(...batch);
-      eligible += batch.filter(
-        (r) => evaluateAvailability(r.availability, services, willingToPay).eligible
-      ).length;
-      if (eligible >= TARGET_RECS) break;
+      for (const r of batch) {
+        if (evaluateAvailability(r.availability, services, willingToPay).eligible) eligible++;
+        if (evaluateAvailability(r.availability, services, true).eligible) watchableIfPaid = true;
+      }
     }
 
     // Degrade gracefully: a player who handed no swipe signal (all "Don't know")

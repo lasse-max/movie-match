@@ -111,14 +111,17 @@ describe("bridge", () => {
     expect(out.kind).toBe("none");
   });
 
-  // Major 3: an eligible candidate deeper than a fixed top-N must still be found
-  // (the batched scan), not produce a false "none".
-  it("finds an eligible candidate deeper than a fixed top-N (no false 'none')", async () => {
-    const ten = Array.from({ length: 10 }, (_, i) => pm(i + 1, [878, 28], 8.0)); // score 2, rank first
-    const eleventh = pm(11, [878], 7.0); // score 1 → ranks 11th
-    providersMock.mockImplementation((id: number) => Promise.resolve(id === 11 ? onNetflix : null));
-    const out = await bridge([...ten, eleventh], [], [], [878], [28], false, "US", SERVICES, false, []);
+  // A terminal "none" must be EXHAUSTIVE: an eligible title ranked PAST the
+  // early-stop cap must still be found rather than producing a false "none".
+  it("exhausts the full ranked pool before 'none' — finds an eligible title past the cap", async () => {
+    // 16 higher-fit titles, all unavailable (so the bounded top-15 scan finds
+    // nothing eligible and nothing rentable → would be a terminal none). The one
+    // eligible title sits at position 17, beyond MAX_AVAIL_FETCHES (15).
+    const unavailable = Array.from({ length: 16 }, (_, i) => pm(i + 1, [878, 28], 8.0)); // score 2
+    const deepEligible = pm(17, [878], 7.0); // score 1 → ranks last (position 17)
+    providersMock.mockImplementation((id: number) => Promise.resolve(id === 17 ? onNetflix : null));
+    const out = await bridge([...unavailable, deepEligible], [], [], [878], [28], false, "US", SERVICES, false, []);
     expect(out.kind).toBe("match");
-    if (out.kind === "match") expect(out.movie.id).toBe(11);
+    if (out.kind === "match") expect(out.movie.id).toBe(17);
   });
 });

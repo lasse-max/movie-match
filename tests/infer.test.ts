@@ -195,4 +195,24 @@ describe("inferMoods", () => {
     const ids = result[1].recs.map((r) => r.id);
     expect(ids.indexOf(1)).toBeLessThan(ids.indexOf(2)); // fit order, not eligible-first
   });
+
+  // Major (3rd pass): Round 3's terminal "nothing watchable" must be exhaustive.
+  // The one watchable title sits past the early-stop cap (and everything ahead is
+  // fully unavailable), so it must still appear in the finalists — no false none.
+  it("finds a watchable title beyond the early-stop cap (no false Round-3 none)", async () => {
+    // 17 mood-fit titles by descending voteCount; only the LAST (id 17, lowest
+    // votes → ranked ~17th) is on Netflix, the rest have no availability at all.
+    const pool = Array.from({ length: 17 }, (_, i) => pm(i + 1, { voteCount: 1000 - i }));
+    providersMock.mockImplementation((id: number) => Promise.resolve(id === 17 ? onNetflix : null));
+    const result = await inferMoods(
+      pool,
+      { 1: { yes: [], no: [] }, 2: { yes: [], no: [] } },
+      noCategories,
+      "US",
+      [8],
+      false
+    );
+    const watchable = result[1].recs.find((r) => r.availability.flatrate.some((p) => p.id === 8));
+    expect(watchable?.id).toBe(17); // the deep eligible title is present, not missed
+  });
 });

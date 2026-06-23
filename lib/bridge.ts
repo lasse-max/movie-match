@@ -108,21 +108,36 @@ export async function bridge(
 
   if (ranked.length === 0) return { kind: "none" };
 
-  // Eligibility is mandatory. Scan availability in fit order, in BATCHES, until
-  // the first eligible title OR the bounded ceiling — so an eligible candidate
-  // deeper than a fixed top-N isn't missed (a false "none"), without fetching
-  // availability for the entire ranked pool.
   type Scanned = BridgeCand & { availability: MovieAvailability };
   const scanned: Scanned[] = [];
+  const eligible = (c: Scanned) =>
+    evaluateAvailability(c.availability, services, willingToPay).eligible;
+  const rentable = (c: Scanned) => c.availability.rent.length + c.availability.buy.length > 0;
+
+  // Scan availability in fit order, in BATCHES, returning the first eligible
+  // (watchable) title as the match. Early-stop at the cap — UNLESS we'd otherwise
+  // have to claim a terminal "none": before giving up, exhaust the full ranked
+  // pool so an eligible title deeper than the cap is never missed.
   let chosen: Scanned | undefined;
-  for (let i = 0; i < ranked.length && i < MAX_AVAIL_FETCHES; i += AVAIL_BATCH) {
+  let i = 0;
+  for (; i < ranked.length && i < MAX_AVAIL_FETCHES && !chosen; i += AVAIL_BATCH) {
     const batch = await attachAvailability(ranked.slice(i, i + AVAIL_BATCH), region);
     scanned.push(...batch);
-    chosen = batch.find(
-      (c) => evaluateAvailability(c.availability, services, willingToPay).eligible
-    );
-    if (chosen) break;
+    chosen = batch.find(eligible);
   }
+
+  // No match in the bounded scan, but rentals would unlock one → a RECOVERABLE
+  // state (offer the expand). Not a terminal absence, so no exhaustive scan.
+  if (!chosen && !willingToPay && scanned.some(rentable)) return { kind: "needs-rentals" };
+
+  // Otherwise we'd be claiming a TERMINAL "none" — exhaust the rest of the ranked
+  // pool for a watchable match first.
+  for (; i < ranked.length && !chosen; i += AVAIL_BATCH) {
+    const batch = await attachAvailability(ranked.slice(i, i + AVAIL_BATCH), region);
+    scanned.push(...batch);
+    chosen = batch.find(eligible);
+  }
+
   if (chosen) {
     return {
       kind: "match",
@@ -136,12 +151,5 @@ export async function bridge(
       },
     };
   }
-
-  // Nothing eligible within the scanned set. If paying would unlock a scanned
-  // title, offer the expand; otherwise the honest end-state — never an
-  // unavailable match.
-  const couldRent = scanned.some(
-    (c) => c.availability.rent.length + c.availability.buy.length > 0
-  );
-  return !willingToPay && couldRent ? { kind: "needs-rentals" } : { kind: "none" };
+  return !willingToPay && scanned.some(rentable) ? { kind: "needs-rentals" } : { kind: "none" };
 }

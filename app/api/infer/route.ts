@@ -4,9 +4,9 @@ import { DEFAULT_REGION } from "@/lib/constants";
 import { sanitizePool, idsIn, boundedIds, isSupportedRegion } from "@/lib/validate";
 
 // AI call #2: infer each player's mood from Round 2 swipes → ranked ~5 Round 3
-// recs per player (with region availability attached to the finalists, biased
-// eligible-first for the couple's services). Body: { pool, swipes, categories,
-// region, services, willingToPay }.
+// recs per player. Availability is attached to the FIT-ranked finalists;
+// eligibility is applied later at display time and never reorders them. Body:
+// { pool, swipes, categories, region, services, willingToPay }.
 const toStrArray = (x: unknown): string[] =>
   Array.isArray(x) ? x.filter((s): s is string => typeof s === "string").slice(0, 5) : [];
 
