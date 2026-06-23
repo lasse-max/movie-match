@@ -1,55 +1,59 @@
-# Movie Match — Project Roadmap
+# Movie Match — Roadmap (1.0 → 3.0)
 
-*v1.0*
+Versioned plan from shipped MVP to public launch. Cadence stays the same: decision brief → Arthur builds → Otto reviews → Cato independent audit at milestones → fix → re-confirm.
 
-## Overview
+---
 
-Movie Match ships web-first and pass-the-phone, then earns its way to the synced two-device "Ultimate" version. The MVP is deliberately the fastest to finish: the data problem is solved by TMDB, the scope is tight, and there is no legal or data-access risk. Goal: a finished, deployed repo first.
+## 1.0 — MVP ✅ SHIPPED
+The full pass-the-phone loop (setup → blend → swipe → infer → Round 3 → filter → match/tiebreak), deployed on Vercel, **independently verified across 6 review rounds.** No blockers, no majors, 95 tests.
 
-## Phases at a Glance
+---
 
-| Phase | Timeline | Goal | Key Outputs |
-|---|---|---|---|
-| 0 — Plan | Done | Lock scope, flow, architecture | BRD + roadmap |
-| 1 — MVP (Pass-the-Phone) | ~1 week | Working game, deployed | 3-round flow, TMDB pool, subscription filter, 2 AI calls, live on Vercel |
-| 2 — Polish | +1–2 weeks | Make it feel great | Swipe animations, tiebreak round, edge cases, loading states, README |
-| 3 — Ultimate (Sync) | Later | Two phones, real-time | Realtime backend, sessions, optional accounts |
-| 4 — Smarter (optional) | Later | Learn over time | Watch history, embeddings-based blending, per-couple tuning |
+## 1.5 — Prove better matching (+ self-testing quality)
+*Goal: not "build embeddings" but **PROVE the matching got measurably better** before investing in heavy infrastructure. (Cato's framing: don't let infrastructure cosplay as product progress.)*
 
-## Phase 1 — MVP (Pass-the-Phone) · ~1 week
+**Deliverables, in order:**
+1. **Overview + keyword enrichment** — feed each movie's TMDB overview + keywords to the AI so it matches on premise/theme/tone, not coarse genre tags. Cheap, no new infra, the biggest *immediate* quality jump. Do first.
+2. **Saved streaming services (localStorage) + Variety / freshness** — the two functional fixes that make heavy self-testing productive (no re-entering services; no repeat movies on replay). Pulled up from 2.0.
+3. **A small eval set** — ~15–20 hand-built "test couples" (Round-1 picks + simulated Round-2 swipes) with a simple human-judged rubric: *does the final pick + the 5 recs genuinely fit BOTH players' stated taste?* Run each matching version against the same set and compare. This is what makes "better" measurable — and it's reusable across all future matching work. Keep it lightweight (human-judged, eyeball the diffs); don't let the eval itself become a project.
+4. **THEN — and only if the eval shows headroom worth the infra — the vector-search prototype.** Embeddings over a curated catalog (~10–30k titles, pgvector/Supabase); whole-catalog search by the couple's taste vector, especially for the fresh expansion and the no-match bridge. **Gated by the eval, not built on faith.** May find overview+keywords already suffices → defer the infra.
+- **Alternative picks on the match screen** — 2–3 close runner-ups; cheap, falls out of existing data.
+- **Presentable-quality fixes (from 1.0 self-testing):** provider-list curation (mainstream services, no tier-variants, include Max), franchise/sequel dedup, bigger & reliable Round 3 list, match transparency ("why it matched" — tags + %), and round-dependent popularity (recognizable films in Round 2 for a clean mood read; discoveries in Round 3). Details in the backlog.
 
-The finishable core. One shared device, the full 3-round flow, real data, deployed.
+**Set before starting:** a success criterion — what "better matching" means as a number (e.g., on the eval set, the top pick plausibly fits both players in N of 20 cases, up from the genre-only baseline).
 
-### Build Order
-1. Scaffold React + serverless on Vercel; wire a TMDB test call end-to-end
-2. Build the round state machine (setup → R1 → R2 → R3 → match/tiebreak)
-3. Round 1: category/mood selection with pass-the-phone turn cues
-4. AI call #1: blend both players' picks into themes + a TMDB candidate pool
-5. Round 2: swipeable sub-genre samples; capture each player's leanings
-6. AI call #2: infer mood pattern → generate Round 3 recommendations
-7. Round 3: multi-select acceptable titles; compute overlap; tiebreak if none
-8. Subscription + pay filter applied across all candidates
-9. Match screen with deep link out to JustWatch / provider
+**Throughout:** Lasse self-review loop — play heavily, log friction, fix in small passes.
 
-### Definition of Done
-Two people can go from launch to an agreed movie in under three minutes on one phone, seeing only titles they can actually stream tonight — deployed at a public URL.
+---
 
-## Phase 2 — Polish · +1–2 weeks
-- Swipe gestures and transitions that make Round 2 feel like a game
-- Tiebreak / "close one stays" logic refined and tested
-- Edge cases: no overlap, tiny candidate pools, missing availability
-- Playful loading states to mask AI latency
-- A strong README: problem, the two-layer architecture, where AI is and isn't used, a short demo GIF
+## 2.0 — UX & feel + Lasse-feedback fixes
+*Goal: a version you're proud to show.*
+- Swipe gestures/animations; loading-state personality ("blending… / reading the mood…").
+- Visual / theme pass + font swap (also clears the deferred Google-Fonts reliability item).
+- Match-screen presentation polish — make the reveal land like a payoff.
+- Mood/vibe Round 1 input ("light, funny, cozy") if it tests better than genres.
+- Copy pass + mobile feel (it's a phone-passing game — the mobile experience must be tight).
+- Fixes surfaced by your 1.5 dogfooding.
 
-## Phase 3 — Ultimate (Two-Phone Sync) · Later
-A separate, bigger build — intentionally deferred. Both players open the app on their own phones and play in sync.
-- Real-time backend (e.g. Supabase Realtime, Firebase, or websockets)
-- Shared session/room model so two devices stay in lockstep
-- Optional lightweight accounts to remember subscriptions
-- Reconnect / dropped-turn handling
+---
 
-## Phase 4 — Smarter (Optional) · Later
-- Persist watch history and outcomes per couple
-- Swap or augment the LLM blend with vector embeddings for similarity matching
-- Tune recommendations to a couple's evolving taste over time
+## 2.5 — Modes, close-friend testing, feature experiments
+- **Cinephile mode** (the mode system — kid/anime modes are natural later extensions).
+- **"Seen it / not tonight" tick** + friendlier honest-end-state recovery (adjust services/payment without full restart).
+- **Feature experiments** — e.g., Round-3 count tuning, mood-input variants — measured against the eval set and your own play.
+- **First external testers: close friends.** Structured feedback (not just "cool"): did the pick land? would you play again?
 
+---
+
+## 3.0 — Broader dogfooding + public launch package
+- Wide testing (friends-of-friends, surf/movie communities, Reddit). Variety + match-quality tuning from *real* usage.
+- Two-phone real-time sync (the "Ultimate" version) + watch-history awareness (needs accounts) — only if validated demand.
+- **Launch package:** register **moviematch.app**, provider curation finalized, reliability hardening, the **share screen + "who's watching" persona** (the growth loop), and the **case study + portfolio writeup** (problem → decisions → AI usage → what real users taught you → the multi-round independent-review rigor story).
+
+---
+
+### Sequencing logic (why this order)
+- **Matching before feel** is deliberate: the core value is *good picks*, so you upgrade the engine first and validate match quality in your own testing — *then* polish the wrapper.
+- **Variety + saved services in 1.5, not 2.0**, because they're what make heavy self-testing productive instead of tedious.
+- **Prove before you build** (Cato): 1.5 is judged by *better matching*, not by shipping embeddings. The eval set decides whether the vector-search infra is even worth building — the cheap overview+keyword win may already suffice. Don't let infrastructure cosplay as product progress.
+- **External users only after it's polished** (your call, and the right one — first impressions matter, even with friends).
