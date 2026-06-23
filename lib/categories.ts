@@ -13,6 +13,15 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
+  // Moods FIRST — a soft nudge toward mood-led Round 1. Moods are blendable
+  // ("light"/"intense" → common ground), where genres polarize couples apart.
+  { id: "feelgood", label: "Feel-good", emoji: "🌞" },
+  { id: "mindbending", label: "Mind-bending", emoji: "🌀" },
+  { id: "tearjerker", label: "Tearjerker", emoji: "😭" },
+  { id: "dark", label: "Dark & gritty", emoji: "🌑" },
+  { id: "cozy", label: "Cozy", emoji: "☕" },
+  { id: "apocalyptic", label: "Apocalyptic", emoji: "☢️" },
+  // Then genres (they still anchor the TMDB search).
   { id: "action", label: "Action", emoji: "💥", tmdbGenreId: 28 },
   { id: "comedy", label: "Comedy", emoji: "😂", tmdbGenreId: 35 },
   { id: "horror", label: "Horror", emoji: "👻", tmdbGenreId: 27 },
@@ -23,12 +32,6 @@ export const CATEGORIES: Category[] = [
   { id: "fantasy", label: "Fantasy", emoji: "🐉", tmdbGenreId: 14 },
   { id: "crime", label: "Crime", emoji: "🕵️", tmdbGenreId: 80 },
   { id: "animation", label: "Animated", emoji: "🎨", tmdbGenreId: 16 },
-  { id: "feelgood", label: "Feel-good", emoji: "🌞" },
-  { id: "mindbending", label: "Mind-bending", emoji: "🌀" },
-  { id: "tearjerker", label: "Tearjerker", emoji: "😭" },
-  { id: "dark", label: "Dark & gritty", emoji: "🌑" },
-  { id: "cozy", label: "Cozy", emoji: "☕" },
-  { id: "apocalyptic", label: "Apocalyptic", emoji: "☢️" },
 ];
 
 /** Map a stored category id back to its human label (for the AI prompt). */

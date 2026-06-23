@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
+import { LoadingQuote } from "./LoadingQuote";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
 
 const btn =
@@ -90,6 +91,7 @@ export function InferringScreen() {
       <p className="text-sm text-foreground/60">
         Turning your swipes into a shortlist you’ll both be into.
       </p>
+      <LoadingQuote />
     </div>
   );
 }

@@ -52,3 +52,6 @@ Items intentionally deferred during Phase 1. Not bugs to fix now — captured so
 
 ## Reliability
 - **Fonts.** Swap `next/font/google` (Geist) for a local/system font. Production works on Vercel, but the Google-font fetch is network-fragile in restricted build environments. (Cato finding, P2.)
+
+## Performance
+- **Blend franchise-dedup latency.** The franchise dedup (v1.5) fetches `belongs_to_collection` for the whole pool — ~40 parallel TMDB `/movie/{id}` calls added to the blend step (measured ~7.7s end-to-end live; well under the 15s timeout). Fine for now. Phase-2 optimizations if it bites: enrich only the titles actually surfaced (swipe samples + Round 3 backfill, not the full pool), cache collection ids, or fold the lookup into a cheaper path. P2.

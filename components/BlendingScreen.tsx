@@ -100,6 +100,13 @@ export function BlendingScreen() {
       <p className="text-sm text-foreground/60">
         Reading the room and lining up movies you might both be into tonight.
       </p>
+      {/* This wait precedes Round 2 — prime the vibe-framing while they wait. */}
+      <div className="mt-1 max-w-xs rounded-lg bg-foreground/5 px-3 py-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-foreground/45">Next — Round 2</p>
+        <p className="mt-0.5 text-sm text-foreground/70">
+          Pick based on the <span className="italic">vibe</span> — totally fine if you’ve already seen it.
+        </p>
+      </div>
     </div>
   );
 }

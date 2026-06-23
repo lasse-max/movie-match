@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
+import { LoadingQuote } from "./LoadingQuote";
 import { isKidsFare } from "@/lib/genres";
 import { declinedFrom } from "@/lib/overlap";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
@@ -175,6 +176,7 @@ export function TiebreakScreen() {
       <p className="text-sm text-foreground/60">
         No exact overlap, so we’re bridging both your tastes into one pick.
       </p>
+      <LoadingQuote />
     </div>
   );
 }
