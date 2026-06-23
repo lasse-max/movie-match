@@ -49,23 +49,22 @@ function isSubscriptionProvider(name: string): boolean {
   return !NON_SUBSCRIPTION.some((fragment) => n.includes(fragment));
 }
 
-// Mainstream services that must always be selectable in a region, even if they
-// fall outside the raw top-N by display_priority (US top-8 can drop Max/Peacock).
-// Matched by name so it's robust to provider-id drift. Extend per region as needed.
-const REGION_MAINSTREAM: Record<string, (name: string) => boolean> = {
-  US: (name) => {
-    const n = name.toLowerCase().trim();
-    if (n === "max" || n === "hbo max") return true; // exact — don't match "Cinemax"
-    return [
-      "netflix",
-      "amazon prime video",
-      "disney plus",
-      "hulu",
-      "paramount plus",
-      "peacock",
-      "apple tv plus",
-    ].some((fragment) => n.includes(fragment));
-  },
+// Curated, pinned-by-id canonical set per region — ONE checkbox per mainstream
+// service. Pinning by provider id (not name) deterministically excludes every
+// tier/variant TMDB lists ("Netflix Standard with Ads", "Netflix Kids",
+// "Paramount Plus Essential" dup of Premium, "…Free with Ads") and guarantees
+// services the raw top-N drops (Max, Apple TV+) are always present.
+const PINNED_PROVIDERS: Record<string, { id: number; name: string }[]> = {
+  US: [
+    { id: 8, name: "Netflix" },
+    { id: 9, name: "Amazon Prime Video" },
+    { id: 337, name: "Disney+" },
+    { id: 15, name: "Hulu" },
+    { id: 1899, name: "Max" },
+    { id: 531, name: "Paramount+" },
+    { id: 386, name: "Peacock" },
+    { id: 350, name: "Apple TV+" },
+  ],
 };
 
 // Streaming services available for movies in a region (setup service picker).
@@ -75,24 +74,27 @@ export async function GET(request: Request) {
 
   try {
     const data = await getRegionWatchProviders(region);
-    const subs = data.results.filter((p) => isSubscriptionProvider(p.provider_name));
 
-    // Always include the region's mainstream services, then fill the remaining
-    // slots with the most prominent others by display_priority.
-    const isMainstream = REGION_MAINSTREAM[region];
+    // Pinned region → exactly the canonical set, with TMDB logos where available.
+    const pinned = PINNED_PROVIDERS[region];
+    if (pinned) {
+      const byId = new Map(data.results.map((p) => [p.provider_id, p]));
+      const providers = pinned.map((p) => ({
+        id: p.id,
+        name: p.name,
+        logoUrl: tmdbImageUrl(byId.get(p.id)?.logo_path ?? null),
+      }));
+      return NextResponse.json({ region, providers });
+    }
+
+    // Other regions → top mainstream subscriptions by display_priority.
     const byPriority = (a: TmdbWatchProviderListItem, b: TmdbWatchProviderListItem) =>
       providerPriority(a, region) - providerPriority(b, region);
-    const forced = isMainstream
-      ? subs.filter((p) => isMainstream(p.provider_name)).sort(byPriority)
-      : [];
-    const forcedIds = new Set(forced.map((p) => p.provider_id));
-    const rest = subs.filter((p) => !forcedIds.has(p.provider_id)).sort(byPriority);
-
-    const providers = [...forced, ...rest].slice(0, MAX_PROVIDERS).map((p) => ({
-      id: p.provider_id,
-      name: p.provider_name,
-      logoUrl: tmdbImageUrl(p.logo_path),
-    }));
+    const providers = data.results
+      .filter((p) => isSubscriptionProvider(p.provider_name))
+      .sort(byPriority)
+      .slice(0, MAX_PROVIDERS)
+      .map((p) => ({ id: p.provider_id, name: p.provider_name, logoUrl: tmdbImageUrl(p.logo_path) }));
     return NextResponse.json({ region, providers });
   } catch (err) {
     console.error("[/api/providers]", err);

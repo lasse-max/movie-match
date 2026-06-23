@@ -18,12 +18,18 @@ const { discoverMock, keywordMock } = vi.hoisted(() => ({
 vi.mock("@/lib/tmdb", () => ({
   discoverMovies: discoverMock,
   searchKeyword: keywordMock,
+  getCollectionId: () => Promise.resolve(null), // no franchise dedup in these unit tests
   tmdbImageUrl: (p: string | null) => (p ? `https://img.test${p}` : null),
 }));
 
 import { validateStrategy, fallbackStrategy, blendTastes } from "@/lib/blend";
 import { isKidsFare } from "@/lib/genres";
-import { hasEnoughSamples, MIN_SAMPLES_PER_PLAYER, type PoolMovie } from "@/lib/blendTypes";
+import {
+  dedupeByCollection,
+  hasEnoughSamples,
+  MIN_SAMPLES_PER_PLAYER,
+  type PoolMovie,
+} from "@/lib/blendTypes";
 
 const poolMovie = (id: number, directionIndex = 0): PoolMovie => ({
   id,
@@ -36,6 +42,7 @@ const poolMovie = (id: number, directionIndex = 0): PoolMovie => ({
   voteCount: 100 + id,
   directionIndex,
   directionTheme: "D",
+  collectionId: null,
 });
 
 // ---- fixtures --------------------------------------------------------------
@@ -255,6 +262,22 @@ describe("blendTastes pool relaxation", () => {
 });
 
 // ---- viable-pool postcondition (Major 4) -----------------------------------
+
+describe("dedupeByCollection", () => {
+  it("keeps one title per franchise (highest voteCount); standalones untouched", () => {
+    const z1 = { ...poolMovie(1), collectionId: 100, voteCount: 500 }; // Zombieland
+    const z2 = { ...poolMovie(2), collectionId: 100, voteCount: 900 }; // Zombieland 2 (better known)
+    const standalone = { ...poolMovie(3), collectionId: null };
+    const other = { ...poolMovie(4), collectionId: 200 };
+    const out = dedupeByCollection([z1, z2, standalone, other]);
+    expect(out.map((m) => m.id)).toEqual([2, 3, 4]); // z1 dropped, position kept, order preserved
+  });
+
+  it("never collapses standalone (null collection) titles", () => {
+    const out = dedupeByCollection([poolMovie(1), poolMovie(2), poolMovie(3)]);
+    expect(out.map((m) => m.id)).toEqual([1, 2, 3]);
+  });
+});
 
 describe("hasEnoughSamples", () => {
   it("is false for a tiny pool that would starve Player 2", () => {

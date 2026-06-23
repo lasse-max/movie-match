@@ -13,7 +13,12 @@ import { categoryGenreId } from "./categories";
 import { genreNames, isKidsFare } from "./genres";
 import { attachAvailability } from "./availability";
 import { evaluateAvailability, NO_AVAILABILITY } from "./filter";
-import { getRecommendations, tmdbImageUrl, type TmdbDiscoverMovie } from "./tmdb";
+import {
+  getCollectionId,
+  getRecommendations,
+  tmdbImageUrl,
+  type TmdbDiscoverMovie,
+} from "./tmdb";
 import type { MoodRead, PoolMovie } from "./blendTypes";
 import type { InferResult, PlayerInference, PlayerRec, RecSource } from "./inferTypes";
 
@@ -25,15 +30,15 @@ export interface PlayerSwipes {
 export type Swipes = Record<Player, PlayerSwipes>;
 export type Categories = Record<Player, string[]>;
 
-const TARGET_RECS = 5;
+const TARGET_RECS = 8; // Round 3 shortlist size (tuned up from 5)
 const MAX_FRESH = 2;
 const FRESH_SEEDS = 3;
-const MAX_CANDIDATES = 12;
+const MAX_CANDIDATES = 16;
 const AVAIL_BATCH = 5; // availability fetched in fit-order batches…
-const MAX_AVAIL_FETCHES = 15; // …early-stop here only ONCE a title watchable under the
-//                               current constraint is found; otherwise both absence
-//                               claims (offer-rentals AND none) exhaust the full ranked
-//                               pool first (see build).
+const MAX_AVAIL_FETCHES = 24; // …deep enough to fill the ~8 target from a normal pool;
+//                               early-stop once ≥1 watchable-under-constraint title is
+//                               found, else both absence claims (offer-rentals AND none)
+//                               exhaust the full ranked pool first (see build).
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2; // quality floor for fresh expansion AND backfill
 
@@ -48,6 +53,7 @@ interface Candidate {
   voteCount: number;
   directionTheme: string;
   source: RecSource;
+  collectionId: number | null;
 }
 
 const poolToCandidate = (m: PoolMovie, source: RecSource): Candidate => ({
@@ -61,6 +67,7 @@ const poolToCandidate = (m: PoolMovie, source: RecSource): Candidate => ({
   voteCount: m.voteCount,
   directionTheme: m.directionTheme,
   source,
+  collectionId: m.collectionId,
 });
 
 const discoverToCandidate = (m: TmdbDiscoverMovie, source: RecSource): Candidate => ({
@@ -74,6 +81,7 @@ const discoverToCandidate = (m: TmdbDiscoverMovie, source: RecSource): Candidate
   voteCount: m.vote_count,
   directionTheme: "Fresh pick",
   source,
+  collectionId: null, // filled for the kept fresh picks (see freshExpansion)
 });
 
 /** Anchor genres = the TMDB genres behind a player's Round 1 category picks. */
@@ -102,6 +110,7 @@ const candidateToRec = (c: Candidate): PlayerRec => ({
   posterUrl: c.posterUrl,
   genreIds: c.genreIds,
   source: c.source,
+  collectionId: c.collectionId,
   availability: NO_AVAILABILITY, // replaced by the availability step
 });
 
@@ -130,8 +139,12 @@ async function freshExpansion(
       eligible.push(discoverToCandidate(m, "fresh"));
     }
   }
-  // Prefer the best-rated fits rather than the first ones the graph returned.
-  return eligible.sort((a, b) => b.voteAverage - a.voteAverage).slice(0, MAX_FRESH);
+  // Prefer the best-rated fits rather than the first ones the graph returned, then
+  // attach collection ids so a fresh sequel of a pool title can be de-duped.
+  const kept = eligible.sort((a, b) => b.voteAverage - a.voteAverage).slice(0, MAX_FRESH);
+  return Promise.all(
+    kept.map(async (c) => ({ ...c, collectionId: await getCollectionId(c.id) }))
+  );
 }
 
 function assembleCandidates(
@@ -244,9 +257,9 @@ Round 2 showed each player a handful of titles; they swiped each toward ("this v
 
 For EACH player:
 1. Infer their underlying mood — a one-line summary and a couple of axis words — from what they leaned toward vs away.
-2. From THAT player's candidate list, SELECT and RANK the best ~5 fits for the mood, best first. Return candidate IDs only — never invent titles or ids, and only use ids from that player's list.
+2. From THAT player's candidate list, SELECT and RANK the best ~8 fits for the mood, best first. Return candidate IDs only — never invent titles or ids, and only use ids from that player's list.
 
-The candidate list already includes some titles the OTHER player liked — these are the easiest path to a mutual match, so prefer them WHEN they fit this player's mood. But fit comes first: never pick a title that clashes with the mood just because the other player liked it (e.g. a pure action film for someone after sci-fi). A clashing title should be left out of the 5 entirely.
+The candidate list already includes some titles the OTHER player liked — these are the easiest path to a mutual match, so prefer them WHEN they fit this player's mood. But fit comes first: never pick a title that clashes with the mood just because the other player liked it (e.g. a pure action film for someone after sci-fi). A clashing title should be left out of the shortlist entirely.
 
 Respond only with the structured JSON.`;
 
@@ -347,10 +360,11 @@ function backfillCandidates(
   anchor: Set<number>
 ): Candidate[] {
   const fits = (g: number[]) => anchor.size === 0 || g.some((x) => anchor.has(x));
-  // The FULL mood-fit, quality-floored pool in fit order — not a fixed top-N — so
-  // an exhaustive "nothing watchable" check can reach a title deeper than the
-  // early-stop cap. Eligibility narrows the GOOD candidates; it never licenses
-  // padding the list with mediocre titles.
+  // The FULL mood-fit, quality-floored pool in fit order — keeps a player's list
+  // on their own mood (no pure-action title in a sci-fi list), while being deep
+  // enough that scanning further down reliably fills Round 3 to target and powers
+  // the exhaustive "nothing watchable" check. Eligibility narrows the GOOD
+  // candidates; it never licenses padding the list with mediocre titles.
   return [...pool]
     .sort((a, b) => b.voteCount - a.voteCount)
     .filter(
@@ -400,7 +414,15 @@ export async function inferMoods(
     // Fit-ranked candidate list (recs by fit, then backfill by fit/voteCount).
     // Eligibility NEVER reorders this — willing-to-pay/access-type only FILTERS at
     // display time (lib/filter selectWatchable), per the canonical ranking rule.
-    const ranked = [...recs, ...backfill];
+    // Drop franchise dups (one per collection, highest-fit kept) so a fresh sequel
+    // of a pool title can't slip in — the pool itself is already deduped.
+    const seenCollections = new Set<number>();
+    const ranked = [...recs, ...backfill].filter((r) => {
+      if (r.collectionId == null) return true;
+      if (seenCollections.has(r.collectionId)) return false;
+      seenCollections.add(r.collectionId);
+      return true;
+    });
 
     // Attach availability in fit order, in BATCHES. The ONLY valid early-stop is
     // finding titles watchable under the user's CURRENT constraint (included if not

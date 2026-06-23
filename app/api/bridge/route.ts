@@ -14,6 +14,9 @@ const anchorOf = (cats: unknown): number[] =>
     .map((c) => (typeof c === "string" ? categoryGenreId(c) : null))
     .filter((g): g is number => g != null);
 
+const toStrArray = (x: unknown): string[] =>
+  Array.isArray(x) ? x.filter((s): s is string => typeof s === "string").slice(0, 12) : [];
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -30,6 +33,7 @@ export async function POST(request: Request) {
     // Round 3 rejections — may include fresh recs that weren't in the pool, so
     // these are bounded integers, not pool-constrained.
     const declinedIds = boundedIds(body?.declinedIds);
+    const moodAxes = toStrArray(body?.moodAxes); // for the "why it matched" tags
 
     const outcome = await bridge(
       pool,
@@ -41,11 +45,17 @@ export async function POST(request: Request) {
       region,
       services,
       willingToPay,
-      declinedIds
+      declinedIds,
+      moodAxes
     );
 
     if (outcome.kind === "match") {
-      return NextResponse.json({ kind: "match", movie: outcome.movie, reason: "bridge" });
+      return NextResponse.json({
+        kind: "match",
+        movie: outcome.movie,
+        alternatives: outcome.alternatives,
+        reason: "bridge",
+      });
     }
     return NextResponse.json({ kind: outcome.kind }); // "needs-rentals" | "none"
   } catch (err) {

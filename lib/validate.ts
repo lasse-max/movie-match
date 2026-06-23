@@ -52,6 +52,7 @@ export function sanitizePool(raw: unknown): PoolMovie[] {
       voteCount: asNum(m.voteCount),
       directionIndex: asInt(m.directionIndex) ?? 0,
       directionTheme: asStr(m.directionTheme),
+      collectionId: asInt(m.collectionId), // null when standalone or absent
     });
   }
   return out;

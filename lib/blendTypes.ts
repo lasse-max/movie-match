@@ -31,6 +31,8 @@ export interface PoolMovie {
   voteCount: number;
   directionIndex: number;
   directionTheme: string;
+  /** TMDB franchise/collection id (null = standalone) — for sequel dedup. */
+  collectionId: number | null;
 }
 
 export interface BlendResult extends BlendStrategy {
@@ -80,6 +82,31 @@ export function selectSwipeSamples(
   };
 
   return { 1: gather(byPlayer[1]), 2: gather(byPlayer[2]) };
+}
+
+/**
+ * One title per TMDB franchise: keep the highest-voteCount entry per collection
+ * (standalones — null collectionId — always kept), preserving order. Stops
+ * Zombieland 1 & 2 / Ted 1 & 2 / three Iron Mans from crowding the swipe set and
+ * Round 3. Pure.
+ */
+export function dedupeByCollection(pool: PoolMovie[]): PoolMovie[] {
+  const bestIndexByCollection = new Map<number, number>();
+  const out: PoolMovie[] = [];
+  for (const m of pool) {
+    if (m.collectionId == null) {
+      out.push(m);
+      continue;
+    }
+    const existingIndex = bestIndexByCollection.get(m.collectionId);
+    if (existingIndex === undefined) {
+      bestIndexByCollection.set(m.collectionId, out.length);
+      out.push(m);
+    } else if (m.voteCount > out[existingIndex].voteCount) {
+      out[existingIndex] = m; // keep the better-known franchise entry, in place
+    }
+  }
+  return out;
 }
 
 /** Minimum distinct Round 2 cards each player needs for a playable swipe round.

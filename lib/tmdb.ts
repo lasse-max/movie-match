@@ -84,10 +84,23 @@ export interface TmdbMovie {
   title: string;
   release_date: string;
   overview: string;
+  /** The franchise/collection this film belongs to (e.g. the Zombieland set). */
+  belongs_to_collection?: { id: number; name: string } | null;
 }
 
 export function getMovie(movieId: number) {
   return tmdbGet<TmdbMovie>(`/movie/${movieId}`);
+}
+
+/** The TMDB collection (franchise) id for a movie, or null — used to dedup
+ * sequels/franchise entries down to one per collection. Never throws. */
+export async function getCollectionId(movieId: number): Promise<number | null> {
+  try {
+    const m = await getMovie(movieId);
+    return m.belongs_to_collection?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ---- Keyword resolution & Discover -----------------------------------------

@@ -8,7 +8,7 @@ import { blurb } from "@/lib/blurb";
 import type { Player } from "@/lib/gameMachine";
 import type { PlayerRec } from "@/lib/inferTypes";
 
-const TARGET = 5;
+const TARGET = 8;
 
 const primaryBtn =
   "w-full rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background transition enabled:hover:opacity-90 enabled:active:scale-[0.98] disabled:opacity-40";

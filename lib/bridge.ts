@@ -8,6 +8,7 @@ import "server-only";
 import { attachAvailability } from "./availability";
 import { evaluateAvailability, type MovieAvailability } from "./filter";
 import { isKidsFare } from "./genres";
+import { matchPercent, matchTags } from "./matchInsight";
 import { getRecommendations, tmdbImageUrl, type TmdbDiscoverMovie } from "./tmdb";
 import type { PoolMovie } from "./blendTypes";
 import type { MatchMovie } from "./inferTypes";
@@ -15,10 +16,12 @@ import type { MatchMovie } from "./inferTypes";
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2;
 const MAX_SEEDS = 3;
-// Availability is fetched in fit-order batches. The scan EARLY-STOPS on the first
-// match (a title watchable under the current constraint); a "needs-rentals" or
-// "none" claim — both assertions that no such title exists — only after the full
-// ranked pool is exhausted, so an included title is never missed behind a rentable.
+const MAX_MATCHES = 4; // winner + up to 3 runner-ups
+// Availability is fetched in fit-order batches. The scan EARLY-STOPS once enough
+// matches (titles watchable under the current constraint) are collected; a
+// "needs-rentals" or "none" claim — both assertions that NO such title exists —
+// only after the full ranked pool is exhausted, so an included title is never
+// missed behind a rentable.
 const AVAIL_BATCH = 5;
 
 interface BridgeCand {
@@ -29,6 +32,7 @@ interface BridgeCand {
   genreIds: number[];
   voteAverage: number;
   voteCount: number;
+  collectionId: number | null;
 }
 
 const fromPool = (m: PoolMovie): BridgeCand => ({
@@ -39,6 +43,7 @@ const fromPool = (m: PoolMovie): BridgeCand => ({
   genreIds: m.genreIds,
   voteAverage: m.voteAverage,
   voteCount: m.voteCount,
+  collectionId: m.collectionId,
 });
 
 const fromDiscover = (m: TmdbDiscoverMovie): BridgeCand => ({
@@ -49,6 +54,7 @@ const fromDiscover = (m: TmdbDiscoverMovie): BridgeCand => ({
   genreIds: m.genre_ids ?? [],
   voteAverage: m.vote_average,
   voteCount: m.vote_count,
+  collectionId: null,
 });
 
 async function recommendationsFor(seedIds: number[]): Promise<TmdbDiscoverMovie[]> {
@@ -69,7 +75,7 @@ const fitsAnchor = (genreIds: number[], anchor: number[]) =>
 /** Always a watchable decision OR an honest, recoverable state — never an
  * unavailable match. */
 export type BridgeOutcome =
-  | { kind: "match"; movie: MatchMovie }
+  | { kind: "match"; movie: MatchMovie; alternatives: MatchMovie[] }
   | { kind: "needs-rentals" } // a best-fit title is eligible IF they pay → offer the expand
   | { kind: "none" }; //          nothing watchable even paying → honest end-state
 
@@ -83,7 +89,8 @@ export async function bridge(
   region: string,
   services: number[],
   willingToPay: boolean,
-  declinedIds: number[]
+  declinedIds: number[],
+  moodAxes: string[] = []
 ): Promise<BridgeOutcome> {
   const fresh = await recommendationsFor([...positives1, ...positives2]);
   const declined = new Set(declinedIds); // titles either player explicitly passed on
@@ -117,29 +124,49 @@ export async function bridge(
     evaluateAvailability(c.availability, services, willingToPay).eligible;
   const rentable = (c: Scanned) => c.availability.rent.length + c.availability.buy.length > 0;
 
-  // Scan in fit order for the first title watchable under the CURRENT constraint
-  // (the match) and early-stop there. Both "needs-rentals" and "none" assert that
-  // NO such title exists, so they're returned only after EXHAUSTING the full ranked
-  // pool — an included title deeper than an earlier rentable one is never missed,
-  // and a not-paying couple is never nudged to pay when a free option existed.
-  let chosen: Scanned | undefined;
-  for (let i = 0; i < ranked.length && !chosen; i += AVAIL_BATCH) {
+  // Scan in fit order, collecting up to MAX_MATCHES titles watchable under the
+  // CURRENT constraint (winner + runner-ups), one per franchise. Early-stop once
+  // we have enough. Both "needs-rentals" and "none" assert NO such title exists,
+  // so they're returned only after EXHAUSTING the full ranked pool — an included
+  // title deeper than an earlier rentable one is never missed, and a not-paying
+  // couple is never nudged to pay when a free option existed.
+  const chosen: Scanned[] = [];
+  const seenCollections = new Set<number>();
+  const take = (c: Scanned) => {
+    if (!eligible(c) || chosen.length >= MAX_MATCHES) return;
+    if (c.collectionId != null) {
+      if (seenCollections.has(c.collectionId)) return;
+      seenCollections.add(c.collectionId);
+    }
+    chosen.push(c);
+  };
+  for (let i = 0; i < ranked.length && chosen.length < MAX_MATCHES; i += AVAIL_BATCH) {
     const batch = await attachAvailability(ranked.slice(i, i + AVAIL_BATCH), region);
     scanned.push(...batch);
-    chosen = batch.find(eligible);
+    for (const c of batch) take(c);
   }
 
-  if (chosen) {
+  if (chosen.length > 0) {
+    // Bridge fit is coarse (anchors hit + vote average), so equal-fit runner-ups
+    // collapse to the same %. A small per-rank decrement gives a readable descent
+    // (the % is the engagement number; fit still drives the base).
+    const toMatch = (c: Scanned, rank: number): MatchMovie => {
+      const fit01 = (score(c) / 2) * 0.6 + Math.min(c.voteAverage / 10, 1) * 0.4 - rank * 0.05;
+      return {
+        id: c.id,
+        title: c.title,
+        year: c.year,
+        posterUrl: c.posterUrl,
+        genreIds: c.genreIds,
+        availability: c.availability,
+        matchTags: matchTags(moodAxes, c.genreIds),
+        matchPercent: matchPercent(fit01),
+      };
+    };
     return {
       kind: "match",
-      movie: {
-        id: chosen.id,
-        title: chosen.title,
-        year: chosen.year,
-        posterUrl: chosen.posterUrl,
-        genreIds: chosen.genreIds,
-        availability: chosen.availability,
-      },
+      movie: toMatch(chosen[0], 0),
+      alternatives: chosen.slice(1).map((c, i) => toMatch(c, i + 1)),
     };
   }
   // No title is watchable under the current constraint anywhere in the pool. If

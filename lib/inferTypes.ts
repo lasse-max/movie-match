@@ -14,6 +14,8 @@ export interface PlayerRec {
   posterUrl: string | null;
   genreIds: number[];
   source: RecSource;
+  /** TMDB franchise/collection id (null = standalone) — for sequel dedup. */
+  collectionId: number | null;
   /** Region-scoped availability (attached after the taste step). */
   availability: MovieAvailability;
 }
@@ -35,10 +37,16 @@ export interface MatchMovie {
   posterUrl: string | null;
   genreIds: number[];
   availability: MovieAvailability;
+  /** Why it matched — lowercase mood/genre tags (the honest substance). */
+  matchTags: string[];
+  /** A believable fit percentage (the engagement number; MVP heuristic). */
+  matchPercent: number;
 }
 
-/** The deterministic end state of Round 3 — always a decision. */
+/** The deterministic end state of Round 3 — always a decision. The winner is the
+ * hero; `alternatives` are 2-3 close runner-ups shown beneath it. */
 export interface MatchResult {
   movie: MatchMovie;
   reason: "overlap" | "bridge";
+  alternatives: MatchMovie[];
 }

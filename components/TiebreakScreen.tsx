@@ -25,6 +25,7 @@ export function TiebreakScreen() {
   const picks = state.round.picks;
   const shown = state.round.shown;
   const blend = state.blend;
+  const inference = state.inference;
   const setup = state.setup;
 
   useEffect(() => {
@@ -41,6 +42,10 @@ export function TiebreakScreen() {
 
     // Decline = shown-but-unpicked only; never-shown titles stay bridge-eligible.
     const declinedIds = declinedFrom(shown, picks);
+    // Combined mood words for the "why it matched" tags on the match screen.
+    const moodAxes = inference
+      ? [...new Set([...inference[1].moodRead.axes, ...inference[2].moodRead.axes])]
+      : [];
 
     fetch("/api/bridge", {
       method: "POST",
@@ -55,6 +60,7 @@ export function TiebreakScreen() {
         services: setup.services,
         willingToPay: setup.willingToPay,
         declinedIds,
+        moodAxes,
       }),
       signal: controller.signal,
     })
@@ -65,7 +71,10 @@ export function TiebreakScreen() {
         if (data.error) {
           setError(data.error);
         } else if (data.kind === "match" && data.movie) {
-          dispatch({ type: "SET_MATCH", match: { movie: data.movie, reason: "bridge" as const } });
+          dispatch({
+            type: "SET_MATCH",
+            match: { movie: data.movie, reason: "bridge" as const, alternatives: data.alternatives ?? [] },
+          });
           dispatch({ type: "COMPLETE_TURN", player: 1 }); // → match
         } else if (data.kind === "needs-rentals") {
           setOutcome("needs-rentals");
@@ -89,7 +98,7 @@ export function TiebreakScreen() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [attempt, swipes, categories, picks, shown, blend, setup, dispatch]);
+  }, [attempt, swipes, categories, picks, shown, blend, inference, setup, dispatch]);
 
   if (error) {
     return (

@@ -28,6 +28,7 @@ const recList = (ids: number[]) =>
     posterUrl: null,
     genreIds: [],
     source: "swipe" as const,
+    collectionId: null,
     availability: NO_AVAILABILITY,
   }));
 const inferenceWith = (ids1: number[], ids2: number[]) => ({
@@ -79,8 +80,11 @@ describe("gameMachine reducer", () => {
         posterUrl: null,
         genreIds: [],
         availability: NO_AVAILABILITY,
+        matchTags: [],
+        matchPercent: 80,
       },
       reason: "bridge" as const,
+      alternatives: [],
     };
     s = run(s, { type: "SET_MATCH", match: bridge }, { type: "COMPLETE_TURN", player: 1 });
     expect(s.phase).toBe("match");

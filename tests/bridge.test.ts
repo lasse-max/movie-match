@@ -22,6 +22,7 @@ const pm = (id: number, genreIds: number[], voteAverage = 7.5): PoolMovie => ({
   voteCount: 800,
   directionIndex: 0,
   directionTheme: "D",
+  collectionId: null,
 });
 
 const onNetflix = {
@@ -138,5 +139,29 @@ describe("bridge", () => {
     const out = await bridge([...head, deepIncluded], [], [], [878], [28], false, "US", SERVICES, false, []);
     expect(out.kind).toBe("match"); // NOT needs-rentals
     if (out.kind === "match") expect(out.movie.id).toBe(17);
+  });
+
+  it("returns a winner + up to 3 runner-ups, each with tags + a fit percent", async () => {
+    const cands = Array.from({ length: 5 }, (_, i) => pm(i + 1, [878, 28], 8 - i * 0.1)); // all eligible
+    const out = await bridge(cands, [], [], [878], [28], false, "US", SERVICES, false, [], ["dark"]);
+    expect(out.kind).toBe("match");
+    if (out.kind === "match") {
+      expect(out.alternatives).toHaveLength(3); // winner + 3 = MAX_MATCHES (4)
+      expect(out.movie.matchTags).toContain("dark");
+      expect(out.movie.matchPercent).toBeGreaterThan(0);
+    }
+  });
+
+  it("de-dupes franchise entries among winner + runner-ups", async () => {
+    const a = pm(1, [878, 28], 8.5); // standalone
+    const b = { ...pm(2, [878, 28], 8.4), collectionId: 100 }; // franchise X
+    const c = { ...pm(3, [878, 28], 8.3), collectionId: 100 }; // franchise X again → dropped
+    const d = pm(4, [878, 28], 8.2); // standalone
+    const out = await bridge([a, b, c, d], [], [], [878], [28], false, "US", SERVICES, false, []);
+    if (out.kind === "match") {
+      const ids = [out.movie.id, ...out.alternatives.map((x) => x.id)];
+      expect(ids).toContain(2); // first franchise entry kept
+      expect(ids).not.toContain(3); // second franchise entry dropped
+    }
   });
 });

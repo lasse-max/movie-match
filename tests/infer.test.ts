@@ -14,6 +14,7 @@ const { recMock, providersMock } = vi.hoisted(() => ({ recMock: vi.fn(), provide
 vi.mock("@/lib/tmdb", () => ({
   getRecommendations: recMock,
   getWatchProvidersForRegion: providersMock,
+  getCollectionId: () => Promise.resolve(null), // no franchise dedup in these unit tests
   tmdbImageUrl: (p: string | null) => (p ? `https://img.test${p}` : null),
 }));
 
@@ -34,6 +35,7 @@ const pm = (id: number, over: Partial<PoolMovie> = {}): PoolMovie => ({
   voteCount: 500,
   directionIndex: 0,
   directionTheme: "Dir A",
+  collectionId: null,
   ...over,
 });
 

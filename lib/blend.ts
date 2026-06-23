@@ -12,11 +12,18 @@ import { DEFAULT_REGION } from "./constants";
 import { ANIMATION_GENRE_ID, isKidsFare } from "./genres";
 import {
   discoverMovies,
+  getCollectionId,
   searchKeyword,
   tmdbImageUrl,
   type TmdbDiscoverMovie,
 } from "./tmdb";
-import type { BlendResult, BlendStrategy, Direction, PoolMovie } from "./blendTypes";
+import {
+  dedupeByCollection,
+  type BlendResult,
+  type BlendStrategy,
+  type Direction,
+  type PoolMovie,
+} from "./blendTypes";
 
 const MAX_DIRECTIONS = 3;
 const TARGET_POOL = 45;
@@ -273,7 +280,17 @@ function toPoolMovie(
     voteCount: m.vote_count,
     directionIndex,
     directionTheme: theme,
+    collectionId: null, // filled by the franchise-enrichment step before dedup
   };
+}
+
+/** Attach each title's TMDB franchise/collection id (parallel), then collapse
+ * sequels/franchise entries to one per collection. */
+async function dedupeFranchises(pool: PoolMovie[]): Promise<PoolMovie[]> {
+  const enriched = await Promise.all(
+    pool.map(async (m) => ({ ...m, collectionId: await getCollectionId(m.id) }))
+  );
+  return dedupeByCollection(enriched);
 }
 
 async function buildPool(
@@ -399,5 +416,7 @@ export async function blendTastes(
     excludeKidsFare,
     region
   );
-  return { moodRead: strategy.moodRead, directions, pool };
+  // One title per franchise so sequels don't crowd the swipe set or Round 3.
+  const deduped = await dedupeFranchises(pool);
+  return { moodRead: strategy.moodRead, directions, pool: deduped };
 }

@@ -106,13 +106,23 @@ function recsOf(state: GameState, player: Player): PlayerRec[] {
   return state.inference ? state.inference[player].recs : [];
 }
 
+/** The couple's combined mood axes (both players' inferred mood words), deduped —
+ * the source of the "why it matched" tags. */
+function combinedMoodAxes(state: GameState): string[] {
+  const axes = state.inference
+    ? [...state.inference[1].moodRead.axes, ...state.inference[2].moodRead.axes]
+    : [];
+  return [...new Set(axes)];
+}
+
 /** Overlap match from Round 3 picks (ranked by combined fit), or null → tiebreak. */
 function round3Match(state: GameState): MatchResult | null {
   return pickMatch(
     recsOf(state, 1),
     recsOf(state, 2),
     state.round.picks[1],
-    state.round.picks[2]
+    state.round.picks[2],
+    combinedMoodAxes(state)
   );
 }
 

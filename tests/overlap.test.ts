@@ -12,6 +12,7 @@ const rec = (id: number): PlayerRec => ({
   posterUrl: null,
   genreIds: [],
   source: "swipe",
+  collectionId: null,
   availability: NO_AVAILABILITY,
 });
 
@@ -52,6 +53,15 @@ describe("pickMatch", () => {
 
   it("returns null when there is no overlap (caller bridges)", () => {
     expect(pickMatch([rec(1)], [rec(2)], [1], [2])).toBeNull();
+  });
+
+  it("returns up to 3 runner-ups, each with tags + a fit percent, winner ranked highest", () => {
+    const recs = [rec(1), rec(2), rec(3), rec(4), rec(5)];
+    const m = pickMatch(recs, recs, [1, 2, 3, 4, 5], [1, 2, 3, 4, 5], ["dark", "tense"]);
+    expect(m?.movie.id).toBe(1);
+    expect(m?.alternatives.map((a) => a.id)).toEqual([2, 3, 4]); // capped at 3 runner-ups
+    expect(m?.movie.matchTags).toContain("dark"); // mood tag surfaced
+    expect(m!.movie.matchPercent).toBeGreaterThanOrEqual(m!.alternatives[0].matchPercent);
   });
 });
 
