@@ -30,8 +30,10 @@ const MAX_FRESH = 2;
 const FRESH_SEEDS = 3;
 const MAX_CANDIDATES = 12;
 const AVAIL_BATCH = 5; // availability fetched in fit-order batches…
-const MAX_AVAIL_FETCHES = 15; // …early-stop here ONCE the list is non-empty; a terminal
-//                               "none" exhausts the full ranked pool first (see build).
+const MAX_AVAIL_FETCHES = 15; // …early-stop here only ONCE a title watchable under the
+//                               current constraint is found; otherwise both absence
+//                               claims (offer-rentals AND none) exhaust the full ranked
+//                               pool first (see build).
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2; // quality floor for fresh expansion AND backfill
 
