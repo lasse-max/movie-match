@@ -11,6 +11,7 @@ import "server-only";
 import { CLAUDE_MODEL, getAnthropic } from "./anthropic";
 import { categoryGenreId } from "./categories";
 import { genreNames, isKidsFare } from "./genres";
+import { round3Rank } from "./ranking";
 import { attachAvailability } from "./availability";
 import { evaluateAvailability, NO_AVAILABILITY } from "./filter";
 import {
@@ -185,10 +186,11 @@ function assembleCandidates(
   for (const m of lookup(swipes[player].yes)) add(poolToCandidate(m, "swipe"));
   // (c) fresh expansion.
   for (const c of fresh) add(c);
-  // Pad with the strongest remaining MOOD-FIT pool titles so the AI always has
-  // ≥5 to rank (off-mood titles stay out — same gate as cross-player).
+  // Pad with the best remaining MOOD-FIT pool titles so the AI always has enough
+  // to rank (off-mood titles stay out — same gate as cross-player). Ordered by the
+  // soft Round 3 rank, so the padding leans toward discoveries over the canon.
   if (candidates.length < TARGET_RECS + 1) {
-    for (const m of [...pool].sort((a, b) => b.voteCount - a.voteCount)) {
+    for (const m of [...pool].sort((a, b) => round3Rank(b) - round3Rank(a))) {
       if (candidates.length >= MAX_CANDIDATES) break;
       if (fitsMood(m.genreIds)) add(poolToCandidate(m, "swipe"));
     }
@@ -260,6 +262,8 @@ For EACH player:
 2. From THAT player's candidate list, SELECT and RANK the best ~8 fits for the mood, best first. Return candidate IDs only — never invent titles or ids, and only use ids from that player's list.
 
 The candidate list already includes some titles the OTHER player liked — these are the easiest path to a mutual match, so prefer them WHEN they fit this player's mood. But fit comes first: never pick a title that clashes with the mood just because the other player liked it (e.g. a pure action film for someone after sci-fi). A clashing title should be left out of the shortlist entirely.
+
+When two candidates fit the mood about equally, gently favor the less ubiquitous discovery and the more recent film over household-name canon (Star Wars, the big Marvel films) — surface something they might not have thought of. This is a soft tiebreak only: a genuinely strong mutual match still belongs near the top even if it's well known.
 
 Respond only with the structured JSON.`;
 
@@ -360,16 +364,16 @@ function backfillCandidates(
   anchor: Set<number>
 ): Candidate[] {
   const fits = (g: number[]) => anchor.size === 0 || g.some((x) => anchor.has(x));
-  // The FULL mood-fit, quality-floored pool in fit order — keeps a player's list
-  // on their own mood (no pure-action title in a sci-fi list), while being deep
-  // enough that scanning further down reliably fills Round 3 to target and powers
-  // the exhaustive "nothing watchable" check. Eligibility narrows the GOOD
-  // candidates; it never licenses padding the list with mediocre titles.
+  // The FULL mood-fit, quality-floored pool — keeps a player's list on their own
+  // mood (no pure-action title in a sci-fi list), deep enough to reliably fill
+  // Round 3 and power the exhaustive "nothing watchable" check. Ordered by the
+  // soft Round 3 rank: quality floor stays hard, but the ubiquitous canon is
+  // de-weighted and recent films lean up, surfacing discoveries over the obvious.
   return [...pool]
-    .sort((a, b) => b.voteCount - a.voteCount)
     .filter(
       (m) => !exclude.has(m.id) && fits(m.genreIds) && m.voteAverage >= MIN_VOTE_AVERAGE
     )
+    .sort((a, b) => round3Rank(b) - round3Rank(a))
     .map((m) => poolToCandidate(m, "swipe"));
 }
 

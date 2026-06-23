@@ -57,6 +57,9 @@ export function selectSwipeSamples(
     if (g) g.push(m);
     else groups.set(m.directionIndex, [m]);
   }
+  // Round 2 intentionally favors RECOGNIZABLE titles (voteCount) so they're easy
+  // to judge — recognizable WITHIN each vibe. (Round 3 does the opposite: it
+  // de-weights the ubiquitous canon to surface discoveries — see lib/ranking.ts.)
   for (const g of groups.values()) g.sort((a, b) => b.voteCount - a.voteCount);
 
   // Deal alternately within each direction: even ranks → P1, odd ranks → P2.

@@ -9,6 +9,7 @@ import { attachAvailability } from "./availability";
 import { evaluateAvailability, type MovieAvailability } from "./filter";
 import { isKidsFare } from "./genres";
 import { matchPercent, matchTags } from "./matchInsight";
+import { round3Rank } from "./ranking";
 import { getRecommendations, tmdbImageUrl, type TmdbDiscoverMovie } from "./tmdb";
 import type { PoolMovie } from "./blendTypes";
 import type { MatchMovie } from "./inferTypes";
@@ -110,10 +111,12 @@ export async function bridge(
 
   const score = (c: BridgeCand) =>
     (fitsAnchor(c.genreIds, anchor1) ? 1 : 0) + (fitsAnchor(c.genreIds, anchor2) ? 1 : 0);
+  // Fit to both moods first; among equal-fit titles use the soft Round 3 rank, so
+  // discoveries surface over the ubiquitous canon (the quality floor still holds).
   const ranked = quality
     .map((c) => ({ c, s: score(c) }))
     .filter(({ s }) => s >= 1)
-    .sort((a, b) => b.s - a.s || b.c.voteAverage - a.c.voteAverage)
+    .sort((a, b) => b.s - a.s || round3Rank(b.c) - round3Rank(a.c))
     .map((x) => x.c);
 
   if (ranked.length === 0) return { kind: "none" };
