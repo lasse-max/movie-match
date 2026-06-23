@@ -18,6 +18,7 @@ vi.mock("@/lib/tmdb", () => ({
 }));
 
 const onNetflix = { link: "https://jw.test", flatrate: [{ provider_id: 8, provider_name: "Netflix", logo_path: null, display_priority: 1 }] };
+const rentOnly = { link: "https://jw.test", rent: [{ provider_id: 2, provider_name: "Apple TV", logo_path: null, display_priority: 1 }] };
 
 import { inferMoods } from "@/lib/infer";
 import type { PoolMovie } from "@/lib/blendTypes";
@@ -214,5 +215,26 @@ describe("inferMoods", () => {
     );
     const watchable = result[1].recs.find((r) => r.availability.flatrate.some((p) => p.id === 8));
     expect(watchable?.id).toBe(17); // the deep eligible title is present, not missed
+  });
+
+  // Closing the class: the early-stop respects the CURRENT constraint. A rentable
+  // title up top must NOT short-circuit Round 3 to offer-rentals when an INCLUDED
+  // title exists deeper — a not-paying couple is shown the free option, not nudged.
+  it("shows a deep INCLUDED title rather than nudging a not-paying user to rent", async () => {
+    const pool = Array.from({ length: 17 }, (_, i) => pm(i + 1, { voteCount: 1000 - i }));
+    // Title 3 (early) is rent-only; title 17 (past the cap) is included on Netflix.
+    providersMock.mockImplementation((id: number) =>
+      Promise.resolve(id === 17 ? onNetflix : id === 3 ? rentOnly : null)
+    );
+    const result = await inferMoods(
+      pool,
+      { 1: { yes: [], no: [] }, 2: { yes: [], no: [] } },
+      noCategories,
+      "US",
+      [8],
+      false // NOT willing to pay → current constraint is "included only"
+    );
+    const included = result[1].recs.find((r) => r.id === 17);
+    expect(included?.availability.flatrate.some((p) => p.id === 8)).toBe(true); // shown as watchable
   });
 });

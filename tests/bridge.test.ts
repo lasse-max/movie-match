@@ -124,4 +124,19 @@ describe("bridge", () => {
     expect(out.kind).toBe("match");
     if (out.kind === "match") expect(out.movie.id).toBe(17);
   });
+
+  // Closing the class: needs-rentals is itself a claim of "no INCLUDED title" and
+  // must be exhaustive. A rentable title in the top 15 must NOT short-circuit to
+  // needs-rentals when an INCLUDED title exists deeper (not paying).
+  it("prefers a deep INCLUDED title over an earlier rentable one (not paying)", async () => {
+    const head = Array.from({ length: 16 }, (_, i) => pm(i + 1, [878, 28], 8.0)); // score 2
+    const deepIncluded = pm(17, [878], 7.0); // score 1 → position 17
+    // Title 3 (early) is rent-only; title 17 (past the cap) is included on Netflix.
+    providersMock.mockImplementation((id: number) =>
+      Promise.resolve(id === 17 ? onNetflix : id === 3 ? rentOnly : null)
+    );
+    const out = await bridge([...head, deepIncluded], [], [], [878], [28], false, "US", SERVICES, false, []);
+    expect(out.kind).toBe("match"); // NOT needs-rentals
+    if (out.kind === "match") expect(out.movie.id).toBe(17);
+  });
 });

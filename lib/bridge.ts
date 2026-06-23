@@ -15,8 +15,11 @@ import type { MatchMovie } from "./inferTypes";
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2;
 const MAX_SEEDS = 3;
-const AVAIL_BATCH = 5; // availability fetched in fit-order batches…
-const MAX_AVAIL_FETCHES = 15; // …up to this ceiling — never the whole ranked pool
+// Availability is fetched in fit-order batches. The scan EARLY-STOPS on the first
+// match (a title watchable under the current constraint); a "needs-rentals" or
+// "none" claim — both assertions that no such title exists — only after the full
+// ranked pool is exhausted, so an included title is never missed behind a rentable.
+const AVAIL_BATCH = 5;
 
 interface BridgeCand {
   id: number;
@@ -114,25 +117,13 @@ export async function bridge(
     evaluateAvailability(c.availability, services, willingToPay).eligible;
   const rentable = (c: Scanned) => c.availability.rent.length + c.availability.buy.length > 0;
 
-  // Scan availability in fit order, in BATCHES, returning the first eligible
-  // (watchable) title as the match. Early-stop at the cap — UNLESS we'd otherwise
-  // have to claim a terminal "none": before giving up, exhaust the full ranked
-  // pool so an eligible title deeper than the cap is never missed.
+  // Scan in fit order for the first title watchable under the CURRENT constraint
+  // (the match) and early-stop there. Both "needs-rentals" and "none" assert that
+  // NO such title exists, so they're returned only after EXHAUSTING the full ranked
+  // pool — an included title deeper than an earlier rentable one is never missed,
+  // and a not-paying couple is never nudged to pay when a free option existed.
   let chosen: Scanned | undefined;
-  let i = 0;
-  for (; i < ranked.length && i < MAX_AVAIL_FETCHES && !chosen; i += AVAIL_BATCH) {
-    const batch = await attachAvailability(ranked.slice(i, i + AVAIL_BATCH), region);
-    scanned.push(...batch);
-    chosen = batch.find(eligible);
-  }
-
-  // No match in the bounded scan, but rentals would unlock one → a RECOVERABLE
-  // state (offer the expand). Not a terminal absence, so no exhaustive scan.
-  if (!chosen && !willingToPay && scanned.some(rentable)) return { kind: "needs-rentals" };
-
-  // Otherwise we'd be claiming a TERMINAL "none" — exhaust the rest of the ranked
-  // pool for a watchable match first.
-  for (; i < ranked.length && !chosen; i += AVAIL_BATCH) {
+  for (let i = 0; i < ranked.length && !chosen; i += AVAIL_BATCH) {
     const batch = await attachAvailability(ranked.slice(i, i + AVAIL_BATCH), region);
     scanned.push(...batch);
     chosen = batch.find(eligible);
@@ -151,5 +142,7 @@ export async function bridge(
       },
     };
   }
+  // No title is watchable under the current constraint anywhere in the pool. If
+  // paying would unlock one, offer the expand; otherwise the honest end-state.
   return !willingToPay && scanned.some(rentable) ? { kind: "needs-rentals" } : { kind: "none" };
 }

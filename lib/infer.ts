@@ -400,25 +400,24 @@ export async function inferMoods(
     // display time (lib/filter selectWatchable), per the canonical ranking rule.
     const ranked = [...recs, ...backfill];
 
-    // Attach availability in fit order, in BATCHES. Early-stop once we've filled
-    // enough eligible options OR hit the cap WITH a non-empty result. But a
-    // terminal "nothing watchable" (no title watchable even when paying) must be
-    // exhaustive — so when nothing watchable has turned up yet, keep scanning the
-    // full ranked pool past the cap rather than falsely declaring none. (The deep
-    // scan only triggers when the top of the list is entirely unavailable — rare,
-    // since most titles are at least rentable — so there's no routine cost.)
+    // Attach availability in fit order, in BATCHES. The ONLY valid early-stop is
+    // finding titles watchable under the user's CURRENT constraint (included if not
+    // paying; included or rent/buy if paying): stop once enough are found, or at the
+    // cap once at least one is. Any "nothing watchable under the current constraint"
+    // outcome (offer-rentals OR none) is a claim of absence — so while none has been
+    // found we exhaust the full ranked pool before stopping, and an included title
+    // deeper than an earlier rentable one is never missed. (The deep scan triggers
+    // only when nothing's watchable-under-constraint up top — bounded and uncommon.)
     const finalists: PlayerRec[] = [];
-    let eligible = 0;
-    let watchableIfPaid = false; // some title is watchable when willing to pay → not a "none"
+    let eligible = 0; // watchable under the CURRENT constraint — the only early-stop signal
     for (let i = 0; i < ranked.length; i += AVAIL_BATCH) {
       if (eligible >= TARGET_RECS) break;
-      if (i >= MAX_AVAIL_FETCHES && watchableIfPaid) break;
+      if (i >= MAX_AVAIL_FETCHES && eligible >= 1) break;
       const batch = await attachAvailability(ranked.slice(i, i + AVAIL_BATCH), region);
       finalists.push(...batch);
-      for (const r of batch) {
-        if (evaluateAvailability(r.availability, services, willingToPay).eligible) eligible++;
-        if (evaluateAvailability(r.availability, services, true).eligible) watchableIfPaid = true;
-      }
+      eligible += batch.filter(
+        (r) => evaluateAvailability(r.availability, services, willingToPay).eligible
+      ).length;
     }
 
     // Degrade gracefully: a player who handed no swipe signal (all "Don't know")
