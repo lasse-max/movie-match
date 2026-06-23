@@ -1,0 +1,23 @@
+{
+  "_comment": "Frozen eval set for Pass 2 (matching brain). Review/adjust, then freeze. Labels must match lib/categories.ts. Each player picks 2-3.",
+  "couples": [
+    { "name": "Action buddies", "kind": "compatible · mainstream", "p1": ["Action", "Sci-Fi"], "p2": ["Action", "Thriller"] },
+    { "name": "Date-night clash", "kind": "divergent", "p1": ["Horror", "Dark & gritty"], "p2": ["Romance", "Feel-good"] },
+    { "name": "Cozy night in", "kind": "compatible · mood-led", "p1": ["Cozy", "Feel-good"], "p2": ["Feel-good", "Comedy"] },
+    { "name": "Cerebral pair", "kind": "compatible · niche", "p1": ["Mind-bending", "Sci-Fi", "Drama"], "p2": ["Mind-bending", "Thriller"] },
+    { "name": "Tearjerker vs blockbuster", "kind": "divergent", "p1": ["Tearjerker", "Romance"], "p2": ["Action", "Comedy"] },
+    { "name": "Dark crime couple", "kind": "compatible · niche", "p1": ["Dark & gritty", "Thriller"], "p2": ["Crime", "Thriller"] },
+    { "name": "Family animation", "kind": "compatible · mainstream", "p1": ["Animated", "Feel-good"], "p2": ["Comedy", "Animated"] },
+    { "name": "Apocalyptic sci-fi", "kind": "compatible · niche", "p1": ["Apocalyptic", "Sci-Fi"], "p2": ["Sci-Fi", "Action"] },
+    { "name": "Rom-com classic", "kind": "compatible · mainstream", "p1": ["Romance", "Comedy"], "p2": ["Comedy", "Feel-good", "Romance"] },
+    { "name": "Horror fans", "kind": "compatible · niche", "p1": ["Horror", "Thriller"], "p2": ["Horror", "Dark & gritty"] },
+    { "name": "Cozy vs apocalyptic", "kind": "divergent · extreme", "p1": ["Cozy", "Feel-good"], "p2": ["Apocalyptic", "Horror"] },
+    { "name": "Crime drama", "kind": "compatible", "p1": ["Crime", "Drama"], "p2": ["Crime", "Thriller"] },
+    { "name": "Fantasy adventure", "kind": "compatible", "p1": ["Fantasy", "Animated"], "p2": ["Fantasy", "Action"] },
+    { "name": "Sunshine vs noir", "kind": "divergent · mood-led", "p1": ["Feel-good", "Comedy"], "p2": ["Dark & gritty", "Crime"] },
+    { "name": "Sci-fi vs romance", "kind": "divergent", "p1": ["Sci-Fi", "Mind-bending"], "p2": ["Romance", "Tearjerker"] },
+    { "name": "Mainstream blockbuster", "kind": "compatible · mainstream", "p1": ["Action", "Comedy", "Crime"], "p2": ["Sci-Fi", "Action"] },
+    { "name": "Arthouse pair", "kind": "compatible · niche", "p1": ["Mind-bending", "Drama"], "p2": ["Dark & gritty", "Mind-bending"] },
+    { "name": "Thriller + horror", "kind": "compatible", "p1": ["Thriller", "Crime"], "p2": ["Horror", "Thriller"] }
+  ]
+}

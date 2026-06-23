@@ -146,3 +146,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# generated eval reports (score locally; couples.json + harness are tracked)
+/eval/results/

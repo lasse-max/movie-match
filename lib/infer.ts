@@ -340,6 +340,7 @@ async function callInferAI(
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 1024,
+      temperature: 0, // deterministic mood read + ranking (reproducible matching + eval)
       thinking: { type: "disabled" },
       system: INFER_SYSTEM,
       messages: [{ role: "user", content: buildUserMessage(pool, swipes, cand1, cand2) }],

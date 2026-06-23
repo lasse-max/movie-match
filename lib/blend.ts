@@ -153,6 +153,7 @@ async function getStrategy(p1: string[], p2: string[]): Promise<BlendStrategy | 
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 1024,
+      temperature: 0, // deterministic: same picks → same strategy (reproducible matching + eval)
       thinking: { type: "disabled" }, // lean + fast (BRD flags AI latency)
       system: SYSTEM_PROMPT,
       messages: [
