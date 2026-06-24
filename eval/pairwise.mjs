@@ -32,8 +32,21 @@ const flip = (name) => {
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return h % 2;
 };
-const fmtPick = (w) =>
-  w ? `${w.title} (${w.year ?? "—"})${w.tags?.length ? ` — [${w.tags.join(" · ")}]` : ""}` : "(no pick)";
+// TMDB movie genres (fixed public list) → show FACTUAL genres on each pick, never the
+// engine's match tags or percentages, which would bias the blind reviewer toward the
+// engine's own "why it's good" justification.
+const TMDB_GENRES = {
+  28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
+  99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
+  27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance", 878: "Sci-Fi",
+  10770: "TV Movie", 53: "Thriller", 10752: "War", 37: "Western",
+};
+const genreNames = (ids) => (ids ?? []).map((g) => TMDB_GENRES[g]).filter(Boolean);
+const fmtPick = (w) => {
+  if (!w) return "(no pick)";
+  const g = genreNames(w.genreIds);
+  return `${w.title} (${w.year ?? "—"})${g.length ? ` — ${g.join(", ")}` : ""}`;
+};
 const swipeLine = (cards) => {
   const y = (cards || []).filter((c) => c.swipe === "yes").map((c) => c.title);
   const n = (cards || []).filter((c) => c.swipe === "no").map((c) => c.title);
