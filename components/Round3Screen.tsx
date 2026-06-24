@@ -4,14 +4,11 @@ import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
 import { selectWatchable, labelText, type AvailabilityLabel } from "@/lib/filter";
 import { genreNames } from "@/lib/genres";
-import { blurb } from "@/lib/blurb";
 import type { Player } from "@/lib/gameMachine";
 import type { PlayerRec } from "@/lib/inferTypes";
+import { Check, Phone, Progress, eyebrow, goldCta, loaderCol, pill, screenCol, tag } from "./marquee";
 
 const TARGET = 8;
-
-const primaryBtn =
-  "w-full rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background transition enabled:hover:opacity-90 enabled:active:scale-[0.98] disabled:opacity-40";
 
 // No source attribution is shown here. Cross-player positives are a SILENT
 // seeding mechanism (lib/infer.ts) — surfacing "they're into this" would nudge
@@ -40,13 +37,24 @@ function PlayerPicks({ player }: { player: Player }) {
 
   if (!ready) {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl" aria-hidden>📲</span>
-        <h2 className="text-xl font-semibold">Pass the phone to Player 2</h2>
-        <p className="text-sm text-foreground/60">
+      <div className="flex min-h-full flex-1 flex-col items-center justify-center px-2 text-center">
+        <div className="relative mb-7 flex h-[120px] w-[120px] items-center justify-center">
+          <span className="absolute inset-0 rounded-full border-[1.5px] border-gold/50 motion-safe:animate-[mmPulseRing_2.4s_ease-out_infinite]" />
+          <span className="absolute inset-0 rounded-full border-[1.5px] border-gold/50 motion-safe:animate-[mmPulseRing_2.4s_ease-out_infinite_1.2s]" />
+          <div className="flex h-[78px] w-[78px] items-center justify-center rounded-3xl border border-gold/40 bg-[linear-gradient(150deg,rgba(232,192,125,0.18),rgba(232,192,125,0.04))] text-gold motion-safe:animate-[mmFloat_3.5s_ease-in-out_infinite]">
+            <Phone size={34} />
+          </div>
+        </div>
+        <p className={`mb-2 ${eyebrow} tracking-[2px]`}>Picks locked · no peeking</p>
+        <h2 className="mb-3 font-display text-[36px] leading-[1.05]">
+          Pass the phone
+          <br />
+          to <span className="italic text-gold">Player 2</span>
+        </h2>
+        <p className="mb-8 max-w-[260px] text-[14.5px] leading-[1.5] text-text/55">
           Last step — pick every title you’d be happy to watch tonight.
         </p>
-        <button className={primaryBtn} onClick={() => setReady(true)}>
+        <button className={goldCta} onClick={() => setReady(true)}>
           I’m ready
         </button>
       </div>
@@ -57,23 +65,22 @@ function PlayerPicks({ player }: { player: Player }) {
   // they've selected NO services at all, also surface the path back to setup.
   if (view.kind === "offer-rentals") {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl" aria-hidden>💸</span>
-        <h2 className="text-xl font-semibold">Nothing’s included tonight</h2>
-        <p className="text-sm text-foreground/60">
+      <div className={loaderCol}>
+        <h2 className="mb-2.5 font-display text-[32px]">Nothing’s included tonight</h2>
+        <p className="mb-7 max-w-[270px] text-[14px] leading-[1.5] text-text/55">
           {services.length === 0
             ? "You haven’t added any subscriptions — but these are available to rent or buy."
             : "None of your picks are on your subscriptions — but they’re available to rent or buy."}
         </p>
         <button
-          className={primaryBtn}
+          className={goldCta}
           onClick={() => dispatch({ type: "SET_WILLING_TO_PAY", value: true })}
         >
           Include rentals &amp; purchases
         </button>
         {services.length === 0 && (
           <button
-            className="text-xs text-foreground/50 underline underline-offset-4 hover:text-foreground"
+            className="mt-3 text-[12px] text-text/45 underline underline-offset-4 transition hover:text-text"
             onClick={() => dispatch({ type: "RESET" })}
           >
             …or start over and add a service
@@ -88,14 +95,13 @@ function PlayerPicks({ player }: { player: Player }) {
   // — offer an honest retune instead.
   if (view.kind === "none") {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl" aria-hidden>🌧️</span>
-        <h2 className="text-xl font-semibold">Nothing watchable tonight</h2>
-        <p className="text-sm text-foreground/60">
-          We couldn’t find any of these to stream or rent in {region} right now. Retune your
-          vibes and we’ll try again.
+      <div className={loaderCol}>
+        <h2 className="mb-2.5 font-display text-[32px]">Nothing watchable tonight</h2>
+        <p className="mb-7 max-w-[270px] text-[14px] leading-[1.5] text-text/55">
+          We couldn’t find any of these to stream or rent in {region} right now. Retune your vibes
+          and we’ll try again.
         </p>
-        <button className={primaryBtn} onClick={() => dispatch({ type: "RESET" })}>
+        <button className={goldCta} onClick={() => dispatch({ type: "RESET" })}>
           Start over
         </button>
       </div>
@@ -118,36 +124,38 @@ function PlayerPicks({ player }: { player: Player }) {
   };
 
   return (
-    <div className="flex w-full flex-col gap-4">
-      <div className="text-center">
-        <span className="rounded-full bg-foreground/10 px-3 py-1 text-xs font-medium uppercase tracking-wide">
-          Round 3 of 3 · Player {player}
-        </span>
-        <h2 className="mt-3 text-lg font-semibold">Which would you watch?</h2>
-        {inference?.moodRead.summary && (
-          <p className="text-xs text-foreground/50">Your vibe: {inference.moodRead.summary}</p>
-        )}
+    <div className={screenCol}>
+      <div className="flex-1">
+        <div className="mb-4 flex items-center justify-between">
+          <span className={pill}>Round 3 · Shortlist</span>
+          <Progress done={3} />
+        </div>
+
+        <h2 className="mb-1 font-display text-[32px] leading-[1.06]">
+          Which would you <span className="italic text-gold">watch</span>?
+        </h2>
+        <p className="mb-5 text-[13.5px] text-text/50">
+          Tap every title you’d be up for.{" "}
+          {selected.length > 0 && <span className="text-gold">{selected.length} selected</span>}
+        </p>
+
+        <ul className="flex flex-col gap-[9px]">
+          {rows.map(({ item, label }) => (
+            <RecRow
+              key={item.id}
+              rec={item}
+              label={label}
+              selected={selected.includes(item.id)}
+              onToggle={() => toggle(item.id)}
+            />
+          ))}
+        </ul>
       </div>
 
-      <ul className="flex flex-col gap-2">
-        {rows.map(({ item, label }) => (
-          <RecRow
-            key={item.id}
-            rec={item}
-            label={label}
-            selected={selected.includes(item.id)}
-            onToggle={() => toggle(item.id)}
-          />
-        ))}
-      </ul>
-
-      <div className="flex flex-col items-center gap-2">
-        <button className={primaryBtn} disabled={submitted} onClick={lockIn}>
+      <div className="mt-4">
+        <button className={goldCta} disabled={submitted || selected.length === 0} onClick={lockIn}>
           {player === 1 ? "Done — pass the phone" : "Find your match"}
         </button>
-        <p className="text-xs text-foreground/50">
-          {selected.length === 0 ? "Tap every title you'd be up for." : `${selected.length} selected`}
-        </p>
       </div>
     </div>
   );
@@ -165,64 +173,51 @@ function RecRow({
   onToggle: () => void;
 }) {
   const tags = genreNames(rec.genreIds).slice(0, 2);
-  const description = blurb(rec.overview, 140);
   return (
     <li>
       <button
         type="button"
         onClick={onToggle}
         aria-pressed={selected}
-        className={`flex w-full items-start gap-3 rounded-xl border p-2 text-left transition ${
-          selected
-            ? "border-foreground ring-1 ring-foreground"
-            : "border-foreground/15 hover:border-foreground/40"
+        className={`flex w-full items-center gap-3 rounded-2xl border p-[9px] text-left transition active:scale-[0.99] ${
+          selected ? "border-gold/65 bg-gold/[0.08]" : "border-text/9 bg-text/[0.02]"
         }`}
       >
-        <div className="h-16 w-11 shrink-0 overflow-hidden rounded-md bg-foreground/10">
+        <div className="h-[66px] w-[46px] shrink-0 overflow-hidden rounded-lg border border-text/10 bg-text/10">
           {rec.posterUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- external TMDB poster
             <img
               src={rec.posterUrl}
               alt={rec.title}
-              width={44}
-              height={64}
+              width={46}
+              height={66}
               className="h-full w-full object-cover"
             />
           ) : null}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold">
+          <div className="truncate text-[14.5px] font-semibold">
             {rec.title}
-            {rec.year ? <span className="font-normal text-foreground/50"> · {rec.year}</span> : null}
+            {rec.year ? <span className="font-normal text-text/45"> · {rec.year}</span> : null}
           </div>
           {tags.length > 0 && (
-            <div className="mt-0.5 flex flex-wrap gap-1">
+            <div className="mt-1 flex flex-wrap gap-1.5">
               {tags.map((t) => (
-                <span
-                  key={t}
-                  className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium text-foreground/55"
-                >
+                <span key={t} className={tag}>
                   {t}
                 </span>
               ))}
             </div>
           )}
-          {description && (
-            <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-foreground/55">
-              {description}
-            </p>
-          )}
-          <div className="mt-1 text-[11px] font-medium text-foreground/70">
-            {labelText(label)}
-          </div>
+          <div className="mt-1 text-[11.5px] text-gold">{labelText(label)}</div>
         </div>
         <span
-          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
-            selected ? "border-foreground bg-foreground text-background" : "border-foreground/30"
+          className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full transition ${
+            selected ? "bg-gold text-ink" : "border border-text/25"
           }`}
           aria-hidden
         >
-          {selected ? "✓" : ""}
+          {selected && <Check size={13} />}
         </span>
       </button>
     </li>
