@@ -2,31 +2,33 @@
 
 import { useState } from "react";
 import { useGame } from "./GameProvider";
-import { evaluateAvailability, labelText } from "@/lib/filter";
+import { evaluateAvailability } from "@/lib/filter";
 import type { MatchMovie } from "@/lib/inferTypes";
-
-const primaryBtn =
-  "rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]";
+import {
+  ExternalArrow,
+  GOLD_SURFACE,
+  Heart,
+  eyebrowNeutral,
+  ghostBtn,
+  goldCta,
+  tag,
+} from "./marquee";
 
 const INLINE_ALTERNATIVES = 3; // runner-ups shown inline; the rest behind "See other matches"
-
-const tagLine = (tags: string[]) => tags.join(" · ");
 
 export function MatchScreen() {
   const { state, dispatch } = useGame();
   const [showAll, setShowAll] = useState(false);
   const match = state.match;
   const { services, willingToPay } = state.setup;
-  const labelFor = (m: MatchMovie) => {
-    const { label } = evaluateAvailability(m.availability, services, willingToPay);
-    return label ? labelText(label) : null;
-  };
+  const labelFor = (m: MatchMovie) =>
+    evaluateAvailability(m.availability, services, willingToPay).label;
 
   if (!match) {
     return (
-      <div className="flex flex-col items-center gap-4 text-center">
-        <p className="text-sm text-foreground/60">No pick yet — start over?</p>
-        <button className={primaryBtn} onClick={() => dispatch({ type: "RESET" })}>
+      <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-5 text-center">
+        <p className="text-sm text-text/60">No pick yet — start over?</p>
+        <button className={goldCta} onClick={() => dispatch({ type: "RESET" })}>
           Play again
         </button>
       </div>
@@ -36,131 +38,141 @@ export function MatchScreen() {
   const { movie, reason, alternatives } = match;
   const overlap = reason === "overlap";
   const heroLabel = labelFor(movie);
-  const justWatch = movie.availability.justWatchLink;
+  const justWatch = heroLabel?.justWatchLink ?? movie.availability.justWatchLink;
+  const verb = heroLabel?.type === "rent" ? "Rent on" : heroLabel?.type === "buy" ? "Buy on" : "Watch on";
+  const shown = showAll ? alternatives : alternatives.slice(0, INLINE_ALTERNATIVES);
+  const hiddenCount = alternatives.length - INLINE_ALTERNATIVES;
 
   return (
-    <div className="flex w-full flex-col items-center gap-5 text-center">
-      <span className="text-4xl" aria-hidden>{overlap ? "🍿" : "🤝"}</span>
-      <h2 className="text-2xl font-bold tracking-tight">
-        {overlap ? "It’s a match!" : "Your bridge pick"}
-      </h2>
+    <div className="relative flex min-h-full flex-1 flex-col text-center">
+      {/* peak glow — rose for the overlap match, gold for the bridge pick */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-[80px] h-[300px] w-[300px] -translate-x-1/2 rounded-full blur-[10px] motion-safe:animate-[mmGlow_5s_ease-in-out_infinite]"
+        style={{
+          background: overlap
+            ? "radial-gradient(circle, rgba(240,104,90,0.28), rgba(240,104,90,0) 65%)"
+            : "radial-gradient(circle, rgba(232,192,125,0.22), rgba(232,192,125,0) 65%)",
+        }}
+      />
 
-      <div className="aspect-[2/3] w-40 overflow-hidden rounded-xl bg-foreground/10">
-        {movie.posterUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- external TMDB poster
-          <img
-            src={movie.posterUrl}
-            alt={movie.title}
-            width={160}
-            height={240}
-            className="h-full w-full object-cover"
+      <div className="relative">
+        {/* badge — rose "It's a match" (peak) or gold "Your bridge pick" */}
+        {overlap ? (
+          <div className="mb-4 mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-rose/40 bg-rose/10 px-3.5 py-1.5">
+            <Heart size={14} className="text-rose" />
+            <span className="text-[11px] font-semibold uppercase tracking-[1.5px] text-rose">
+              It’s a match
+            </span>
+          </div>
+        ) : (
+          <div className="mb-4 mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3.5 py-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[1.5px] text-gold">
+              Your bridge pick
+            </span>
+          </div>
+        )}
+
+        {/* hero poster */}
+        <div className="relative mx-auto mb-[18px] aspect-[2/3] w-[188px] overflow-hidden rounded-[18px] border border-gold/30 bg-text/[0.04] shadow-[0_30px_70px_-22px_rgba(0,0,0,0.95)] motion-safe:animate-[mmFloat_5s_ease-in-out_infinite]">
+          {movie.posterUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- external TMDB poster
+            <img src={movie.posterUrl} alt={movie.title} className="h-full w-full object-cover" />
+          ) : null}
+          <div
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,.8) 100%)" }}
           />
-        ) : null}
-      </div>
-
-      <div>
-        <div className="text-lg font-semibold">
-          {movie.title}
-          {movie.year ? <span className="font-normal text-foreground/50"> ({movie.year})</span> : null}
+          <div className="absolute right-3 top-3 rounded-full border border-gold/40 bg-ink/60 px-[11px] py-1.5 text-[13px] font-bold text-gold backdrop-blur-md">
+            {movie.matchPercent}%
+          </div>
         </div>
-        <div className="mt-1 text-sm font-semibold text-foreground/80">{movie.matchPercent}% match</div>
+
+        {/* title + meta */}
+        <h2 className="mb-[3px] font-display text-[34px] leading-[1.05]">{movie.title}</h2>
+        <p className="mb-3 text-[13px] text-text/50">
+          {movie.year ? `${movie.year} · ` : ""}
+          {movie.matchPercent}% match
+        </p>
+
         {movie.matchTags.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap justify-center gap-1.5">
+          <div className="mb-3.5 flex flex-wrap justify-center gap-1.5">
             {movie.matchTags.map((t) => (
-              <span
-                key={t}
-                className="rounded-full bg-foreground/10 px-2 py-0.5 text-[11px] font-medium text-foreground/70"
-              >
+              <span key={t} className={tag}>
                 {t}
               </span>
             ))}
           </div>
         )}
-        <p className="mt-2 text-sm text-foreground/60">
+
+        <p className="mx-auto mb-[18px] max-w-[290px] text-[13.5px] leading-[1.5] text-text/60">
           {overlap
             ? "You both picked it — settle in."
             : "Your lists didn’t overlap, so we bridged your tastes into this."}
         </p>
-        {heroLabel && <p className="mt-2 text-sm font-medium">{heroLabel}</p>}
+
+        {/* watch CTA */}
+        {justWatch && (
+          <a
+            href={justWatch}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`mb-[22px] inline-flex items-center gap-2 rounded-[14px] px-[22px] py-[13px] text-[14px] font-bold ${GOLD_SURFACE}`}
+          >
+            {heroLabel ? `${verb} ${heroLabel.provider}` : "Where to watch"}
+            <ExternalArrow size={14} />
+          </a>
+        )}
+
+        {/* alternatives — the full backfilled tail; 3 inline + "See other matches" */}
+        {alternatives.length > 0 && (
+          <div className="mb-[18px] text-left">
+            <p className={`mb-2.5 ${eyebrowNeutral}`}>Or also…</p>
+            <div className="flex flex-col gap-2">
+              {shown.map((alt) => (
+                <AltRow key={alt.id} movie={alt} provider={labelFor(alt)?.provider ?? null} />
+              ))}
+            </div>
+            {!showAll && hiddenCount > 0 && (
+              <button
+                onClick={() => setShowAll(true)}
+                className="mt-2.5 text-[12px] font-medium text-gold/80 underline underline-offset-4 transition hover:text-gold"
+              >
+                See {hiddenCount} other match{hiddenCount === 1 ? "" : "es"}
+              </button>
+            )}
+          </div>
+        )}
+
+        <button className={ghostBtn} onClick={() => dispatch({ type: "RESET" })}>
+          Play again
+        </button>
       </div>
-
-      {justWatch && (
-        <a
-          href={justWatch}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm font-medium text-foreground/70 underline underline-offset-4 hover:text-foreground"
-        >
-          Where to watch ↗
-        </a>
-      )}
-
-      {alternatives.length > 0 && (
-        <div className="w-full">
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-foreground/50">
-            Or also…
-          </h3>
-          <ul className="flex flex-col gap-2">
-            {(showAll ? alternatives : alternatives.slice(0, INLINE_ALTERNATIVES)).map((alt) => (
-              <AltRow key={alt.id} movie={alt} label={labelFor(alt)} />
-            ))}
-          </ul>
-          {!showAll && alternatives.length > INLINE_ALTERNATIVES && (
-            <button
-              onClick={() => setShowAll(true)}
-              className="mt-2 text-xs font-medium text-foreground/60 underline underline-offset-4 hover:text-foreground"
-            >
-              See {alternatives.length - INLINE_ALTERNATIVES} other match
-              {alternatives.length - INLINE_ALTERNATIVES === 1 ? "" : "es"}
-            </button>
-          )}
-        </div>
-      )}
-
-      <button className={primaryBtn} onClick={() => dispatch({ type: "RESET" })}>
-        Play again
-      </button>
     </div>
   );
 }
 
-function AltRow({ movie, label }: { movie: MatchMovie; label: string | null }) {
+function AltRow({ movie, provider }: { movie: MatchMovie; provider: string | null }) {
   const justWatch = movie.availability.justWatchLink;
+  const meta = `${movie.matchPercent}% match${provider ? ` · ${provider}` : ""}`;
   return (
-    <li className="flex items-center gap-3 rounded-xl border border-foreground/15 p-2 text-left">
-      <div className="h-14 w-10 shrink-0 overflow-hidden rounded-md bg-foreground/10">
+    <a
+      href={justWatch ?? "#"}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 rounded-[14px] border border-text/8 bg-text/[0.02] p-[9px] transition active:scale-[0.99]"
+    >
+      <div className="h-[54px] w-[38px] shrink-0 overflow-hidden rounded-[7px] border border-text/10 bg-text/10">
         {movie.posterUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- external TMDB poster
-          <img
-            src={movie.posterUrl}
-            alt={movie.title}
-            width={40}
-            height={56}
-            className="h-full w-full object-cover"
-          />
+          <img src={movie.posterUrl} alt={movie.title} className="h-full w-full object-cover" />
         ) : null}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold">
-          {movie.title}
-          {movie.year ? <span className="font-normal text-foreground/50"> ({movie.year})</span> : null}
-        </div>
-        <div className="truncate text-[11px] text-foreground/55">
-          {movie.matchPercent}% match{movie.matchTags.length > 0 ? ` · ${tagLine(movie.matchTags)}` : ""}
-        </div>
-        {label && <div className="text-[11px] font-medium text-foreground/70">{label}</div>}
+        <p className="truncate text-[13.5px] font-semibold">{movie.title}</p>
+        <p className="truncate text-[11.5px] text-text/50">{meta}</p>
       </div>
-      {justWatch && (
-        <a
-          href={justWatch}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 px-1 text-sm text-foreground/60 hover:text-foreground"
-          aria-label={`Where to watch ${movie.title}`}
-        >
-          ↗
-        </a>
-      )}
-    </li>
+      <ExternalArrow size={15} className="shrink-0 text-text/50" />
+    </a>
   );
 }
