@@ -48,6 +48,19 @@ for (let i = 0; i < run.length; i++) {
   console.log(`${r.reason} · ${altCount} alt`);
   lines.push(`- couple mood: _${r.blendMood.summary}_`);
   lines.push(`- P1 mood: _${r.p1Mood.summary}_  ·  P2 mood: _${r.p2Mood.summary}_`);
+  // Per-round signal trace: what each couple actually expressed.
+  const r2 = r.trace?.round2 ?? { 1: [], 2: [] };
+  const r3 = r.trace?.round3 ?? { 1: { picks: [] }, 2: { picks: [] } };
+  const r2line = (cards) => {
+    const yes = cards.filter((c) => c.swipe === "yes").map((c) => c.title);
+    const no = cards.filter((c) => c.swipe === "no").map((c) => c.title);
+    return `✓ ${yes.join(", ") || "—"}  ✗ ${no.join(", ") || "—"}`;
+  };
+  lines.push(`- R2 · P1 ${r2line(r2[1])}`);
+  lines.push(`- R2 · P2 ${r2line(r2[2])}`);
+  lines.push(
+    `- R3 · P1 picks: ${(r3[1].picks ?? []).join(", ") || "—"} · P2 picks: ${(r3[2].picks ?? []).join(", ") || "—"}`
+  );
   lines.push(`- **${r.reason}** → ${fmt(r.winner)}  ·  _${altCount} alternative${altCount === 1 ? "" : "s"}_`);
   for (const a of r.runnerUps) lines.push(`    - ${fmt(a)}`);
   lines.push("- **score:** `__`  (✓ / ~ / ✗)");

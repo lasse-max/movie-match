@@ -31,8 +31,11 @@ const anchorOf = (cats: string[]): number[] =>
  * (no genre anchor) leans toward the more recognizable half (voteCount). Fixed so
  * runs are comparable.
  */
-function scriptedSwipes(pool: PoolMovie[], cat1: string[], cat2: string[]): Swipes {
-  const samples = selectSwipeSamples(pool);
+function scriptedSwipes(
+  samples: { 1: PoolMovie[]; 2: PoolMovie[] },
+  cat1: string[],
+  cat2: string[]
+): Swipes {
   const swipeFor = (cards: PoolMovie[], cats: string[]) => {
     const anchor = new Set(anchorOf(cats));
     const medianVotes = [...cards].sort((a, b) => a.voteCount - b.voteCount)[
@@ -71,13 +74,15 @@ export async function POST(request: Request) {
 
     const blend = await blendTastes(p1, p2, EVAL_REGION);
     const pool = blend.pool;
-    const swipes = scriptedSwipes(pool, p1, p2);
+    const samples = selectSwipeSamples(pool);
+    const swipes = scriptedSwipes(samples, p1, p2);
     const categories: Categories = { 1: p1, 2: p2 };
     const inf = await inferMoods(pool, swipes, categories, EVAL_REGION, EVAL_SERVICES, WILLING_TO_PAY);
 
     // Scripted Round 3: each player "picks" every eligible title on their shortlist.
-    const eligibleIds = (recs: PlayerRec[]) =>
-      recs.filter((r) => evaluateAvailability(r.availability, EVAL_SERVICES, WILLING_TO_PAY).eligible).map((r) => r.id);
+    const isEligible = (r: PlayerRec) =>
+      evaluateAvailability(r.availability, EVAL_SERVICES, WILLING_TO_PAY).eligible;
+    const eligibleIds = (recs: PlayerRec[]) => recs.filter(isEligible).map((r) => r.id);
     const picks1 = eligibleIds(inf[1].recs);
     const picks2 = eligibleIds(inf[2].recs);
     const moodAxes = [...new Set([...inf[1].moodRead.axes, ...inf[2].moodRead.axes])];
@@ -112,6 +117,17 @@ export async function POST(request: Request) {
       }
     }
 
+    // Full per-round signal trace so finalists can be scored against what each
+    // couple actually expressed (Round-2 swipes + Round-3 picks), not just Round 1.
+    const titleYear = (r: { title: string; year: string | null }) =>
+      `${r.title}${r.year ? ` (${r.year})` : ""}`;
+    const round2 = (p: 1 | 2) =>
+      samples[p].map((c) => ({ title: c.title, year: c.year, swipe: swipes[p].yes.includes(c.id) ? "yes" : "no" }));
+    const round3 = (p: 1 | 2) => ({
+      picks: inf[p].recs.filter(isEligible).map(titleYear),
+      shortlist: inf[p].recs.map((r) => ({ title: r.title, year: r.year, eligible: isEligible(r) })),
+    });
+
     return NextResponse.json({
       p1,
       p2,
@@ -122,6 +138,11 @@ export async function POST(request: Request) {
       winner,
       runnerUps,
       altCount: runnerUps.length,
+      trace: {
+        round2: { 1: round2(1), 2: round2(2) },
+        round3: { 1: round3(1), 2: round3(2) },
+        resolution: reason,
+      },
     });
   } catch (err) {
     console.error("[/api/eval]", err);
