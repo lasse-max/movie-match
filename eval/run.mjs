@@ -35,12 +35,20 @@ const frozen = existsSync(fixtureUrl) ? JSON.parse(readFileSync(fixtureUrl)) : {
 let frozenDirty = false;
 const keyOf = (c) => `${c.p1.join(",")}__${c.p2.join(",")}`;
 
-// Genres with a deep mainstream catalog on a single big service (the provider
-// backfill should reliably fill these to ≥5); the rest may degrade gracefully.
-const MAINSTREAM = new Set(["Action", "Comedy", "Thriller", "Drama", "Crime", "Horror", "Romance", "Sci-Fi", "Feel-good"]);
-const isMainstream = (cats) => cats.some((c) => MAINSTREAM.has(c));
+// TMDB genre IDs with deep single-service catalogs — the provider backfill should
+// reliably fill these to ≥5. Narrower genre-anchored genres (Fantasy 14, Animation
+// 16) may degrade; mood-only picks (no genre IDs at all) aren't backfillable and
+// are excluded from the target entirely. Classified from the route's anchorGenres
+// (Round 1 categories → TMDB genres), so it tracks what's actually backfillable.
+const MAINSTREAM_GENRES = new Set([28, 35, 53, 18, 80, 27, 10749, 878]);
+const classify = (anchor) =>
+  !anchor || anchor.length === 0
+    ? "mood-only"
+    : anchor.some((g) => MAINSTREAM_GENRES.has(g))
+      ? "mainstream"
+      : "niche";
 const eligOf = (sl) => (sl ?? []).filter((s) => s.eligible).length;
-const ELIG_TARGET = 5; // the thin-lane floor a 1-service mainstream player should clear
+const ELIG_TARGET = 5; // the thin-lane floor a genre-anchored mainstream player should clear
 const players = []; // thin-lane per-player eligibility data points
 
 const fmt = (m) => (m ? `**${m.title}** (${m.year ?? "—"}) — ${m.percent}% · [${m.tags.join(" · ")}]` : "(no match)");
@@ -99,12 +107,19 @@ for (let i = 0; i < run.length; i++) {
     `- R3 · P1 picks: ${(r3[1].picks ?? []).join(", ") || "—"} · P2 picks: ${(r3[2].picks ?? []).join(", ") || "—"}`
   );
   // Per-player eligible-title counts — the metric the provider backfill targets.
+  // The ≥5 target is held only against genre-anchored mainstream picks (✗ on miss);
+  // niche genres may degrade (~), mood-only picks aren't backfillable (· excluded).
   const e1 = eligOf(r3[1].shortlist), t1 = (r3[1].shortlist ?? []).length;
   const e2 = eligOf(r3[2].shortlist), t2 = (r3[2].shortlist ?? []).length;
-  const flag = (e, cats) => (isMainstream(cats) ? (e >= ELIG_TARGET ? " ✓" : " ✗") : e >= ELIG_TARGET ? " ✓" : " ~");
-  lines.push(`- R3 · eligible — P1: **${e1}**/${t1}${flag(e1, c.p1)} · P2: **${e2}**/${t2}${flag(e2, c.p2)}`);
+  const anchor = r.anchorGenres ?? { 1: [], 2: [] };
+  const cls1 = classify(anchor[1]), cls2 = classify(anchor[2]);
+  const flag = (e, cls) =>
+    cls === "mainstream" ? (e >= ELIG_TARGET ? " ✓" : " ✗") : cls === "niche" ? (e >= ELIG_TARGET ? " ✓" : " ~") : " ·";
+  lines.push(
+    `- R3 · eligible — P1: **${e1}**/${t1}${flag(e1, cls1)} _(${cls1})_ · P2: **${e2}**/${t2}${flag(e2, cls2)} _(${cls2})_`
+  );
   if (laneName === "thin") {
-    players.push({ e: e1, mainstream: isMainstream(c.p1) }, { e: e2, mainstream: isMainstream(c.p2) });
+    players.push({ e: e1, cls: cls1 }, { e: e2, cls: cls2 });
   }
   lines.push(`- **${r.reason}** → ${fmt(r.winner)}  ·  _${altCount} alternative${altCount === 1 ? "" : "s"}_`);
   for (const a of r.runnerUps) lines.push(`    - ${fmt(a)}`);
@@ -115,22 +130,26 @@ for (let i = 0; i < run.length; i++) {
 // Thin-lane eligibility summary — assert mainstream genres reach ≥5 per player,
 // niche may degrade gracefully (the provider backfill's before/after metric).
 if (laneName === "thin" && players.length) {
-  const ms = players.filter((p) => p.mainstream);
-  const ni = players.filter((p) => !p.mainstream);
+  const by = (cls) => players.filter((p) => p.cls === cls);
+  const ms = by("mainstream"), ni = by("niche"), mo = by("mood-only");
   const ge = (arr) => arr.filter((p) => p.e >= ELIG_TARGET).length;
   const median = (arr) => {
     const v = arr.map((p) => p.e).sort((a, b) => a - b);
-    return v.length ? v[Math.floor(v.length / 2)] : 0;
+    return v.length ? v[Math.floor(v.length / 2)] : "—";
   };
   const summary = [
-    `## Thin-lane eligibility (1 service, ≥${ELIG_TARGET} target)`,
-    `- Mainstream-genre players ≥${ELIG_TARGET}: **${ge(ms)}/${ms.length}** · median ${median(ms)} · min ${Math.min(...ms.map((p) => p.e))}`,
-    `- Niche-genre players ≥${ELIG_TARGET}: ${ge(ni)}/${ni.length} · median ${median(ni)} (graceful degradation expected)`,
-    `- All players ≥${ELIG_TARGET}: ${ge(players)}/${players.length} · overall median ${median(players)}`,
+    `## Thin-lane eligibility (1 service · ≥${ELIG_TARGET} target on genre-anchored mainstream picks)`,
+    `- Mainstream (genre-anchored) ≥${ELIG_TARGET}: **${ge(ms)}/${ms.length}** · median ${median(ms)}`,
+    `- Niche (genre-anchored) ≥${ELIG_TARGET}: ${ge(ni)}/${ni.length} · median ${median(ni)} (graceful degradation expected)`,
+    `- Mood-only (no genre IDs → not backfillable): ${mo.length} players · median ${median(mo)} — excluded from the target`,
+    "",
+    "_Future: a mood→genre expansion would make mood-only picks (Cozy, Apocalyptic, …) backfillable too._",
     "",
   ];
   lines.splice(3, 0, ...summary);
-  console.log(`\nThin eligibility — mainstream ≥${ELIG_TARGET}: ${ge(ms)}/${ms.length} · all: ${ge(players)}/${players.length}`);
+  console.log(
+    `\nThin eligibility — mainstream ≥${ELIG_TARGET}: ${ge(ms)}/${ms.length} · niche ${ge(ni)}/${ni.length} · mood-only ${mo.length} (excluded)`
+  );
 }
 
 if (frozenDirty) {

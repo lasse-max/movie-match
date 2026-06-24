@@ -163,6 +163,10 @@ export async function POST(request: Request) {
       winner,
       runnerUps,
       altCount: runnerUps.length,
+      // Per-player anchor genre IDs (Round 1 categories → TMDB genres). Empty =
+      // mood-only pick → not provider-backfillable, so excluded from the eval's ≥5
+      // eligibility target (graceful degradation, not a failure).
+      anchorGenres: { 1: anchorOf(p1), 2: anchorOf(p2) },
       trace: {
         round2: { 1: round2(1), 2: round2(2) },
         round3: { 1: round3(1, picks1), 2: round3(2, picks2) },
