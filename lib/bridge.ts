@@ -10,7 +10,7 @@ import { evaluateAvailability, type MovieAvailability } from "./filter";
 import { isKidsFare } from "./genres";
 import { matchPercent, matchTags } from "./matchInsight";
 import { round3Rank } from "./ranking";
-import { getRecommendations, tmdbImageUrl, type TmdbDiscoverMovie } from "./tmdb";
+import { getCollectionId, getRecommendations, tmdbImageUrl, type TmdbDiscoverMovie } from "./tmdb";
 import type { PoolMovie } from "./blendTypes";
 import type { MatchMovie } from "./inferTypes";
 
@@ -94,6 +94,7 @@ export async function bridge(
   moodAxes: string[] = []
 ): Promise<BridgeOutcome> {
   const fresh = await recommendationsFor([...positives1, ...positives2]);
+  const freshIds = new Set(fresh.map((m) => m.id));
   const declined = new Set(declinedIds); // titles either player explicitly passed on
   const candidates = [...pool.map(fromPool), ...fresh.map(fromDiscover)];
 
@@ -108,6 +109,14 @@ export async function bridge(
       (allowKidsFare || !isKidsFare(c.genreIds))
     );
   });
+
+  // Fresh TMDB recs enter with collectionId null — enrich them (parity with the
+  // infer path) so franchise dedup can catch a fresh sequel in the bridge tail.
+  await Promise.all(
+    quality.map(async (c) => {
+      if (freshIds.has(c.id) && c.collectionId == null) c.collectionId = await getCollectionId(c.id);
+    })
+  );
 
   const score = (c: BridgeCand) =>
     (fitsAnchor(c.genreIds, anchor1) ? 1 : 0) + (fitsAnchor(c.genreIds, anchor2) ? 1 : 0);

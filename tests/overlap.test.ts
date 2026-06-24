@@ -1,10 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { findOverlap, pickMatch, declinedFrom } from "@/lib/overlap";
-import { NO_AVAILABILITY } from "@/lib/filter";
+import { NO_AVAILABILITY, type MovieAvailability } from "@/lib/filter";
 import type { PlayerRec } from "@/lib/inferTypes";
 
 // One of the three permanent pure-logic suites (reducer / filter / overlap).
-const rec = (id: number): PlayerRec => ({
+// Eligible on Netflix (id 8) by default — the picked-eligibility guard requires
+// every winner/alternative to evaluate eligible, so recs need real availability.
+const NETFLIX: MovieAvailability = {
+  flatrate: [{ id: 8, name: "Netflix" }],
+  rent: [],
+  buy: [],
+  justWatchLink: null,
+};
+const ON = { services: [8], willingToPay: false }; // makes Netflix flatrate eligible
+const rec = (id: number, availability: MovieAvailability = NETFLIX): PlayerRec => ({
   id,
   title: `M${id}`,
   year: "2010",
@@ -13,7 +22,7 @@ const rec = (id: number): PlayerRec => ({
   genreIds: [],
   source: "swipe",
   collectionId: null,
-  availability: NO_AVAILABILITY,
+  availability,
 });
 
 describe("findOverlap", () => {
@@ -46,18 +55,18 @@ describe("findOverlap", () => {
 
 describe("pickMatch", () => {
   it("returns the best overlap as an 'overlap' match", () => {
-    const m = pickMatch([rec(1), rec(2)], [rec(2), rec(1)], [1, 2], [1, 2]);
+    const m = pickMatch([rec(1), rec(2)], [rec(2), rec(1)], [1, 2], [1, 2], ON);
     expect(m?.reason).toBe("overlap");
     expect([1, 2]).toContain(m?.movie.id);
   });
 
   it("returns null when there is no overlap (caller bridges)", () => {
-    expect(pickMatch([rec(1)], [rec(2)], [1], [2])).toBeNull();
+    expect(pickMatch([rec(1)], [rec(2)], [1], [2], ON)).toBeNull();
   });
 
   it("returns the full ranked alternatives tail, each with tags + a descending fit %", () => {
     const recs = [rec(1), rec(2), rec(3), rec(4), rec(5)];
-    const m = pickMatch(recs, recs, [1, 2, 3, 4, 5], [1, 2, 3, 4, 5], { services: [], willingToPay: true, moodAxes: ["dark", "tense"] });
+    const m = pickMatch(recs, recs, [1, 2, 3, 4, 5], [1, 2, 3, 4, 5], { ...ON, moodAxes: ["dark", "tense"] });
     expect(m?.movie.id).toBe(1);
     expect(m?.alternatives.map((a) => a.id)).toEqual([2, 3, 4, 5]); // full tail, not capped at 3
     expect(m?.movie.matchTags).toContain("dark"); // mood tag surfaced
@@ -66,29 +75,34 @@ describe("pickMatch", () => {
 
   it("backfills alternatives from one-picked titles when the overlap is thin (no lone winner)", () => {
     // id 1 is the only BOTH-picked title; 2,3 are P1-only, 4,5 P2-only.
-    const m = pickMatch(
-      [rec(1), rec(2), rec(3)],
-      [rec(1), rec(4), rec(5)],
-      [1, 2, 3],
-      [1, 4, 5],
-      { services: [], willingToPay: true }
-    );
+    const m = pickMatch([rec(1), rec(2), rec(3)], [rec(1), rec(4), rec(5)], [1, 2, 3], [1, 4, 5], ON);
     expect(m?.movie.id).toBe(1); // the only both-picked title
     expect(m!.alternatives.length).toBeGreaterThanOrEqual(2); // backfilled, not stranded
     expect(m!.alternatives.map((a) => a.id)).not.toContain(1); // winner not duplicated
   });
 
-  it("never offers a declined or ineligible never-picked title as an alternative", () => {
-    // 1 both-picked (winner). 2 declined by P1. 3 never-picked + ineligible (NO_AVAILABILITY).
-    const m = pickMatch([rec(1), rec(2), rec(3)], [rec(1)], [1], [1], {
-      services: [],
-      willingToPay: true,
-      declined: [2],
-    });
+  it("never offers a declined or ineligible title as an alternative; offers eligible ones", () => {
+    // 1 both-picked (winner). 4 P1-picked + eligible → an alternative. 2 declined.
+    // 3 never-picked AND ineligible (NO_AVAILABILITY) → excluded by the guard.
+    const m = pickMatch(
+      [rec(1), rec(2), rec(3, NO_AVAILABILITY), rec(4)],
+      [rec(1)],
+      [1, 4],
+      [1],
+      { ...ON, declined: [2] }
+    );
     expect(m?.movie.id).toBe(1);
     const ids = m!.alternatives.map((a) => a.id);
+    expect(ids).toContain(4); // eligible one-picked → offered
     expect(ids).not.toContain(2); // declined
-    expect(ids).not.toContain(3); // never-picked and ineligible
+    expect(ids).not.toContain(3); // ineligible
+  });
+
+  it("does NOT let an ineligible PICKED title become the winner — routes to bridge", () => {
+    // Both players picked id 1, but it's unwatchable → no eligible overlap → null.
+    // Guards the watchability invariant: picked ids are not trusted blindly.
+    const m = pickMatch([rec(1, NO_AVAILABILITY)], [rec(1, NO_AVAILABILITY)], [1], [1], ON);
+    expect(m).toBeNull();
   });
 });
 

@@ -22,7 +22,7 @@ export interface PlayerRec {
 
 export interface PlayerInference {
   moodRead: MoodRead;
-  recs: PlayerRec[]; // ranked, ~5
+  recs: PlayerRec[]; // ranked, ~8
 }
 
 export interface InferResult {
@@ -44,7 +44,8 @@ export interface MatchMovie {
 }
 
 /** The deterministic end state of Round 3 — always a decision. The winner is the
- * hero; `alternatives` are 2-3 close runner-ups shown beneath it. */
+ * hero; `alternatives` are the full ranked eligible tail (~3 shown inline, the
+ * rest behind "see other matches"). */
 export interface MatchResult {
   movie: MatchMovie;
   reason: "overlap" | "bridge";

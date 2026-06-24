@@ -19,6 +19,9 @@ const completeRound1 = (s: GameState, player: 1 | 2, categories = ["action", "co
 const completeRound2 = (s: GameState, player: 1 | 2) =>
   run(s, { type: "SET_SWIPES", player, yes: [1], no: [2], neutral: [] }, { type: "COMPLETE_TURN", player });
 
+// Eligible on Netflix (id 8) — the picked-eligibility guard requires the overlap
+// winner to evaluate eligible, so the routing tests set setup.services = [8].
+const NETFLIX = { flatrate: [{ id: 8, name: "Netflix" }], rent: [], buy: [], justWatchLink: null };
 const recList = (ids: number[]) =>
   ids.map((id) => ({
     id,
@@ -29,7 +32,7 @@ const recList = (ids: number[]) =>
     genreIds: [],
     source: "swipe" as const,
     collectionId: null,
-    availability: NO_AVAILABILITY,
+    availability: NETFLIX,
   }));
 const inferenceWith = (ids1: number[], ids2: number[]) => ({
   1: { moodRead: { summary: "", axes: [] }, recs: recList(ids1) },
@@ -66,7 +69,12 @@ describe("gameMachine reducer", () => {
   });
 
   it("Round 3 with no overlap routes to tiebreak; the bridge sets the match there", () => {
-    let s: GameState = { ...initialState, phase: "round3", inference: inferenceWith([1, 2], [3, 4]) };
+    let s: GameState = {
+      ...initialState,
+      phase: "round3",
+      setup: { ...initialState.setup, services: [8] }, // make the Netflix recs eligible
+      inference: inferenceWith([1, 2], [3, 4]),
+    };
     s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2], shown: [1, 2] }, { type: "COMPLETE_TURN", player: 1 });
     s = run(s, { type: "SET_PICKS", player: 2, movieIds: [3, 4], shown: [3, 4] }, { type: "COMPLETE_TURN", player: 2 });
     expect(s.phase).toBe("tiebreak");
@@ -95,6 +103,7 @@ describe("gameMachine reducer", () => {
     let s: GameState = {
       ...initialState,
       phase: "round3",
+      setup: { ...initialState.setup, services: [8] }, // make the Netflix recs eligible
       inference: inferenceWith([1, 2, 3], [3, 4, 5]),
     };
     s = run(s, { type: "SET_PICKS", player: 1, movieIds: [1, 2, 3], shown: [1, 2, 3] }, { type: "COMPLETE_TURN", player: 1 });

@@ -80,12 +80,13 @@ const rankOf = (recs: PlayerRec[], id: number) => {
 };
 
 /**
- * Overlap match: the winner is the best title BOTH players picked, or null (→
- * bridge). The alternatives are the full both-aware ranked tail — both-picked
- * first, then one-picked, then the rest of the ELIGIBLE shortlist — so a thin
- * overlap still yields fallbacks. Every alternative is eligible (a picked title is
- * trusted-eligible; a never-picked one must clear the availability filter), not
- * declined, and franchise-deduped. No looser pool is recomputed to fill slots; if
+ * Overlap match: the winner is the best ELIGIBLE title BOTH players picked, or
+ * null (→ bridge). The alternatives are the full both-aware ranked tail —
+ * both-picked first, then one-picked, then the rest of the eligible shortlist — so
+ * a thin overlap still yields fallbacks. EVERY candidate (winner and alternatives
+ * alike) must evaluate eligible — a picked id is NOT trusted blindly, which keeps
+ * an unwatchable title from ever silently becoming the winner — and must be not
+ * declined and franchise-deduped. No looser pool is recomputed to fill slots; if
  * the shortlist is exhausted we return fewer.
  */
 export function pickMatch(
@@ -100,9 +101,6 @@ export function pickMatch(
   const p2 = new Set(picks2);
   const declinedSet = new Set(declined);
 
-  // A match requires at least one title both players picked.
-  if (![...p1].some((id) => p2.has(id))) return null;
-
   const byId = new Map<number, PlayerRec>();
   for (const r of [...recs1, ...recs2]) if (!byId.has(r.id)) byId.set(r.id, r);
 
@@ -112,14 +110,15 @@ export function pickMatch(
   const isEligible = (r: PlayerRec) =>
     evaluateAvailability(r.availability, services, willingToPay).eligible;
 
-  // Both-picked first, then one-picked, then eligible never-picked — by fit within
-  // tier. Drop declined; a never-picked title must be eligible.
+  // Eligibility is MANDATORY for every candidate — picked ids are not trusted
+  // blindly (a picked-but-unwatchable title must never become the winner). Drop
+  // declined + ineligible, then rank both-picked → one-picked → rest by fit.
   const ranked = [...byId.values()]
-    .filter((r) => {
-      if (declinedSet.has(r.id)) return false;
-      return p1.has(r.id) || p2.has(r.id) || isEligible(r);
-    })
+    .filter((r) => !declinedSet.has(r.id) && isEligible(r))
     .sort((a, b) => tierOf(a.id) - tierOf(b.id) || fitOf(a.id) - fitOf(b.id));
+
+  // A match needs at least one ELIGIBLE title both players picked, else → bridge.
+  if (!ranked.some((r) => p1.has(r.id) && p2.has(r.id))) return null;
 
   // Franchise-dedupe (keep the best-ranked entry per collection).
   const seen = new Set<number>();

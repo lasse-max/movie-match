@@ -1,4 +1,4 @@
-// AI call #2 — mood inference → each player's ~5 Round 3 recs.
+// AI call #2 — mood inference → each player's ~8 Round 3 recs.
 //
 // Round 2 swipes are read as VIBE signals about the direction a player leans
 // (not verdicts on titles). For each player we deterministically assemble a
@@ -199,7 +199,7 @@ function assembleCandidates(
 }
 
 /**
- * Turn ranked ids into the final ≤5 recs: keep only ids present in the candidate
+ * Turn ranked ids into the final ≤8 recs: keep only ids present in the candidate
  * set (drop invented ones), de-dupe, cap fresh expansion at 2, then fill any
  * shortfall from the candidate assembly order (cross-player first).
  */
@@ -357,7 +357,7 @@ async function callInferAI(
 
 // ---- orchestration ---------------------------------------------------------
 
-/** Extra mood-fit pool titles (beyond the ~5 recs) so the availability filter
+/** Extra mood-fit pool titles (beyond the ~8 recs) so the availability filter
  * has alternatives to fall back on rather than emptying a player's list. */
 function backfillCandidates(
   pool: PoolMovie[],

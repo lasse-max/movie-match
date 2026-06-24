@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
-const { recMock, providersMock } = vi.hoisted(() => ({ recMock: vi.fn(), providersMock: vi.fn() }));
+const { recMock, providersMock, collectionMock } = vi.hoisted(() => ({
+  recMock: vi.fn(),
+  providersMock: vi.fn(),
+  collectionMock: vi.fn(),
+}));
 vi.mock("@/lib/tmdb", () => ({
   getRecommendations: recMock,
   getWatchProvidersForRegion: providersMock,
+  getCollectionId: collectionMock,
   tmdbImageUrl: (p: string | null) => (p ? `https://img.test${p}` : null),
 }));
 
@@ -39,6 +44,19 @@ beforeEach(() => {
   vi.clearAllMocks();
   recMock.mockResolvedValue([]); // no fresh recommendations by default
   providersMock.mockResolvedValue(onNetflix); // default: everything's on Netflix
+  collectionMock.mockResolvedValue(null); // no franchise by default
+});
+
+const freshRec = (id: number) => ({
+  id,
+  title: `F${id}`,
+  release_date: "2020-01-01",
+  overview: "",
+  poster_path: "/f.jpg",
+  genre_ids: [878, 28],
+  vote_average: 8.2,
+  vote_count: 900,
+  popularity: 10,
 });
 
 describe("bridge", () => {
@@ -162,6 +180,22 @@ describe("bridge", () => {
       const ids = [out.movie.id, ...out.alternatives.map((x) => x.id)];
       expect(ids).toContain(2); // first franchise entry kept
       expect(ids).not.toContain(3); // second franchise entry dropped
+    }
+  });
+
+  // Major 4: a FRESH bridge rec enters with collectionId null; it must be enriched
+  // so franchise dedup can drop it when it shares a collection with a pool title.
+  it("de-dupes a FRESH bridge rec that shares a franchise with a pool title", async () => {
+    const poolTitle = { ...pm(1, [878, 28], 8.5), collectionId: 100 }; // franchise X (pool)
+    const other = pm(2, [878, 28], 8.0); // standalone pool title
+    recMock.mockResolvedValue([freshRec(3)]); // fresh sequel from the recommendation graph
+    collectionMock.mockImplementation((id: number) => Promise.resolve(id === 3 ? 100 : null)); // same franchise
+    const out = await bridge([poolTitle, other], [1], [], [878], [28], false, "US", SERVICES, false, []);
+    expect(out.kind).toBe("match");
+    if (out.kind === "match") {
+      const ids = [out.movie.id, ...out.alternatives.map((x) => x.id)];
+      expect(ids).toContain(1); // pool franchise entry kept
+      expect(ids).not.toContain(3); // fresh sequel (same collection) dropped after enrichment
     }
   });
 });
