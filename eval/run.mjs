@@ -50,6 +50,7 @@ const classify = (anchor) =>
 const eligOf = (sl) => (sl ?? []).filter((s) => s.eligible).length;
 const ELIG_TARGET = 5; // the thin-lane floor a genre-anchored mainstream player should clear
 const players = []; // thin-lane per-player eligibility data points
+const records = []; // structured per-couple results → <label>.json (pairwise + judge)
 
 const fmt = (m) => (m ? `**${m.title}** (${m.year ?? "—"}) — ${m.percent}% · [${m.tags.join(" · ")}]` : "(no match)");
 const lines = [
@@ -125,6 +126,20 @@ for (let i = 0; i < run.length; i++) {
   for (const a of r.runnerUps) lines.push(`    - ${fmt(a)}`);
   lines.push("- **score:** `__`  (✓ / ~ / ✗)");
   lines.push("");
+
+  // Structured capture for the pairwise harness + the judge.
+  records.push({
+    name: c.name,
+    kind: c.kind,
+    p1: c.p1,
+    p2: c.p2,
+    reason: r.reason,
+    winner: r.winner ?? null,
+    runnerUps: r.runnerUps ?? [],
+    moods: { blend: r.blendMood, p1: r.p1Mood, p2: r.p2Mood },
+    anchorGenres: r.anchorGenres ?? { 1: [], 2: [] },
+    trace: r.trace ?? null,
+  });
 }
 
 // Thin-lane eligibility summary — assert mainstream genres reach ≥5 per player,
@@ -161,4 +176,6 @@ if (frozenDirty) {
 mkdirSync(new URL("./results/", import.meta.url), { recursive: true });
 const out = new URL(`./results/${label}.md`, import.meta.url);
 writeFileSync(out, lines.join("\n"));
-console.log(`\nWrote ${out.pathname}`);
+// Machine-readable sibling for the pairwise harness + the judge.
+writeFileSync(new URL(`./results/${label}.json`, import.meta.url), JSON.stringify(records, null, 2));
+console.log(`\nWrote ${out.pathname} (+ ${label}.json)`);
