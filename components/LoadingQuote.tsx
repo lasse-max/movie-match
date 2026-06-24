@@ -8,9 +8,11 @@ import { randomQuote } from "@/lib/quotes";
 export function LoadingQuote() {
   const [q] = useState(randomQuote);
   return (
-    <figure className="mt-2 max-w-xs">
-      <blockquote className="text-sm italic text-foreground/60">“{q.quote}”</blockquote>
-      <figcaption className="mt-1 text-xs text-foreground/40">— {q.film}</figcaption>
+    <figure className="max-w-[280px]">
+      <blockquote className="mb-1.5 font-display text-[19px] italic leading-[1.35] text-text/80">
+        “{q.quote}”
+      </blockquote>
+      <figcaption className="text-[12px] text-text/40">— {q.film}</figcaption>
     </figure>
   );
 }

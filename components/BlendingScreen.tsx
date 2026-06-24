@@ -5,9 +5,7 @@ import { useGame } from "./GameProvider";
 import { categoryLabel } from "@/lib/categories";
 import { hasEnoughSamples } from "@/lib/blendTypes";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
-
-const btn =
-  "rounded-full bg-foreground px-6 py-2.5 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]";
+import { Clapperboard, Spinner, goldCta, loaderCol, surfaceCard } from "./marquee";
 
 // The "blending" phase: AI call #1 runs here, prefetching the candidate pool for
 // Round 2. On success we store it and advance straight into Round 2.
@@ -76,12 +74,11 @@ export function BlendingScreen() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl" aria-hidden>😕</span>
-        <h2 className="text-xl font-semibold">Couldn’t blend your picks</h2>
-        <p className="text-sm text-foreground/60">{error}</p>
+      <div className={loaderCol}>
+        <h2 className="mb-2.5 font-display text-[30px]">Couldn’t blend your picks</h2>
+        <p className="mb-6 max-w-[260px] text-[14px] leading-[1.5] text-text/55">{error}</p>
         <button
-          className={btn}
+          className={goldCta}
           onClick={() => {
             setError(null);
             setAttempt((a) => a + 1);
@@ -94,17 +91,19 @@ export function BlendingScreen() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-5 py-4 text-center">
-      <span className="text-4xl motion-safe:animate-pulse" aria-hidden>🎬</span>
-      <h2 className="text-xl font-semibold">Blending your tastes…</h2>
-      <p className="text-sm text-foreground/60">
-        Reading the room and lining up movies you might both be into tonight.
+    <div className={loaderCol}>
+      <Spinner accent="text-gold">
+        <Clapperboard size={30} />
+      </Spinner>
+      <h2 className="mb-2.5 font-display text-[32px]">Blending your tastes…</h2>
+      <p className="mb-6 max-w-[250px] text-[14px] leading-[1.5] text-text/55">
+        Reading the room and lining up titles you might both lean into.
       </p>
       {/* This wait precedes Round 2 — prime the vibe-framing while they wait. */}
-      <div className="mt-1 max-w-xs rounded-lg bg-foreground/5 px-3 py-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-foreground/45">Next — Round 2</p>
-        <p className="mt-0.5 text-sm text-foreground/70">
-          Pick based on the <span className="italic">vibe</span> — totally fine if you’ve already seen it.
+      <div className={`w-full max-w-[280px] p-4 text-left ${surfaceCard}`}>
+        <p className="mb-1 text-[10.5px] uppercase tracking-[1.5px] text-text/40">Up next · Round 2</p>
+        <p className="text-[13.5px] text-text/75">
+          Swipe on the <span className="font-display italic text-gold">vibe</span> — fine if you’ve seen it.
         </p>
       </div>
     </div>

@@ -4,12 +4,10 @@ import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
 import { LoadingQuote } from "./LoadingQuote";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
-
-const btn =
-  "rounded-full bg-foreground px-6 py-2.5 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]";
+import { Sparkle, Spinner, goldCta, loaderCol } from "./marquee";
 
 // The "inferring" phase: AI call #2 reads both players' Round 2 swipes → each
-// player's ~5 Round 3 recs. Replay-safe (AbortController + cancelled flag).
+// player's ~8 Round 3 recs. Replay-safe (AbortController + cancelled flag).
 export function InferringScreen() {
   const { state, dispatch } = useGame();
   const [error, setError] = useState<string | null>(null);
@@ -67,12 +65,11 @@ export function InferringScreen() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl" aria-hidden>😕</span>
-        <h2 className="text-xl font-semibold">Couldn’t read the mood</h2>
-        <p className="text-sm text-foreground/60">{error}</p>
+      <div className={loaderCol}>
+        <h2 className="mb-2.5 font-display text-[30px]">Couldn’t read the mood</h2>
+        <p className="mb-6 max-w-[260px] text-[14px] leading-[1.5] text-text/55">{error}</p>
         <button
-          className={btn}
+          className={goldCta}
           onClick={() => {
             setError(null);
             setAttempt((a) => a + 1);
@@ -85,10 +82,12 @@ export function InferringScreen() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-5 py-4 text-center">
-      <span className="text-4xl motion-safe:animate-pulse" aria-hidden>🔮</span>
-      <h2 className="text-xl font-semibold">Reading the mood…</h2>
-      <p className="text-sm text-foreground/60">
+    <div className={loaderCol}>
+      <Spinner accent="text-rose">
+        <Sparkle size={30} />
+      </Spinner>
+      <h2 className="mb-2.5 font-display text-[32px]">Reading the mood…</h2>
+      <p className="mb-6 max-w-[250px] text-[14px] leading-[1.5] text-text/55">
         Turning your swipes into a shortlist you’ll both be into.
       </p>
       <LoadingQuote />

@@ -154,6 +154,25 @@ export const surfaceCard = "rounded-2xl border border-text/10 bg-text/[0.03]";
 /** Vertical screen frame: fills the column, CTA pins at the bottom. */
 export const screenCol = "flex min-h-full flex-1 flex-col";
 
+/** 96px ring spinner — static faint ring under a spinning two-tone arc, with a
+ * centered icon. `accent` is a text-color class (text-gold / text-rose) driving
+ * both the spinning arc (via currentColor) and the icon. */
+export function Spinner({ accent = "text-gold", children }: { accent?: string; children: React.ReactNode }) {
+  return (
+    <div className={`relative mb-8 h-24 w-24 ${accent}`}>
+      <span className="absolute inset-0 rounded-full border-2 border-text/[0.08]" />
+      <span
+        className="absolute inset-0 rounded-full border-2 border-transparent motion-safe:animate-[mmSpin_1.1s_linear_infinite]"
+        style={{ borderTopColor: "currentColor", borderRightColor: "currentColor" }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center">{children}</div>
+    </div>
+  );
+}
+
+/** Centered loader column (spinner + serif title + copy + optional extra). */
+export const loaderCol = "flex min-h-full flex-1 flex-col items-center justify-center text-center";
+
 /** A 3-segment round-progress indicator; `done` segments are gold. */
 export function Progress({ done }: { done: number }) {
   return (
