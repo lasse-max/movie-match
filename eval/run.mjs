@@ -6,13 +6,23 @@
 //        e.g.  node eval/run.mjs baseline        (all couples)
 //              node eval/run.mjs enriched 3      (first 3, smoke test)
 //   3. score each couple ✓ / ~ / ✗ in eval/results/<label>.md, then compare versions.
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+//
+// Frozen pool: each couple's blend is captured to eval/fixtures/blends.json on
+// first run and reused thereafter, so the candidates are an IDENTICAL TMDB
+// snapshot across versions — baseline vs enriched then differ only by enrichment.
+// To take a fresh snapshot, delete eval/fixtures/blends.json.
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 
 const BASE = process.env.EVAL_BASE ?? "http://localhost:3000";
 const label = process.argv[2] ?? "baseline";
 const { couples } = JSON.parse(readFileSync(new URL("./couples.json", import.meta.url)));
 const limit = process.argv[3] ? Number(process.argv[3]) : couples.length;
 const run = couples.slice(0, limit);
+
+const fixtureUrl = new URL("./fixtures/blends.json", import.meta.url);
+const frozen = existsSync(fixtureUrl) ? JSON.parse(readFileSync(fixtureUrl)) : {};
+let frozenDirty = false;
+const keyOf = (c) => `${c.p1.join(",")}__${c.p2.join(",")}`;
 
 const fmt = (m) => (m ? `**${m.title}** (${m.year ?? "—"}) — ${m.percent}% · [${m.tags.join(" · ")}]` : "(no match)");
 const lines = [
@@ -24,17 +34,24 @@ const lines = [
 for (let i = 0; i < run.length; i++) {
   const c = run[i];
   process.stdout.write(`[${i + 1}/${run.length}] ${c.name} … `);
+  const key = keyOf(c);
+  const body = { p1: c.p1, p2: c.p2 };
+  if (frozen[key]) body.blend = frozen[key]; // reuse the frozen snapshot
   let r;
   try {
     r = await (
       await fetch(BASE + "/api/eval", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ p1: c.p1, p2: c.p2 }),
+        body: JSON.stringify(body),
       })
     ).json();
   } catch (e) {
     r = { error: String(e) };
+  }
+  if (r.blend && !frozen[key]) {
+    frozen[key] = r.blend; // capture a fresh blend so future runs match this snapshot
+    frozenDirty = true;
   }
 
   lines.push(`### ${i + 1}. ${c.name}  _(${c.kind})_`);
@@ -65,6 +82,12 @@ for (let i = 0; i < run.length; i++) {
   for (const a of r.runnerUps) lines.push(`    - ${fmt(a)}`);
   lines.push("- **score:** `__`  (✓ / ~ / ✗)");
   lines.push("");
+}
+
+if (frozenDirty) {
+  mkdirSync(new URL("./fixtures/", import.meta.url), { recursive: true });
+  writeFileSync(fixtureUrl, JSON.stringify(frozen));
+  console.log(`Froze ${Object.keys(frozen).length} couple pools → fixtures/blends.json`);
 }
 
 mkdirSync(new URL("./results/", import.meta.url), { recursive: true });

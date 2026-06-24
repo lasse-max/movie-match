@@ -6,7 +6,7 @@ import { pickMatch, declinedFrom } from "@/lib/overlap";
 import { evaluateAvailability } from "@/lib/filter";
 import { categoryGenreId, normalizeCategoryPicks } from "@/lib/categories";
 import { isKidsFare } from "@/lib/genres";
-import { selectSwipeSamples, type PoolMovie } from "@/lib/blendTypes";
+import { selectSwipeSamples, type BlendResult, type PoolMovie } from "@/lib/blendTypes";
 import { DEFAULT_REGION } from "@/lib/constants";
 import type { MatchMovie, PlayerRec } from "@/lib/inferTypes";
 
@@ -72,7 +72,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "each player needs 1–3 valid picks" }, { status: 400 });
     }
 
-    const blend = await blendTastes(p1, p2, EVAL_REGION);
+    // Frozen-pool A/B: when the harness supplies a previously-captured blend, reuse
+    // it (identical TMDB snapshot) so baseline vs enriched differ ONLY by
+    // enrichment, never by catalog drift. Otherwise blend fresh and return it for
+    // the harness to freeze.
+    const frozen = body?.blend as BlendResult | undefined;
+    const usingFrozen = Array.isArray(frozen?.pool) && frozen.pool.length > 0;
+    const blend: BlendResult = usingFrozen ? frozen! : await blendTastes(p1, p2, EVAL_REGION);
     const pool = blend.pool;
     const samples = selectSwipeSamples(pool);
     const swipes = scriptedSwipes(samples, p1, p2);
@@ -143,6 +149,8 @@ export async function POST(request: Request) {
         round3: { 1: round3(1), 2: round3(2) },
         resolution: reason,
       },
+      // Only when freshly blended — the harness captures this to freeze the snapshot.
+      blend: usingFrozen ? null : blend,
     });
   } catch (err) {
     console.error("[/api/eval]", err);
