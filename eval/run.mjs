@@ -35,6 +35,14 @@ const frozen = existsSync(fixtureUrl) ? JSON.parse(readFileSync(fixtureUrl)) : {
 let frozenDirty = false;
 const keyOf = (c) => `${c.p1.join(",")}__${c.p2.join(",")}`;
 
+// Genres with a deep mainstream catalog on a single big service (the provider
+// backfill should reliably fill these to ≥5); the rest may degrade gracefully.
+const MAINSTREAM = new Set(["Action", "Comedy", "Thriller", "Drama", "Crime", "Horror", "Romance", "Sci-Fi", "Feel-good"]);
+const isMainstream = (cats) => cats.some((c) => MAINSTREAM.has(c));
+const eligOf = (sl) => (sl ?? []).filter((s) => s.eligible).length;
+const ELIG_TARGET = 5; // the thin-lane floor a 1-service mainstream player should clear
+const players = []; // thin-lane per-player eligibility data points
+
 const fmt = (m) => (m ? `**${m.title}** (${m.year ?? "—"}) — ${m.percent}% · [${m.tags.join(" · ")}]` : "(no match)");
 const lines = [
   `# Eval results — ${label} _(${laneName} lane)_`,
@@ -90,10 +98,39 @@ for (let i = 0; i < run.length; i++) {
   lines.push(
     `- R3 · P1 picks: ${(r3[1].picks ?? []).join(", ") || "—"} · P2 picks: ${(r3[2].picks ?? []).join(", ") || "—"}`
   );
+  // Per-player eligible-title counts — the metric the provider backfill targets.
+  const e1 = eligOf(r3[1].shortlist), t1 = (r3[1].shortlist ?? []).length;
+  const e2 = eligOf(r3[2].shortlist), t2 = (r3[2].shortlist ?? []).length;
+  const flag = (e, cats) => (isMainstream(cats) ? (e >= ELIG_TARGET ? " ✓" : " ✗") : e >= ELIG_TARGET ? " ✓" : " ~");
+  lines.push(`- R3 · eligible — P1: **${e1}**/${t1}${flag(e1, c.p1)} · P2: **${e2}**/${t2}${flag(e2, c.p2)}`);
+  if (laneName === "thin") {
+    players.push({ e: e1, mainstream: isMainstream(c.p1) }, { e: e2, mainstream: isMainstream(c.p2) });
+  }
   lines.push(`- **${r.reason}** → ${fmt(r.winner)}  ·  _${altCount} alternative${altCount === 1 ? "" : "s"}_`);
   for (const a of r.runnerUps) lines.push(`    - ${fmt(a)}`);
   lines.push("- **score:** `__`  (✓ / ~ / ✗)");
   lines.push("");
+}
+
+// Thin-lane eligibility summary — assert mainstream genres reach ≥5 per player,
+// niche may degrade gracefully (the provider backfill's before/after metric).
+if (laneName === "thin" && players.length) {
+  const ms = players.filter((p) => p.mainstream);
+  const ni = players.filter((p) => !p.mainstream);
+  const ge = (arr) => arr.filter((p) => p.e >= ELIG_TARGET).length;
+  const median = (arr) => {
+    const v = arr.map((p) => p.e).sort((a, b) => a - b);
+    return v.length ? v[Math.floor(v.length / 2)] : 0;
+  };
+  const summary = [
+    `## Thin-lane eligibility (1 service, ≥${ELIG_TARGET} target)`,
+    `- Mainstream-genre players ≥${ELIG_TARGET}: **${ge(ms)}/${ms.length}** · median ${median(ms)} · min ${Math.min(...ms.map((p) => p.e))}`,
+    `- Niche-genre players ≥${ELIG_TARGET}: ${ge(ni)}/${ni.length} · median ${median(ni)} (graceful degradation expected)`,
+    `- All players ≥${ELIG_TARGET}: ${ge(players)}/${players.length} · overall median ${median(players)}`,
+    "",
+  ];
+  lines.splice(3, 0, ...summary);
+  console.log(`\nThin eligibility — mainstream ≥${ELIG_TARGET}: ${ge(ms)}/${ms.length} · all: ${ge(players)}/${players.length}`);
 }
 
 if (frozenDirty) {
