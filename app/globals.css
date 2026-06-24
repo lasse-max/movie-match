@@ -1,26 +1,71 @@
 @import "tailwindcss";
 
+/* Marquee theme — always dark, "watching at night" canvas with champagne-gold
+   accents. Rose is reserved for the Match peak (and the Inferring "reading the
+   mood" beat) only. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #0a0810;
+  --ink-2: #0e0c14;
+  --surface: rgba(245, 241, 232, 0.03);
+  --surface-2: rgba(245, 241, 232, 0.07);
+  --line: rgba(245, 241, 232, 0.1);
+  --gold: #e8c07d;
+  --gold-deep: #c99b53;
+  --rose: #f0685a;
+  --text: #f5f1e8;
+  --muted: rgba(245, 241, 232, 0.55);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-gold: var(--gold);
+  --color-gold-deep: var(--gold-deep);
+  --color-rose: var(--rose);
+  --color-text: var(--text);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Decorative loaders / ambient motion (used via motion-safe:animate-[…]). */
+@keyframes mmSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mmFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes mmGlow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
+}
+@keyframes mmPulseRing {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
 }
