@@ -4,12 +4,20 @@ import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
 import { CATEGORIES } from "@/lib/categories";
 import type { Player } from "@/lib/gameMachine";
+import {
+  Phone,
+  Progress,
+  chipBase,
+  chipOff,
+  chipOn,
+  eyebrow,
+  goldCta,
+  pill,
+  screenCol,
+} from "./marquee";
 
 const MIN_PICKS = 2;
 const MAX_PICKS = 3;
-
-const primaryBtn =
-  "w-full rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background transition enabled:hover:opacity-90 enabled:active:scale-[0.98] disabled:opacity-40";
 
 export function Round1Screen() {
   const { state } = useGame();
@@ -28,15 +36,24 @@ function PlayerTurn({ player }: { player: Player }) {
   // Pass-the-phone handoff before Player 2 picks.
   if (!ready) {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl" aria-hidden>
-          📲
-        </span>
-        <h2 className="text-xl font-semibold">Pass the phone to Player 2</h2>
-        <p className="text-sm text-foreground/60">
-          Player 1’s picks are locked in — no peeking. Player 2, your turn.
+      <div className="flex min-h-full flex-1 flex-col items-center justify-center px-2 text-center">
+        <div className="relative mb-7 flex h-[120px] w-[120px] items-center justify-center">
+          <span className="absolute inset-0 rounded-full border-[1.5px] border-gold/50 motion-safe:animate-[mmPulseRing_2.4s_ease-out_infinite]" />
+          <span className="absolute inset-0 rounded-full border-[1.5px] border-gold/50 motion-safe:animate-[mmPulseRing_2.4s_ease-out_infinite_1.2s]" />
+          <div className="flex h-[78px] w-[78px] items-center justify-center rounded-3xl border border-gold/40 bg-[linear-gradient(150deg,rgba(232,192,125,0.18),rgba(232,192,125,0.04))] text-gold motion-safe:animate-[mmFloat_3.5s_ease-in-out_infinite]">
+            <Phone size={34} />
+          </div>
+        </div>
+        <p className={`mb-2 ${eyebrow} tracking-[2px]`}>Picks locked · no peeking</p>
+        <h2 className="mb-3 font-display text-[36px] leading-[1.05]">
+          Pass the phone
+          <br />
+          to <span className="italic text-gold">Player 2</span>
+        </h2>
+        <p className="mb-8 max-w-[260px] text-[14.5px] leading-[1.5] text-text/55">
+          Their turn to set the vibe. We’ll blend the two of you together.
         </p>
-        <button className={primaryBtn} onClick={() => setReady(true)}>
+        <button className={goldCta} onClick={() => setReady(true)}>
           I’m ready
         </button>
       </div>
@@ -63,51 +80,48 @@ function PlayerTurn({ player }: { player: Player }) {
   };
 
   return (
-    <div className="flex w-full flex-col gap-5">
-      <div className="text-center">
-        <span className="rounded-full bg-foreground/10 px-3 py-1 text-xs font-medium uppercase tracking-wide">
-          Round 1 of 3 · Player {player}
-        </span>
-        <h2 className="mt-3 text-lg font-semibold">What are you in the mood for?</h2>
-        <p className="text-sm text-foreground/60">
-          Pick 2–3 vibes ({selected.length}/{MAX_PICKS})
+    <div className={screenCol}>
+      <div className="flex-1">
+        <div className="mb-6 flex items-center justify-between">
+          <span className={pill}>Round 1 · Player {player}</span>
+          <Progress done={1} />
+        </div>
+
+        <h2 className="mb-1.5 font-display text-[34px] leading-[1.06]">
+          What’s the <span className="italic text-gold">mood</span> tonight?
+        </h2>
+        <p className="mb-6 text-[14px] text-text/55">
+          Pick two or three. <span className="text-gold">{selected.length} / {MAX_PICKS}</span>
         </p>
+
+        <div className="flex flex-wrap gap-[9px]">
+          {CATEGORIES.map((c) => {
+            const on = selected.includes(c.id);
+            const atMax = !on && selected.length >= MAX_PICKS;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => toggle(c.id)}
+                disabled={atMax}
+                aria-pressed={on}
+                className={`${chipBase} ${on ? chipOn : chipOff} ${atMax ? "opacity-35" : ""}`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {CATEGORIES.map((c) => {
-          const on = selected.includes(c.id);
-          const atMax = !on && selected.length >= MAX_PICKS;
-          return (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => toggle(c.id)}
-              disabled={atMax}
-              aria-pressed={on}
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition ${
-                on
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-foreground/15 hover:border-foreground/40"
-              } ${atMax ? "opacity-40" : ""}`}
-            >
-              <span aria-hidden>{c.emoji}</span>
-              <span className="truncate">{c.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-col items-center gap-2">
-        <button
-          className={primaryBtn}
-          disabled={!canContinue || submitted}
-          onClick={lockIn}
-        >
+      <div className="mt-5">
+        <button className={goldCta} disabled={!canContinue || submitted} onClick={lockIn}>
           {player === 1 ? "Done — pass the phone" : "Lock in picks"}
         </button>
         {!canContinue && (
-          <p className="text-xs text-foreground/50">Pick at least {MIN_PICKS} to continue.</p>
+          <p className="mt-2.5 text-center text-[12px] text-text/45">
+            Pick at least {MIN_PICKS} to continue.
+          </p>
         )}
       </div>
     </div>
