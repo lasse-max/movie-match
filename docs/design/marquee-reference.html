@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #07070b; font-family: "Hanken Grotesk", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+  .mm-scroll { scrollbar-width: none; }
+  @keyframes mmRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes mmGlow { 0%, 100% { opacity: .55; transform: scale(1); } 50% { opacity: .9; transform: scale(1.06); } }
+  @keyframes mmDrift { 0% { transform: translate(0,0); } 100% { transform: translate(-3%, -2%); } }
+  @keyframes mmSweep { 0% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+  @keyframes mmSpin { to { transform: rotate(360deg); } }
+  @keyframes mmPulseRing { 0% { transform: scale(.7); opacity: .7; } 100% { transform: scale(1.5); opacity: 0; } }
+  @keyframes mmFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+</style>
+</helmet>
+
+<div style="position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; overflow:hidden; background:radial-gradient(120% 90% at 50% -10%, #16131f 0%, #0a090f 45%, #060509 100%);">
+
+  <!-- ambient glow + grain -->
+  <div style="position:absolute; width:680px; height:680px; border-radius:50%; background:radial-gradient(circle, rgba(232,192,125,.18), rgba(232,192,125,0) 62%); filter:blur(20px); animation:mmGlow 7s ease-in-out infinite; pointer-events:none;"></div>
+  <div style="position:absolute; left:-10%; top:-10%; right:-10%; bottom:-10%; opacity:.05; mix-blend-mode:overlay; pointer-events:none; background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E&quot;); animation:mmDrift 14s linear infinite alternate;"></div>
+
+  <!-- phone -->
+  <div style="position:relative; width:392px; height:min(844px, 92vh); border-radius:46px; padding:7px; background:linear-gradient(160deg, rgba(232,192,125,.30), rgba(255,255,255,.04) 30%, rgba(0,0,0,.4)); box-shadow:0 50px 110px -30px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.04);">
+    <div style="position:relative; width:100%; height:100%; border-radius:40px; overflow:hidden; background:linear-gradient(180deg, #0e0c14 0%, #0a0810 100%); display:flex; flex-direction:column;">
+
+      <!-- status bar -->
+      <div style="flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:14px 26px 6px; color:#F5F1E8;">
+        <span style="font-size:14px; font-weight:600; letter-spacing:.3px;">9:41</span>
+        <div style="display:flex; align-items:center; gap:6px; opacity:.85;">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="6" width="3" height="5" rx="1" fill="#F5F1E8"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1" fill="#F5F1E8"/><rect x="9" y="1.5" width="3" height="9.5" rx="1" fill="#F5F1E8"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="#F5F1E8" opacity="0.4"/></svg>
+          <svg width="22" height="11" viewBox="0 0 22 11" fill="none"><rect x="0.5" y="0.5" width="18" height="10" rx="2.5" stroke="#F5F1E8" stroke-opacity="0.5"/><rect x="2" y="2" width="13" height="7" rx="1.2" fill="#F5F1E8"/><rect x="20" y="3.5" width="1.6" height="4" rx="0.8" fill="#F5F1E8" opacity="0.5"/></svg>
+        </div>
+      </div>
+
+      <!-- screen body -->
+      <div class="mm-scroll" style="flex:1 1 auto; overflow-y:auto; display:flex; flex-direction:column;">
+
+        <!-- ============ SETUP ============ -->
+        <sc-if value="{{ isSetup }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column; min-height:100%; padding:18px 24px 24px;">
+            <div style="flex:1 1 auto;">
+              <div style="display:flex; align-items:center; gap:9px; margin-bottom:30px;">
+                <div style="width:30px; height:30px; border-radius:9px; background:linear-gradient(150deg,#E8C07D,#C99B53); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px -6px rgba(232,192,125,.7);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4z" stroke="#0a0810" stroke-width="2"/><path d="M8 5v14M16 5v14M4 9h4M16 9h4M4 15h4M16 15h4" stroke="#0a0810" stroke-width="1.6"/></svg>
+                </div>
+                <span style="font-size:15px; font-weight:600; letter-spacing:.4px; color:#F5F1E8;">Movie Match</span>
+              </div>
+
+              <p style="margin:0 0 6px; font-size:13px; letter-spacing:2.5px; text-transform:uppercase; color:#E8C07D;">Tonight, together</p>
+              <h1 style="margin:0 0 12px; font-family:'Instrument Serif',serif; font-weight:400; font-size:42px; line-height:1.04; color:#F5F1E8;">One film you<br><span style="font-style:italic; color:#E8C07D;">both</span> actually want.</h1>
+              <p style="margin:0 0 26px; font-size:14.5px; line-height:1.5; color:rgba(245,241,232,.55);">Tell us where you watch, so every pick is something you can stream right now.</p>
+
+              <p style="margin:0 0 9px; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(245,241,232,.45);">Region</p>
+              <div style="position:relative; margin-bottom:22px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border-radius:14px; border:1px solid rgba(245,241,232,.12); background:rgba(245,241,232,.03); color:#F5F1E8; font-size:14.5px; font-weight:500;">
+                  <span>United States</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="#E8C07D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+              </div>
+
+              <p style="margin:0 0 10px; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(245,241,232,.45);">Your services <span style="color:#E8C07D; letter-spacing:0;">{{ serviceCountLabel }}</span></p>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:22px;">
+                <sc-for list="{{ services }}" as="sv" hint-placeholder-count="8">
+                  <div onClick="{{ sv.onClick }}" style="{{ sv.style }}">
+                    <span style="width:24px; height:24px; border-radius:7px; flex:0 0 auto; background:{{ sv.dot }};"></span>
+                    <span style="font-size:13px; font-weight:500; color:#F5F1E8; flex:1 1 auto;">{{ sv.name }}</span>
+                    <sc-if value="{{ sv.selected }}" hint-placeholder-val="{{ false }}">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#E8C07D" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div onClick="{{ togglePay }}" style="{{ payStyle }}">
+                <div>
+                  <p style="margin:0 0 2px; font-size:13.5px; font-weight:600; color:#F5F1E8;">Open to renting tonight?</p>
+                  <p style="margin:0; font-size:12px; color:rgba(245,241,232,.5);">Include paid titles, not just subscriptions.</p>
+                </div>
+                <div style="{{ payToggleTrack }}"><div style="{{ payToggleKnob }}"></div></div>
+              </div>
+            </div>
+
+            <button onClick="{{ startGame }}" style="{{ startStyle }}">Start the night</button>
+          </div>
+        </sc-if>
+
+        <!-- ============ ROUND 1 — VIBES ============ -->
+        <sc-if value="{{ isRound1 }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; min-height:100%; padding:18px 24px 24px;">
+            <div style="flex:1 1 auto;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
+                <span style="font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#E8C07D; border:1px solid rgba(232,192,125,.35); padding:5px 11px; border-radius:99px;">Round 1 · Player 1</span>
+                <div style="display:flex; gap:5px;">
+                  <span style="width:22px; height:3px; border-radius:2px; background:#E8C07D;"></span>
+                  <span style="width:22px; height:3px; border-radius:2px; background:rgba(245,241,232,.16);"></span>
+                  <span style="width:22px; height:3px; border-radius:2px; background:rgba(245,241,232,.16);"></span>
+                </div>
+              </div>
+
+              <h2 style="margin:0 0 6px; font-family:'Instrument Serif',serif; font-weight:400; font-size:34px; line-height:1.06; color:#F5F1E8;">What's the <span style="font-style:italic; color:#E8C07D;">mood</span> tonight?</h2>
+              <p style="margin:0 0 22px; font-size:14px; color:rgba(245,241,232,.55);">Pick two or three. <span style="color:#E8C07D;">{{ catCountLabel }}</span></p>
+
+              <div style="display:flex; flex-wrap:wrap; gap:9px;">
+                <sc-for list="{{ cats }}" as="c" hint-placeholder-count="16">
+                  <div onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}</div>
+                </sc-for>
+              </div>
+            </div>
+
+            <button onClick="{{ r1done }}" style="{{ r1Style }}">{{ r1Label }}</button>
+          </div>
+        </sc-if>
+
+        <!-- ============ HAND-OFF ============ -->
+        <sc-if value="{{ isPass }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100%; padding:24px 30px; text-align:center;">
+            <div style="position:relative; width:120px; height:120px; margin-bottom:30px; display:flex; align-items:center; justify-content:center;">
+              <span style="position:absolute; inset:0; border-radius:50%; border:1.5px solid rgba(232,192,125,.5); animation:mmPulseRing 2.4s ease-out infinite;"></span>
+              <span style="position:absolute; inset:0; border-radius:50%; border:1.5px solid rgba(232,192,125,.5); animation:mmPulseRing 2.4s ease-out infinite 1.2s;"></span>
+              <div style="width:78px; height:78px; border-radius:24px; background:linear-gradient(150deg,rgba(232,192,125,.18),rgba(232,192,125,.04)); border:1px solid rgba(232,192,125,.4); display:flex; align-items:center; justify-content:center; animation:mmFloat 3.5s ease-in-out infinite;">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="3" stroke="#E8C07D" stroke-width="1.7"/><path d="M10 18.5h4" stroke="#E8C07D" stroke-width="1.7" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+            <p style="margin:0 0 8px; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#E8C07D;">Picks locked · no peeking</p>
+            <h2 style="margin:0 0 12px; font-family:'Instrument Serif',serif; font-weight:400; font-size:36px; line-height:1.05; color:#F5F1E8;">Pass the phone<br>to <span style="font-style:italic; color:#E8C07D;">Player 2</span></h2>
+            <p style="margin:0 0 32px; font-size:14.5px; line-height:1.5; color:rgba(245,241,232,.55); max-width:260px;">Their turn to set the vibe. We'll blend the two of you together.</p>
+            <button onClick="{{ passReady }}" style="width:100%; padding:15px; border:none; border-radius:16px; background:linear-gradient(150deg,#E8C07D,#C99B53); color:#0a0810; font-family:inherit; font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 12px 30px -10px rgba(232,192,125,.6);">I'm ready</button>
+          </div>
+        </sc-if>
+
+        <!-- ============ BLENDING LOADER ============ -->
+        <sc-if value="{{ isBlending }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100%; padding:24px 30px; text-align:center;">
+            <div style="position:relative; width:96px; height:96px; margin-bottom:34px;">
+              <span style="position:absolute; inset:0; border-radius:50%; border:2px solid rgba(245,241,232,.08);"></span>
+              <span style="position:absolute; inset:0; border-radius:50%; border:2px solid transparent; border-top-color:#E8C07D; border-right-color:#E8C07D; animation:mmSpin 1.1s linear infinite;"></span>
+              <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4z" stroke="#E8C07D" stroke-width="1.6"/><path d="M8 5v14M16 5v14M4 9.5h4M16 9.5h4M4 14.5h4M16 14.5h4" stroke="#E8C07D" stroke-width="1.2" opacity="0.8"/></svg>
+              </div>
+            </div>
+            <h2 style="margin:0 0 10px; font-family:'Instrument Serif',serif; font-weight:400; font-size:32px; color:#F5F1E8;">Blending your tastes…</h2>
+            <p style="margin:0 0 26px; font-size:14px; line-height:1.5; color:rgba(245,241,232,.55); max-width:250px;">Reading the room and lining up titles you might both lean into.</p>
+            <div style="width:100%; max-width:280px; padding:14px 16px; border-radius:14px; border:1px solid rgba(245,241,232,.08); background:rgba(245,241,232,.03); text-align:left;">
+              <p style="margin:0 0 3px; font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(245,241,232,.4);">Up next · Round 2</p>
+              <p style="margin:0; font-size:13.5px; color:rgba(245,241,232,.75);">Swipe on the <span style="font-style:italic; font-family:'Instrument Serif',serif; color:#E8C07D;">vibe</span> — fine if you've seen it.</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ============ ROUND 2 — SWIPE ============ -->
+        <sc-if value="{{ isRound2 }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; min-height:100%; padding:18px 24px 22px;">
+
+            <sc-if value="{{ r2hasCard }}" hint-placeholder-val="{{ true }}">
+              <div style="flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                <span style="font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#E8C07D; border:1px solid rgba(232,192,125,.35); padding:5px 11px; border-radius:99px;">Round 2 · Swipe</span>
+                <span style="font-size:12px; color:rgba(245,241,232,.5);">{{ r2progress }}</span>
+              </div>
+
+              <div style="flex:1 1 auto; display:flex; flex-direction:column; justify-content:center; gap:18px;">
+                <div style="position:relative; width:100%; aspect-ratio:2/3; max-height:420px; border-radius:22px; overflow:hidden; border:1px solid rgba(245,241,232,.1); box-shadow:0 30px 60px -24px rgba(0,0,0,.9); background:{{ r2card.grad }};">
+                  <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.85) 100%);"></div>
+                  <div style="position:absolute; top:14px; left:14px; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(245,241,232,.7); border:1px solid rgba(245,241,232,.25); padding:4px 9px; border-radius:99px; backdrop-filter:blur(4px);">{{ r2card.kicker }}</div>
+                  <div style="position:absolute; left:0; right:0; bottom:0; padding:20px;">
+                    <h3 style="margin:0 0 4px; font-family:'Instrument Serif',serif; font-weight:400; font-size:30px; line-height:1; color:#F5F1E8;">{{ r2card.title }}</h3>
+                    <p style="margin:0 0 10px; font-size:12.5px; color:rgba(245,241,232,.6);">{{ r2card.year }}</p>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                      <sc-for list="{{ r2card.tags }}" as="t" hint-placeholder-count="2">
+                        <span style="font-size:11px; color:rgba(245,241,232,.85); background:rgba(245,241,232,.12); padding:4px 10px; border-radius:99px;">{{ t }}</span>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+                <p style="margin:0; text-align:center; font-size:13px; color:rgba(245,241,232,.5);">In the mood for something <span style="font-style:italic; font-family:'Instrument Serif',serif; color:#E8C07D;">like</span> this?</p>
+              </div>
+
+              <div style="flex:0 0 auto; display:flex; align-items:center; gap:10px; margin-top:16px;">
+                <button onClick="{{ swipeNo }}" style="flex:1 1 0; padding:15px; border-radius:16px; border:1px solid rgba(245,241,232,.18); background:rgba(245,241,232,.03); color:#F5F1E8; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#F5F1E8" stroke-width="2" stroke-linecap="round"/></svg>Not it
+                </button>
+                <button onClick="{{ swipeSkip }}" style="flex:0 0 auto; padding:13px 14px; border-radius:16px; border:none; background:transparent; color:rgba(245,241,232,.4); font-family:inherit; font-size:12px; font-weight:500; cursor:pointer;">Skip</button>
+                <button onClick="{{ swipeYes }}" style="flex:1 1 0; padding:15px; border-radius:16px; border:none; background:linear-gradient(150deg,#E8C07D,#C99B53); color:#0a0810; font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; box-shadow:0 12px 28px -12px rgba(232,192,125,.7);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.5-9.5-9C1 9 2.5 5.5 6 5.5c2 0 3.2 1.2 4 2.5.8-1.3 2-2.5 4-2.5 3.5 0 5 3.5 3.5 6.5C19 16.5 12 21 12 21z" fill="#0a0810"/></svg>This vibe
+                </button>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ r2done }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100%; text-align:center;">
+                <div style="width:74px; height:74px; border-radius:50%; background:linear-gradient(150deg,rgba(232,192,125,.18),rgba(232,192,125,.04)); border:1px solid rgba(232,192,125,.4); display:flex; align-items:center; justify-content:center; margin-bottom:22px;">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#E8C07D" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <h2 style="margin:0 0 10px; font-family:'Instrument Serif',serif; font-weight:400; font-size:34px; color:#F5F1E8;">That's the read.</h2>
+                <p style="margin:0 0 30px; font-size:14.5px; color:rgba(245,241,232,.55);">{{ r2summary }}</p>
+                <button onClick="{{ r2finish }}" style="width:100%; padding:15px; border:none; border-radius:16px; background:linear-gradient(150deg,#E8C07D,#C99B53); color:#0a0810; font-family:inherit; font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 12px 30px -10px rgba(232,192,125,.6);">See where you land</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <!-- ============ INFERRING LOADER ============ -->
+        <sc-if value="{{ isInferring }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100%; padding:24px 30px; text-align:center;">
+            <div style="position:relative; width:96px; height:96px; margin-bottom:34px;">
+              <span style="position:absolute; inset:0; border-radius:50%; border:2px solid rgba(245,241,232,.08);"></span>
+              <span style="position:absolute; inset:0; border-radius:50%; border:2px solid transparent; border-top-color:#F0685A; border-right-color:#F0685A; animation:mmSpin 1.1s linear infinite;"></span>
+              <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 3l2.2 5.6L20 9.8l-4.4 3.6L17 19l-5-3-5 3 1.4-5.6L4 9.8l5.8-1.2L12 3z" stroke="#F0685A" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+            <h2 style="margin:0 0 10px; font-family:'Instrument Serif',serif; font-weight:400; font-size:32px; color:#F5F1E8;">Reading the mood…</h2>
+            <p style="margin:0 0 26px; font-size:14px; line-height:1.5; color:rgba(245,241,232,.55); max-width:250px;">Turning your swipes into a shortlist you'll both be into.</p>
+            <figure style="margin:0; max-width:280px;">
+              <blockquote style="margin:0 0 6px; font-family:'Instrument Serif',serif; font-style:italic; font-size:19px; line-height:1.35; color:rgba(245,241,232,.8);">“I'm gonna make him an offer he can't refuse.”</blockquote>
+              <figcaption style="font-size:12px; color:rgba(245,241,232,.4);">— The Godfather</figcaption>
+            </figure>
+          </div>
+        </sc-if>
+
+        <!-- ============ ROUND 3 — SHORTLIST ============ -->
+        <sc-if value="{{ isRound3 }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; min-height:100%; padding:18px 24px 22px;">
+            <div style="flex:1 1 auto;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+                <span style="font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#E8C07D; border:1px solid rgba(232,192,125,.35); padding:5px 11px; border-radius:99px;">Round 3 · Shortlist</span>
+                <div style="display:flex; gap:5px;">
+                  <span style="width:22px; height:3px; border-radius:2px; background:#E8C07D;"></span>
+                  <span style="width:22px; height:3px; border-radius:2px; background:#E8C07D;"></span>
+                  <span style="width:22px; height:3px; border-radius:2px; background:#E8C07D;"></span>
+                </div>
+              </div>
+
+              <h2 style="margin:0 0 4px; font-family:'Instrument Serif',serif; font-weight:400; font-size:32px; line-height:1.06; color:#F5F1E8;">Which would you <span style="font-style:italic; color:#E8C07D;">watch</span>?</h2>
+              <p style="margin:0 0 18px; font-size:13.5px; color:rgba(245,241,232,.5);">Tap every title you'd be up for. <span style="color:#E8C07D;">{{ pickCountLabel }}</span></p>
+
+              <div style="display:flex; flex-direction:column; gap:9px;">
+                <sc-for list="{{ shortlist }}" as="m" hint-placeholder-count="6">
+                  <div onClick="{{ m.onClick }}" style="{{ m.style }}">
+                    <div style="width:46px; height:66px; flex:0 0 auto; border-radius:8px; overflow:hidden; background:{{ m.grad }}; border:1px solid rgba(245,241,232,.1);"></div>
+                    <div style="flex:1 1 auto; min-width:0;">
+                      <p style="margin:0 0 4px; font-size:14.5px; font-weight:600; color:#F5F1E8;">{{ m.title }} <span style="font-weight:400; color:rgba(245,241,232,.45);">· {{ m.year }}</span></p>
+                      <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:5px;">
+                        <sc-for list="{{ m.tags }}" as="t" hint-placeholder-count="2">
+                          <span style="font-size:10px; color:rgba(245,241,232,.6); background:rgba(245,241,232,.07); padding:2px 7px; border-radius:99px;">{{ t }}</span>
+                        </sc-for>
+                      </div>
+                      <p style="margin:0; font-size:11.5px; color:#E8C07D;">{{ m.where }}</p>
+                    </div>
+                    <div style="{{ m.checkStyle }}">
+                      <sc-if value="{{ m.selected }}" hint-placeholder-val="{{ false }}">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#0a0810" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <button onClick="{{ r3done }}" style="{{ r3Style }}">Find your match</button>
+          </div>
+        </sc-if>
+
+        <!-- ============ MATCH ============ -->
+        <sc-if value="{{ isMatch }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; min-height:100%; padding:18px 24px 24px; text-align:center; position:relative;">
+            <div style="position:absolute; left:50%; top:120px; transform:translateX(-50%); width:300px; height:300px; border-radius:50%; background:radial-gradient(circle, rgba(240,104,90,.28), rgba(240,104,90,0) 65%); filter:blur(10px); animation:mmGlow 5s ease-in-out infinite; pointer-events:none;"></div>
+
+            <div style="position:relative;">
+              <div style="display:inline-flex; align-items:center; gap:7px; margin:6px 0 16px; padding:6px 14px; border-radius:99px; border:1px solid rgba(240,104,90,.4); background:rgba(240,104,90,.1);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.5-9.5-9C1 9 2.5 5.5 6 5.5c2 0 3.2 1.2 4 2.5.8-1.3 2-2.5 4-2.5 3.5 0 5 3.5 3.5 6.5C19 16.5 12 21 12 21z" fill="#F0685A"/></svg>
+                <span style="font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#F0685A; font-weight:600;">It's a match</span>
+              </div>
+
+              <div style="position:relative; width:188px; margin:0 auto 18px; aspect-ratio:2/3; border-radius:18px; overflow:hidden; border:1px solid rgba(232,192,125,.3); box-shadow:0 30px 70px -22px rgba(0,0,0,.95); background:{{ match.grad }}; animation:mmFloat 5s ease-in-out infinite;">
+                <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,.8) 100%);"></div>
+                <div style="position:absolute; top:12px; right:12px; padding:6px 11px; border-radius:99px; background:rgba(10,8,16,.6); backdrop-filter:blur(6px); border:1px solid rgba(232,192,125,.4); font-size:13px; font-weight:700; color:#E8C07D;">{{ match.percent }}%</div>
+              </div>
+
+              <h2 style="margin:0 0 3px; font-family:'Instrument Serif',serif; font-weight:400; font-size:34px; line-height:1.05; color:#F5F1E8;">{{ match.title }}</h2>
+              <p style="margin:0 0 12px; font-size:13px; color:rgba(245,241,232,.5);">{{ match.year }} · {{ match.percentLabel }}</p>
+
+              <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin-bottom:14px;">
+                <sc-for list="{{ match.tags }}" as="t" hint-placeholder-count="3">
+                  <span style="font-size:11px; color:rgba(245,241,232,.8); background:rgba(245,241,232,.08); padding:4px 11px; border-radius:99px;">{{ t }}</span>
+                </sc-for>
+              </div>
+
+              <p style="margin:0 0 18px; font-size:13.5px; line-height:1.5; color:rgba(245,241,232,.6); max-width:290px; margin-left:auto; margin-right:auto;">{{ match.blurb }}</p>
+
+              <a href="#" style="display:inline-flex; align-items:center; gap:8px; margin-bottom:22px; padding:13px 22px; border-radius:14px; background:linear-gradient(150deg,#E8C07D,#C99B53); color:#0a0810; font-size:14px; font-weight:700; text-decoration:none; box-shadow:0 14px 32px -12px rgba(232,192,125,.6);">
+                Watch on {{ match.where }}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="#0a0810" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </a>
+
+              <div style="text-align:left; margin-bottom:18px;">
+                <p style="margin:0 0 10px; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(245,241,232,.4);">Or also…</p>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <sc-for list="{{ alternatives }}" as="a" hint-placeholder-count="2">
+                    <div style="display:flex; align-items:center; gap:12px; padding:9px; border-radius:14px; border:1px solid rgba(245,241,232,.08); background:rgba(245,241,232,.02);">
+                      <div style="width:38px; height:54px; flex:0 0 auto; border-radius:7px; background:{{ a.grad }}; border:1px solid rgba(245,241,232,.1);"></div>
+                      <div style="flex:1 1 auto; min-width:0;">
+                        <p style="margin:0 0 2px; font-size:13.5px; font-weight:600; color:#F5F1E8;">{{ a.title }}</p>
+                        <p style="margin:0; font-size:11.5px; color:rgba(245,241,232,.5);">{{ a.meta }}</p>
+                      </div>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="rgba(245,241,232,.5)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <button onClick="{{ reset }}" style="width:100%; padding:14px; border-radius:16px; border:1px solid rgba(245,241,232,.15); background:transparent; color:#F5F1E8; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer;">Play again</button>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- screen navigator -->
+  <div style="position:relative; display:flex; align-items:center; gap:5px; padding:7px 9px; border-radius:99px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); backdrop-filter:blur(8px);">
+    <sc-for list="{{ nav }}" as="n" hint-placeholder-count="8">
+      <div onClick="{{ n.onClick }}" title="{{ n.label }}" style="{{ n.style }}"></div>
+    </sc-for>
+    <span style="margin-left:6px; padding-right:6px; font-size:11px; letter-spacing:1px; text-transform:uppercase; color:rgba(245,241,232,.55);">{{ navLabel }}</span>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    screen: 'setup',
+    services: ['netflix', 'prime'],
+    willingToPay: false,
+    catSel: ['dark', 'mindbending'],
+    r2index: 0,
+    r2yes: [],
+    picks: [],
+  };
+
+  SERVICES = [
+    { id: 'netflix', name: 'Netflix', dot: 'linear-gradient(150deg,#E50914,#7a0008)' },
+    { id: 'max', name: 'Max', dot: 'linear-gradient(150deg,#7B5BFF,#3a1f9e)' },
+    { id: 'prime', name: 'Prime Video', dot: 'linear-gradient(150deg,#1FB6FF,#005f8a)' },
+    { id: 'disney', name: 'Disney+', dot: 'linear-gradient(150deg,#2a6df4,#0b1a6e)' },
+    { id: 'apple', name: 'Apple TV+', dot: 'linear-gradient(150deg,#e8e8ee,#9a9aa6)' },
+    { id: 'hulu', name: 'Hulu', dot: 'linear-gradient(150deg,#1CE783,#0a8f4f)' },
+    { id: 'paramount', name: 'Paramount+', dot: 'linear-gradient(150deg,#2e8bff,#0035a8)' },
+    { id: 'peacock', name: 'Peacock', dot: 'linear-gradient(150deg,#FFC400,#ff5a3c)' },
+  ];
+
+  CATS = [
+    { id: 'feelgood', label: 'Feel-good' },
+    { id: 'mindbending', label: 'Mind-bending' },
+    { id: 'tearjerker', label: 'Tearjerker' },
+    { id: 'dark', label: 'Dark & gritty' },
+    { id: 'cozy', label: 'Cozy' },
+    { id: 'apocalyptic', label: 'Apocalyptic' },
+    { id: 'action', label: 'Action' },
+    { id: 'comedy', label: 'Comedy' },
+    { id: 'horror', label: 'Horror' },
+    { id: 'scifi', label: 'Sci-Fi' },
+    { id: 'romance', label: 'Romance' },
+    { id: 'thriller', label: 'Thriller' },
+    { id: 'drama', label: 'Drama' },
+    { id: 'fantasy', label: 'Fantasy' },
+    { id: 'crime', label: 'Crime' },
+    { id: 'animation', label: 'Animated' },
+  ];
+
+  SWIPE = [
+    { id: 1, title: 'Train to Busan', year: 2016, kicker: 'Apocalyptic · Action', tags: ['Relentless', 'Emotional'], grad: 'radial-gradient(130% 90% at 75% 8%, rgba(214,69,65,.6), transparent 58%), linear-gradient(165deg,#2a1116,#0c0a0e)' },
+    { id: 2, title: 'A Quiet Place', year: 2018, kicker: 'Horror · Thriller', tags: ['Tense', 'Smart'], grad: 'radial-gradient(120% 85% at 30% 12%, rgba(86,148,156,.5), transparent 60%), linear-gradient(165deg,#0f2120,#0a0d0e)' },
+    { id: 3, title: 'Parasite', year: 2019, kicker: 'Thriller · Drama', tags: ['Sharp', 'Dark'], grad: 'radial-gradient(120% 85% at 70% 15%, rgba(190,158,96,.45), transparent 60%), linear-gradient(165deg,#1c1913,#0b0a08)' },
+    { id: 4, title: 'Mad Max: Fury Road', year: 2015, kicker: 'Action · Sci-Fi', tags: ['Kinetic', 'Bold'], grad: 'radial-gradient(120% 85% at 65% 12%, rgba(224,128,44,.55), transparent 58%), linear-gradient(165deg,#28160c,#0d0907)' },
+    { id: 5, title: 'Everything Everywhere', year: 2022, kicker: 'Sci-Fi · Drama', tags: ['Wild', 'Heartfelt'], grad: 'radial-gradient(100% 80% at 18% 10%, rgba(128,86,210,.5), transparent 55%), radial-gradient(100% 80% at 88% 92%, rgba(60,180,180,.45), transparent 55%), linear-gradient(160deg,#15101f,#0a0a10)' },
+  ];
+
+  R3 = [
+    { id: 11, title: 'Snowpiercer', year: 2013, tags: ['Tense', 'Sci-Fi'], where: 'Netflix', grad: 'radial-gradient(120% 85% at 70% 10%, rgba(90,150,170,.5), transparent 60%), linear-gradient(160deg,#10202a,#0a0d10)' },
+    { id: 12, title: 'The Platform', year: 2019, tags: ['Dark', 'Thriller'], where: 'Netflix', grad: 'radial-gradient(120% 85% at 65% 12%, rgba(170,120,60,.5), transparent 60%), linear-gradient(160deg,#1d160c,#0b0a08)' },
+    { id: 13, title: 'Children of Men', year: 2006, tags: ['Bleak', 'Smart'], where: 'Prime Video', grad: 'radial-gradient(120% 85% at 70% 10%, rgba(110,120,130,.45), transparent 60%), linear-gradient(160deg,#16191c,#0a0b0d)' },
+    { id: 14, title: '10 Cloverfield Lane', year: 2016, tags: ['Tense', 'Mystery'], where: 'Max', grad: 'radial-gradient(120% 85% at 65% 14%, rgba(150,90,90,.5), transparent 60%), linear-gradient(160deg,#1d1214,#0c0809)' },
+    { id: 15, title: 'Bird Box', year: 2018, tags: ['Apocalyptic'], where: 'Netflix', grad: 'radial-gradient(120% 85% at 70% 10%, rgba(80,130,110,.45), transparent 60%), linear-gradient(160deg,#101a16,#0a0d0b)' },
+    { id: 16, title: 'The Mist', year: 2007, tags: ['Dread', 'Horror'], where: 'Hulu', grad: 'radial-gradient(120% 85% at 65% 12%, rgba(120,130,140,.4), transparent 60%), linear-gradient(160deg,#15181b,#0a0c0d)' },
+  ];
+
+  MATCH = {
+    title: 'A Quiet Place',
+    year: 2018,
+    percent: 94,
+    percentLabel: '94% match',
+    where: 'Paramount+',
+    tags: ['Tense', 'Apocalyptic', 'Smart'],
+    blurb: "Silence is survival. A family's wordless fight to stay alive — taut, emotional, and exactly the intensity you both leaned into.",
+    grad: 'radial-gradient(120% 85% at 30% 10%, rgba(86,148,156,.55), transparent 60%), linear-gradient(165deg,#102322,#0a0d0e)',
+    alternatives: [
+      { id: 21, title: 'Train to Busan', meta: '89% match · Prime Video', grad: 'radial-gradient(130% 90% at 75% 8%, rgba(214,69,65,.6), transparent 58%), linear-gradient(165deg,#2a1116,#0c0a0e)' },
+      { id: 22, title: 'A Quiet Place Part II', meta: '86% match · Paramount+', grad: 'radial-gradient(120% 85% at 30% 12%, rgba(86,148,156,.5), transparent 60%), linear-gradient(165deg,#0f2120,#0a0d0e)' },
+    ],
+  };
+
+  NAV = [
+    { label: 'Setup', screen: 'setup' },
+    { label: 'Vibes', screen: 'round1' },
+    { label: 'Hand-off', screen: 'pass' },
+    { label: 'Blend', screen: 'blending' },
+    { label: 'Swipe', screen: 'round2' },
+    { label: 'Read', screen: 'inferring' },
+    { label: 'Shortlist', screen: 'round3' },
+    { label: 'Match', screen: 'match' },
+  ];
+
+  go(screen) {
+    clearTimeout(this._t);
+    const extra = {};
+    if (screen === 'round2') { extra.r2index = 0; extra.r2yes = []; }
+    this.setState({ screen, ...extra });
+    if (screen === 'blending') this._t = setTimeout(() => { if (this.state.screen === 'blending') this.setState({ screen: 'round2', r2index: 0, r2yes: [] }); }, 2300);
+    if (screen === 'inferring') this._t = setTimeout(() => { if (this.state.screen === 'inferring') this.setState({ screen: 'round3' }); }, 2400);
+  }
+
+  toggleService(id) {
+    this.setState((s) => ({ services: s.services.includes(id) ? s.services.filter((x) => x !== id) : [...s.services, id] }));
+  }
+  togglePay() { this.setState((s) => ({ willingToPay: !s.willingToPay })); }
+  toggleCat(id) {
+    this.setState((s) => {
+      if (s.catSel.includes(id)) return { catSel: s.catSel.filter((x) => x !== id) };
+      if (s.catSel.length >= 3) return {};
+      return { catSel: [...s.catSel, id] };
+    });
+  }
+  swipe(keep) {
+    this.setState((s) => ({ r2index: s.r2index + 1, r2yes: keep ? [...s.r2yes, this.SWIPE[s.r2index].id] : s.r2yes }));
+  }
+  togglePick(id) {
+    this.setState((s) => ({ picks: s.picks.includes(id) ? s.picks.filter((x) => x !== id) : [...s.picks, id] }));
+  }
+  reset() {
+    clearTimeout(this._t);
+    this.setState({ screen: 'setup', services: ['netflix', 'prime'], willingToPay: false, catSel: ['dark', 'mindbending'], r2index: 0, r2yes: [], picks: [] });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const gold = '#E8C07D';
+
+    const services = this.SERVICES.map((x) => {
+      const sel = s.services.includes(x.id);
+      return {
+        ...x, selected: sel,
+        onClick: () => this.toggleService(x.id),
+        style: {
+          display: 'flex', alignItems: 'center', gap: '10px', padding: '11px 12px',
+          borderRadius: '14px', cursor: 'pointer', transition: 'all .18s ease',
+          border: sel ? '1px solid rgba(232,192,125,.7)' : '1px solid rgba(245,241,232,.10)',
+          background: sel ? 'rgba(232,192,125,.10)' : 'rgba(245,241,232,.03)',
+        },
+      };
+    });
+    const serviceCountLabel = s.services.length > 0 ? '· ' + s.services.length + ' selected' : '';
+
+    const payOn = s.willingToPay;
+    const payStyle = {
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px',
+      padding: '13px 16px', borderRadius: '14px', cursor: 'pointer', transition: 'all .18s ease',
+      border: payOn ? '1px solid rgba(232,192,125,.5)' : '1px solid rgba(245,241,232,.10)',
+      background: payOn ? 'rgba(232,192,125,.07)' : 'rgba(245,241,232,.03)',
+    };
+    const payToggleTrack = {
+      position: 'relative', width: '46px', height: '27px', flex: '0 0 auto', borderRadius: '99px',
+      transition: 'all .2s ease', background: payOn ? '#E8C07D' : 'rgba(245,241,232,.15)',
+    };
+    const payToggleKnob = {
+      position: 'absolute', top: '3px', left: payOn ? '22px' : '3px', width: '21px', height: '21px',
+      borderRadius: '50%', background: payOn ? '#0a0810' : '#F5F1E8', transition: 'all .2s ease',
+    };
+
+    const canStart = s.services.length > 0 || s.willingToPay;
+    const startStyle = {
+      width: '100%', marginTop: '8px', padding: '16px', border: 'none', borderRadius: '16px',
+      fontFamily: 'inherit', fontSize: '15px', fontWeight: '700', cursor: canStart ? 'pointer' : 'default',
+      background: canStart ? 'linear-gradient(150deg,#E8C07D,#C99B53)' : 'rgba(245,241,232,.08)',
+      color: canStart ? '#0a0810' : 'rgba(245,241,232,.3)',
+      boxShadow: canStart ? '0 14px 34px -12px rgba(232,192,125,.6)' : 'none',
+      transition: 'all .2s ease',
+    };
+
+    const cats = this.CATS.map((c) => {
+      const sel = s.catSel.includes(c.id);
+      const atMax = !sel && s.catSel.length >= 3;
+      return {
+        ...c,
+        onClick: () => this.toggleCat(c.id),
+        style: {
+          padding: '10px 15px', borderRadius: '99px', cursor: atMax ? 'default' : 'pointer',
+          fontSize: '13.5px', fontWeight: '500', transition: 'all .18s ease',
+          border: sel ? '1px solid rgba(232,192,125,.75)' : '1px solid rgba(245,241,232,.12)',
+          background: sel ? 'rgba(232,192,125,.14)' : 'rgba(245,241,232,.03)',
+          color: sel ? '#E8C07D' : '#F5F1E8',
+          opacity: atMax ? 0.35 : 1,
+        },
+      };
+    });
+    const catCountLabel = s.catSel.length + ' / 3';
+    const canR1 = s.catSel.length >= 2;
+    const r1Style = {
+      width: '100%', marginTop: '20px', padding: '16px', border: 'none', borderRadius: '16px',
+      fontFamily: 'inherit', fontSize: '15px', fontWeight: '700', cursor: canR1 ? 'pointer' : 'default',
+      background: canR1 ? 'linear-gradient(150deg,#E8C07D,#C99B53)' : 'rgba(245,241,232,.08)',
+      color: canR1 ? '#0a0810' : 'rgba(245,241,232,.3)',
+      boxShadow: canR1 ? '0 14px 34px -12px rgba(232,192,125,.6)' : 'none', transition: 'all .2s ease',
+    };
+    const r1Label = canR1 ? 'Done — pass the phone' : 'Pick at least two';
+
+    const r2hasCard = s.r2index < this.SWIPE.length;
+    const r2card = r2hasCard ? this.SWIPE[s.r2index] : this.SWIPE[0];
+    const r2done = !r2hasCard;
+    const r2progress = Math.min(s.r2index + 1, this.SWIPE.length) + ' / ' + this.SWIPE.length;
+    const liked = s.r2yes.length;
+    const r2summary = liked === 0 ? 'Tough crowd tonight — we still have plenty to go on.'
+      : liked + (liked === 1 ? ' title' : ' titles') + " you're into · " + (this.SWIPE.length - liked) + ' passed';
+
+    const shortlist = this.R3.map((m) => {
+      const sel = s.picks.includes(m.id);
+      return {
+        ...m, selected: sel,
+        onClick: () => this.togglePick(m.id),
+        style: {
+          display: 'flex', alignItems: 'center', gap: '12px', padding: '9px', borderRadius: '14px',
+          cursor: 'pointer', transition: 'all .18s ease',
+          border: sel ? '1px solid rgba(232,192,125,.65)' : '1px solid rgba(245,241,232,.09)',
+          background: sel ? 'rgba(232,192,125,.08)' : 'rgba(245,241,232,.02)',
+        },
+        checkStyle: {
+          width: '22px', height: '22px', flex: '0 0 auto', borderRadius: '50%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .18s ease',
+          border: sel ? 'none' : '1px solid rgba(245,241,232,.25)',
+          background: sel ? '#E8C07D' : 'transparent',
+        },
+      };
+    });
+    const pickCountLabel = s.picks.length > 0 ? s.picks.length + ' selected' : '';
+    const canR3 = s.picks.length > 0;
+    const r3Style = {
+      width: '100%', marginTop: '18px', padding: '16px', border: 'none', borderRadius: '16px',
+      fontFamily: 'inherit', fontSize: '15px', fontWeight: '700', cursor: canR3 ? 'pointer' : 'default',
+      background: canR3 ? 'linear-gradient(150deg,#E8C07D,#C99B53)' : 'rgba(245,241,232,.08)',
+      color: canR3 ? '#0a0810' : 'rgba(245,241,232,.3)',
+      boxShadow: canR3 ? '0 14px 34px -12px rgba(232,192,125,.6)' : 'none', transition: 'all .2s ease',
+    };
+
+    const nav = this.NAV.map((n) => {
+      const active = n.screen === s.screen;
+      return {
+        ...n,
+        onClick: () => this.go(n.screen),
+        style: {
+          width: active ? '22px' : '8px', height: '8px', borderRadius: '99px', cursor: 'pointer',
+          transition: 'all .25s ease', background: active ? '#E8C07D' : 'rgba(245,241,232,.22)',
+        },
+      };
+    });
+    const navLabel = (this.NAV.find((n) => n.screen === s.screen) || { label: '' }).label;
+
+    return {
+      isSetup: s.screen === 'setup', isRound1: s.screen === 'round1', isPass: s.screen === 'pass',
+      isBlending: s.screen === 'blending', isRound2: s.screen === 'round2', isInferring: s.screen === 'inferring',
+      isRound3: s.screen === 'round3', isMatch: s.screen === 'match',
+      services, serviceCountLabel,
+      payStyle, payToggleTrack, payToggleKnob, togglePay: () => this.togglePay(),
+      startGame: () => { if (canStart) this.go('round1'); }, startStyle,
+      cats, catCountLabel, r1Style, r1Label, r1done: () => { if (canR1) this.go('pass'); },
+      passReady: () => this.go('blending'),
+      r2hasCard, r2card, r2done, r2progress, r2summary,
+      swipeYes: () => this.swipe(true), swipeNo: () => this.swipe(false), swipeSkip: () => this.swipe(false),
+      r2finish: () => this.go('inferring'),
+      shortlist, pickCountLabel, r3Style, r3done: () => { if (canR3) this.go('match'); },
+      match: this.MATCH, alternatives: this.MATCH.alternatives,
+      reset: () => this.reset(),
+      nav, navLabel,
+    };
+  }
+}
+</script>
+</body>
+</html>
