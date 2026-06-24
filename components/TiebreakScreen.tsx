@@ -166,7 +166,7 @@ export function TiebreakScreen() {
 
   return (
     <div className={loaderCol}>
-      <Spinner accent="text-rose">
+      <Spinner accent="text-gold">
         <Heart size={26} />
       </Spinner>
       <h2 className="mb-2.5 font-display text-[32px]">Finding common ground…</h2>

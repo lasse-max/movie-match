@@ -19,35 +19,37 @@ export function GameScreen() {
   const { state } = useGame();
 
   return (
-    <main
-      className="relative flex min-h-dvh flex-col overflow-hidden px-5 py-6"
-      style={{
-        background:
-          "radial-gradient(120% 90% at 50% -10%, #16131f 0%, #0a090f 45%, #060509 100%)",
-      }}
-    >
-      {/* ambient gold glow */}
+    <>
+      {/* Cinematic backdrop — fixed to the viewport and self-clipped, so it stays
+          put while the content scrolls over it and never clips tall phases. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[12%] h-[560px] w-[560px] -translate-x-1/2 rounded-full blur-[20px] motion-safe:animate-[mmGlow_7s_ease-in-out_infinite]"
+        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
         style={{
           background:
-            "radial-gradient(circle, rgba(232,192,125,0.14), rgba(232,192,125,0) 62%)",
+            "radial-gradient(120% 90% at 50% -10%, #16131f 0%, #0a090f 45%, #060509 100%)",
         }}
-      />
-      {/* film grain */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -inset-[10%] opacity-[0.05] mix-blend-overlay"
-        style={{ backgroundImage: GRAIN }}
-      />
+      >
+        <div
+          className="absolute left-1/2 top-[12%] h-[560px] w-[560px] -translate-x-1/2 rounded-full blur-[20px] motion-safe:animate-[mmGlow_7s_ease-in-out_infinite]"
+          style={{
+            background: "radial-gradient(circle, rgba(232,192,125,0.14), rgba(232,192,125,0) 62%)",
+          }}
+        />
+        <div
+          className="absolute -inset-[10%] opacity-[0.05] mix-blend-overlay"
+          style={{ backgroundImage: GRAIN }}
+        />
+      </div>
 
-      <section className="relative z-10 mx-auto flex w-full max-w-sm flex-1 flex-col">
-        <PhaseView phase={state.phase} />
-      </section>
-
-      <DevControls />
-    </main>
+      {/* Content flows normally (no page-level clipping), so content-heavy phases —
+          all Round 3 rows, the CTA, the expanded Match tail — scroll into reach. */}
+      <main className="flex min-h-dvh flex-col px-5 py-6">
+        <section className="mx-auto flex w-full max-w-sm flex-1 flex-col">
+          <PhaseView phase={state.phase} />
+        </section>
+      </main>
+    </>
   );
 }
 
@@ -70,23 +72,4 @@ function PhaseView({ phase }: { phase: Phase }) {
     case "match":
       return <MatchScreen />;
   }
-}
-
-// Minimal dev strip for review navigation (phase/player readout + reset).
-function DevControls() {
-  const { state, dispatch } = useGame();
-  return (
-    <footer className="relative z-10 mx-auto mt-5 flex w-full max-w-sm items-center justify-between rounded-full border border-text/10 bg-text/[0.03] px-4 py-2 text-[11px] text-text/40">
-      <span>
-        phase=<b className="text-text/70">{state.phase}</b> · player=
-        <b className="text-text/70">{state.currentPlayer}</b>
-      </span>
-      <button
-        className="font-semibold uppercase tracking-[1px] text-gold transition active:scale-95"
-        onClick={() => dispatch({ type: "RESET" })}
-      >
-        Reset
-      </button>
-    </footer>
-  );
 }
