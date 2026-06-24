@@ -26,11 +26,41 @@ const PICK_THRESHOLD = 90; // thin lane: pick recs whose position-fit % clears t
 const anchorOf = (cats: string[]): number[] =>
   cats.map(categoryGenreId).filter((g): g is number => g != null);
 
+// Tone affinities for the MOOD-ONLY categories (no TMDB genre id of their own).
+// A mood-only player swipes by TONE — leaning toward genres their mood implies and
+// away from clashing ones — instead of raw popularity, which made a cozy viewer
+// "like" a horror hit (the "cozy swipes yes on It" artifact, couple #11). Genre ids:
+// 28 Action 12 Adventure 16 Animation 35 Comedy 80 Crime 18 Drama 10751 Family
+// 14 Fantasy 36 History 27 Horror 10402 Music 9648 Mystery 10749 Romance 878 SciFi
+// 53 Thriller 10752 War 37 Western.
+const MOOD_TONE: Record<string, { prefer: number[]; avoid: number[] }> = {
+  "Feel-good": { prefer: [35, 10751, 10749, 16, 12, 10402, 14], avoid: [27, 53, 80, 10752] },
+  Cozy: { prefer: [35, 10751, 10749, 16, 18, 10402], avoid: [27, 53, 28, 80, 10752, 878] },
+  Apocalyptic: { prefer: [878, 28, 53, 27, 12], avoid: [35, 10749, 10751, 16, 10402] },
+  "Mind-bending": { prefer: [878, 53, 9648, 18], avoid: [35, 10751, 10402, 16] },
+  Tearjerker: { prefer: [18, 10749, 10751, 36], avoid: [28, 27, 35, 878] },
+  "Dark & gritty": { prefer: [80, 53, 27, 18, 10752, 37], avoid: [35, 10751, 16, 10749] },
+};
+
+function moodTone(cats: string[]): { prefer: Set<number>; avoid: Set<number> } {
+  const prefer = new Set<number>();
+  const avoid = new Set<number>();
+  for (const c of cats) {
+    const t = MOOD_TONE[c];
+    if (!t) continue;
+    t.prefer.forEach((g) => prefer.add(g));
+    t.avoid.forEach((g) => avoid.add(g));
+  }
+  return { prefer, avoid };
+}
+
 /**
- * Deterministic Round-2 swipe rule: a player swipes TOWARD cards that fit their
- * stated taste (a genre that overlaps their Round-1 anchor); a mood-only player
- * (no genre anchor) leans toward the more recognizable half (voteCount). Fixed so
- * runs are comparable.
+ * Deterministic Round-2 swipe rule (test-data simulation, not the product). A
+ * genre-anchored player swipes TOWARD cards whose genre overlaps their Round-1
+ * anchor. A mood-only player (no genre anchor) swipes by TONE — net of their mood's
+ * preferred vs clashing genres — so a cozy viewer leans toward warm/light titles
+ * and away from horror, giving the harness human-realistic divergent behavior
+ * rather than a popularity fallback. Fixed so runs are comparable.
  */
 function scriptedSwipes(
   samples: { 1: PoolMovie[]; 2: PoolMovie[] },
@@ -39,14 +69,14 @@ function scriptedSwipes(
 ): Swipes {
   const swipeFor = (cards: PoolMovie[], cats: string[]) => {
     const anchor = new Set(anchorOf(cats));
-    const medianVotes = [...cards].sort((a, b) => a.voteCount - b.voteCount)[
-      Math.floor(cards.length / 2)
-    ]?.voteCount ?? 0;
+    const { prefer, avoid } = moodTone(cats);
     const yes: number[] = [];
     const no: number[] = [];
     for (const c of cards) {
       const likes =
-        anchor.size > 0 ? c.genreIds.some((g) => anchor.has(g)) : c.voteCount >= medianVotes;
+        anchor.size > 0
+          ? c.genreIds.some((g) => anchor.has(g)) // genre-anchored: confirm the genre
+          : c.genreIds.reduce((s, g) => s + (prefer.has(g) ? 1 : 0) - (avoid.has(g) ? 1 : 0), 0) > 0;
       (likes ? yes : no).push(c.id);
     }
     return { yes, no };
@@ -57,6 +87,7 @@ function scriptedSwipes(
 const slim = (m: MatchMovie) => ({
   title: m.title,
   year: m.year,
+  genreIds: m.genreIds, // factual genres (for the blind report + the judge); not engine "why"
   tags: m.matchTags,
   percent: m.matchPercent,
 });
