@@ -10,11 +10,17 @@ vi.mock("@/lib/anthropic", () => ({
   getAnthropic: () => ({ messages: { create: createMock } }),
 }));
 
-const { recMock, providersMock } = vi.hoisted(() => ({ recMock: vi.fn(), providersMock: vi.fn() }));
+const { recMock, providersMock, discoverMock, collectionMock } = vi.hoisted(() => ({
+  recMock: vi.fn(),
+  providersMock: vi.fn(),
+  discoverMock: vi.fn(),
+  collectionMock: vi.fn(),
+}));
 vi.mock("@/lib/tmdb", () => ({
   getRecommendations: recMock,
   getWatchProvidersForRegion: providersMock,
-  getCollectionId: () => Promise.resolve(null), // no franchise dedup in these unit tests
+  discoverMovies: discoverMock, // provider-targeted Round 3 backfill
+  getCollectionId: collectionMock,
   tmdbImageUrl: (p: string | null) => (p ? `https://img.test${p}` : null),
 }));
 
@@ -50,6 +56,22 @@ beforeEach(() => {
   createMock.mockResolvedValue(refusal); // default: AI declines → deterministic fallback
   recMock.mockResolvedValue([]); // default: no fresh expansion
   providersMock.mockResolvedValue(null); // default: no availability data
+  discoverMock.mockResolvedValue([]); // default: provider backfill finds nothing
+  collectionMock.mockResolvedValue(null); // default: no franchise dedup
+});
+
+// A discover result (provider-targeted catalog hit), genre-anchored on Sci-Fi (878).
+const dm = (id: number, over: Record<string, unknown> = {}) => ({
+  id,
+  title: `Disc ${id}`,
+  release_date: "2018-01-01",
+  overview: "",
+  poster_path: "/d.jpg",
+  genre_ids: [878],
+  vote_average: 7.5,
+  vote_count: 800,
+  popularity: 20,
+  ...over,
 });
 
 describe("inferMoods", () => {
@@ -238,5 +260,77 @@ describe("inferMoods", () => {
     );
     const included = result[1].recs.find((r) => r.id === 17);
     expect(included?.availability.flatrate.some((p) => p.id === 8)).toBe(true); // shown as watchable
+  });
+});
+
+// Availability-aware backfill: when few services leave a player short on eligible
+// titles, mine the service catalog directly (provider-targeted discover). P1 is
+// genre-anchored on Sci-Fi (878); P2 is mood-only so it never queries (keeps the
+// assertions on P1's single discover call). The short pool has no availability, so
+// the backfill must run.
+describe("provider backfill (availability-aware Round 3)", () => {
+  const anchored = { 1: ["Sci-Fi"], 2: [] };
+  const noSwipes = { 1: { yes: [], no: [] }, 2: { yes: [], no: [] } };
+  const shortPool = [pm(1, { genreIds: [878] })];
+
+  it("queries the service catalog with provider, region, and anchor-genre params", async () => {
+    discoverMock.mockResolvedValue([dm(100)]);
+    providersMock.mockImplementation((id: number) => Promise.resolve(id === 100 ? onNetflix : null));
+    await inferMoods(shortPool, noSwipes, anchored, "US", [8], false);
+    expect(discoverMock).toHaveBeenCalled();
+    const params = discoverMock.mock.calls[0][0];
+    expect(params.with_watch_providers).toBe("8"); // the couple's selected service ids
+    expect(params.watch_region).toBe("US");
+    expect(params.with_genres).toBe("878"); // the player's anchor genres
+  });
+
+  it("flips monetization with willing-to-pay (flatrate vs flatrate|rent|buy)", async () => {
+    await inferMoods(shortPool, noSwipes, anchored, "US", [8], false);
+    expect(discoverMock.mock.calls[0][0].with_watch_monetization_types).toBe("flatrate");
+    discoverMock.mockClear();
+    await inferMoods(shortPool, noSwipes, anchored, "US", [8], true);
+    expect(discoverMock.mock.calls[0][0].with_watch_monetization_types).toBe("flatrate|rent|buy");
+  });
+
+  // The most important guard: a discovered title that fails the per-title
+  // eligibility re-check under the real constraint must NOT be added.
+  it("rejects a discovered title that fails the eligibility re-check (watchability guard)", async () => {
+    // 100 is genuinely included on Netflix; 101 comes back rent-only — under a
+    // not-paying [Netflix] constraint it is NOT eligible.
+    discoverMock.mockResolvedValue([dm(100), dm(101)]);
+    providersMock.mockImplementation((id: number) =>
+      Promise.resolve(id === 100 ? onNetflix : id === 101 ? rentOnly : null)
+    );
+    const result = await inferMoods(shortPool, noSwipes, anchored, "US", [8], false);
+    const ids = result[1].recs.map((r) => r.id);
+    expect(ids).toContain(100); // watchable → kept
+    expect(ids).not.toContain(101); // unwatchable under the real constraint → rejected
+  });
+
+  it("franchise-dedupes backfilled titles (one per collection)", async () => {
+    discoverMock.mockResolvedValue([dm(100), dm(101)]);
+    providersMock.mockImplementation((id: number) => Promise.resolve(id >= 100 ? onNetflix : null));
+    collectionMock.mockResolvedValue(500); // both discovered titles are the same franchise
+    const result = await inferMoods(shortPool, noSwipes, anchored, "US", [8], false);
+    const kept = result[1].recs.filter((r) => r.id === 100 || r.id === 101);
+    expect(kept).toHaveLength(1); // only one franchise sibling survives
+  });
+
+  it("bounds the provider lookup fan-out regardless of result count", async () => {
+    discoverMock.mockResolvedValue(Array.from({ length: 30 }, (_, i) => dm(100 + i)));
+    providersMock.mockImplementation((id: number) => Promise.resolve(id >= 100 ? onNetflix : null));
+    await inferMoods(shortPool, noSwipes, anchored, "US", [8], false);
+    // need (TARGET 8 − 0 eligible) + buffer → at most 14 enrichments, never all 30.
+    expect(collectionMock.mock.calls.length).toBeGreaterThan(0);
+    expect(collectionMock.mock.calls.length).toBeLessThanOrEqual(14);
+  });
+
+  it("does not query the service catalog when enough titles are already eligible", async () => {
+    // 6 pool titles all included on Netflix → already ≥ floor → no provider backfill.
+    const ample = Array.from({ length: 6 }, (_, i) => pm(i + 1, { genreIds: [878], voteCount: 900 - i }));
+    providersMock.mockResolvedValue(onNetflix);
+    discoverMock.mockResolvedValue([dm(100)]);
+    await inferMoods(ample, noSwipes, { 1: ["Sci-Fi"], 2: ["Sci-Fi"] }, "US", [8], false);
+    expect(discoverMock).not.toHaveBeenCalled();
   });
 });
