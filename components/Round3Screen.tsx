@@ -153,7 +153,9 @@ function PlayerPicks({ player }: { player: Player }) {
       </div>
 
       <div className="mt-4">
-        <button className={goldCta} disabled={submitted || selected.length === 0} onClick={lockIn}>
+        {/* Zero picks is a valid path — the reducer routes an empty shortlist to the
+            bridge (→ a watchable end-state), so the CTA stays enabled at 0 selected. */}
+        <button className={goldCta} disabled={submitted} onClick={lockIn}>
           {player === 1 ? "Done — pass the phone" : "Find your match"}
         </button>
       </div>
