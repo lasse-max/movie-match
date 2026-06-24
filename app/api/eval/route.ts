@@ -4,6 +4,7 @@ import { inferMoods, type Categories, type Swipes } from "@/lib/infer";
 import { bridge } from "@/lib/bridge";
 import { pickMatch, declinedFrom } from "@/lib/overlap";
 import { evaluateAvailability } from "@/lib/filter";
+import { matchPercent } from "@/lib/matchInsight";
 import { categoryGenreId, normalizeCategoryPicks } from "@/lib/categories";
 import { isKidsFare } from "@/lib/genres";
 import { selectSwipeSamples, type BlendResult, type PoolMovie } from "@/lib/blendTypes";
@@ -13,14 +14,14 @@ import type { MatchMovie, PlayerRec } from "@/lib/inferTypes";
 // EVAL-ONLY pipeline runner (dev only — 404 in production). Runs one couple's
 // Round-1 picks through the REAL matching pipeline (blend → scripted Round-2
 // swipes → infer → scripted Round-3 picks → overlap/bridge) and returns the mood
-// reads + winner + runner-ups. Inputs are FIXED and the swipe/pick rules are
-// deterministic, so versions are comparable. Availability is maxed out (all major
-// US services + willing-to-pay) so the eval measures TASTE, not where it streams.
-
-// Max eligibility — the eval is about matching, not availability.
-const EVAL_SERVICES = [8, 9, 337, 15, 1899, 531, 386, 350];
+// reads + winner + runner-ups. Two LANES (selected per request via `lane`):
+//   • taste (default): all major US services + willing-to-pay, pick every eligible
+//     title — max-cooperation best-case taste eval.
+//   • thin: constrained services + a selective threshold picker — a realistic
+//     session that yields ~1-3 picks and exercises the no-overlap → bridge tail.
 const EVAL_REGION = DEFAULT_REGION;
-const WILLING_TO_PAY = true;
+const TASTE_SERVICES = [8, 9, 337, 15, 1899, 531, 386, 350]; // all major US subs
+const PICK_THRESHOLD = 90; // thin lane: pick recs whose position-fit % clears this (→ ~1-3)
 
 const anchorOf = (cats: string[]): number[] =>
   cats.map(categoryGenreId).filter((g): g is number => g != null);
@@ -83,14 +84,36 @@ export async function POST(request: Request) {
     const samples = selectSwipeSamples(pool);
     const swipes = scriptedSwipes(samples, p1, p2);
     const categories: Categories = { 1: p1, 2: p2 };
-    const inf = await inferMoods(pool, swipes, categories, EVAL_REGION, EVAL_SERVICES, WILLING_TO_PAY);
+    // Lane: taste (default — all services, pick every eligible title) or thin
+    // (constrained services + a selective threshold picker → realistic ~1-3 picks
+    // that exercise the no-overlap → bridge tail). Same frozen pool either way.
+    const lane = (body?.lane ?? {}) as { services?: number[]; willingToPay?: boolean; picker?: string };
+    const services = Array.isArray(lane.services) ? lane.services : TASTE_SERVICES;
+    const willingToPay = typeof lane.willingToPay === "boolean" ? lane.willingToPay : true;
+    const threshold = lane.picker === "threshold";
+    const TARGET = 8; // Round 3 display size (matches the UI)
 
-    // Scripted Round 3: each player "picks" every eligible title on their shortlist.
+    const inf = await inferMoods(pool, swipes, categories, EVAL_REGION, services, willingToPay);
     const isEligible = (r: PlayerRec) =>
-      evaluateAvailability(r.availability, EVAL_SERVICES, WILLING_TO_PAY).eligible;
-    const eligibleIds = (recs: PlayerRec[]) => recs.filter(isEligible).map((r) => r.id);
-    const picks1 = eligibleIds(inf[1].recs);
-    const picks2 = eligibleIds(inf[2].recs);
+      evaluateAvailability(r.availability, services, willingToPay).eligible;
+
+    // What each player is SHOWN and PICKS. Taste: every eligible title, pick all.
+    // Thin: the top-TARGET eligible (as the UI displays), pick those whose
+    // position-fit % clears the bar (naturally ~1-3) — the rest count as declined.
+    const shownOf = (recs: PlayerRec[]) =>
+      threshold ? recs.filter(isEligible).slice(0, TARGET) : recs.filter(isEligible);
+    const pickOf = (recs: PlayerRec[]) => {
+      const shown = shownOf(recs);
+      if (!threshold) return shown.map((r) => r.id);
+      const n = Math.max(shown.length, 1);
+      return shown.filter((_, i) => matchPercent(1 - i / n) >= PICK_THRESHOLD).map((r) => r.id);
+    };
+    const picks1 = pickOf(inf[1].recs);
+    const picks2 = pickOf(inf[2].recs);
+    const declined = declinedFrom(
+      { 1: shownOf(inf[1].recs).map((r) => r.id), 2: shownOf(inf[2].recs).map((r) => r.id) },
+      { 1: picks1, 2: picks2 }
+    );
     const moodAxes = [...new Set([...inf[1].moodRead.axes, ...inf[2].moodRead.axes])];
 
     let reason: string;
@@ -98,9 +121,9 @@ export async function POST(request: Request) {
     let runnerUps: ReturnType<typeof slim>[] = [];
 
     const overlap = pickMatch(inf[1].recs, inf[2].recs, picks1, picks2, {
-      services: EVAL_SERVICES,
-      willingToPay: WILLING_TO_PAY,
-      declined: [], // the eval picks every eligible title, so nothing eligible is declined
+      services,
+      willingToPay,
+      declined,
       moodAxes,
     });
     if (overlap) {
@@ -108,13 +131,9 @@ export async function POST(request: Request) {
       winner = slim(overlap.movie);
       runnerUps = overlap.alternatives.map(slim);
     } else {
-      const declined = declinedFrom(
-        { 1: inf[1].recs.map((r) => r.id), 2: inf[2].recs.map((r) => r.id) },
-        { 1: picks1, 2: picks2 }
-      );
       const outcome = await bridge(
         pool, swipes[1].yes, swipes[2].yes, anchorOf(p1), anchorOf(p2),
-        pool.some((m) => isKidsFare(m.genreIds)), EVAL_REGION, EVAL_SERVICES, WILLING_TO_PAY, declined, moodAxes
+        pool.some((m) => isKidsFare(m.genreIds)), EVAL_REGION, services, willingToPay, declined, moodAxes
       );
       reason = `bridge:${outcome.kind}`;
       if (outcome.kind === "match") {
@@ -129,8 +148,8 @@ export async function POST(request: Request) {
       `${r.title}${r.year ? ` (${r.year})` : ""}`;
     const round2 = (p: 1 | 2) =>
       samples[p].map((c) => ({ title: c.title, year: c.year, swipe: swipes[p].yes.includes(c.id) ? "yes" : "no" }));
-    const round3 = (p: 1 | 2) => ({
-      picks: inf[p].recs.filter(isEligible).map(titleYear),
+    const round3 = (p: 1 | 2, picks: number[]) => ({
+      picks: inf[p].recs.filter((r) => picks.includes(r.id)).map(titleYear),
       shortlist: inf[p].recs.map((r) => ({ title: r.title, year: r.year, eligible: isEligible(r) })),
     });
 
@@ -146,7 +165,7 @@ export async function POST(request: Request) {
       altCount: runnerUps.length,
       trace: {
         round2: { 1: round2(1), 2: round2(2) },
-        round3: { 1: round3(1), 2: round3(2) },
+        round3: { 1: round3(1, picks1), 2: round3(2, picks2) },
         resolution: reason,
       },
       // Only when freshly blended — the harness captures this to freeze the snapshot.

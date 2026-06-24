@@ -2,21 +2,32 @@
 // (dev-only /api/eval) and write a scoreable markdown report per version.
 //
 //   1. start the app:   npm run dev
-//   2. run a version:    node eval/run.mjs <label> [limit]
-//        e.g.  node eval/run.mjs baseline        (all couples)
-//              node eval/run.mjs enriched 3      (first 3, smoke test)
-//   3. score each couple ✓ / ~ / ✗ in eval/results/<label>.md, then compare versions.
+//   2. run a lane:       node eval/run.mjs <label> [lane] [limit]
+//        taste lane (default): all services, pick every eligible title — best-case.
+//        thin lane: 1 service + a selective picker — realistic ~1-3 picks, bridges.
+//        e.g.  node eval/run.mjs baseline              (taste, all couples)
+//              node eval/run.mjs thin-baseline thin    (thin lane)
+//              node eval/run.mjs baseline taste 3      (taste, first 3 — smoke)
+//   3. score each couple ✓ / ~ / ✗ in eval/results/<label>.md, then compare.
 //
 // Frozen pool: each couple's blend is captured to eval/fixtures/blends.json on
-// first run and reused thereafter, so the candidates are an IDENTICAL TMDB
-// snapshot across versions — baseline vs enriched then differ only by enrichment.
-// To take a fresh snapshot, delete eval/fixtures/blends.json.
+// first run and reused thereafter (BOTH lanes), so the candidates are an IDENTICAL
+// TMDB snapshot — versions/lanes differ only by enrichment + services/picker. To
+// take a fresh snapshot, delete eval/fixtures/blends.json.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 
+const LANES = {
+  taste: undefined, // route defaults: all services, pick every eligible title
+  thin: { services: [8], willingToPay: false, picker: "threshold" }, // 1 service, selective
+};
 const BASE = process.env.EVAL_BASE ?? "http://localhost:3000";
 const label = process.argv[2] ?? "baseline";
 const { couples } = JSON.parse(readFileSync(new URL("./couples.json", import.meta.url)));
-const limit = process.argv[3] ? Number(process.argv[3]) : couples.length;
+// argv[3] is the lane (non-numeric) or the limit (numeric); argv[4] is the limit.
+const a3 = process.argv[3];
+const laneName = a3 && Number.isNaN(Number(a3)) ? a3 : "taste";
+const laneCfg = LANES[laneName] ?? undefined;
+const limit = Number(a3 && !Number.isNaN(Number(a3)) ? a3 : process.argv[4]) || couples.length;
 const run = couples.slice(0, limit);
 
 const fixtureUrl = new URL("./fixtures/blends.json", import.meta.url);
@@ -26,8 +37,8 @@ const keyOf = (c) => `${c.p1.join(",")}__${c.p2.join(",")}`;
 
 const fmt = (m) => (m ? `**${m.title}** (${m.year ?? "—"}) — ${m.percent}% · [${m.tags.join(" · ")}]` : "(no match)");
 const lines = [
-  `# Eval results — ${label}`,
-  `_${new Date().toISOString().slice(0, 16).replace("T", " ")} · ${run.length} couples · score each ✓ / ~ / ✗ (do the winner + runner-ups fit BOTH players?)_`,
+  `# Eval results — ${label} _(${laneName} lane)_`,
+  `_${new Date().toISOString().slice(0, 16).replace("T", " ")} · ${run.length} couples · ${laneName === "thin" ? "score: 2–3 inline if available, fewer gracefully if not" : "score each ✓ / ~ / ✗ (do the winner + runner-ups fit BOTH players?)"}_`,
   "",
 ];
 
@@ -37,6 +48,7 @@ for (let i = 0; i < run.length; i++) {
   const key = keyOf(c);
   const body = { p1: c.p1, p2: c.p2 };
   if (frozen[key]) body.blend = frozen[key]; // reuse the frozen snapshot
+  if (laneCfg) body.lane = laneCfg; // thin lane: constrained services + selective picker
   let r;
   try {
     r = await (
