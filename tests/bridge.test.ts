@@ -141,12 +141,12 @@ describe("bridge", () => {
     if (out.kind === "match") expect(out.movie.id).toBe(17);
   });
 
-  it("returns a winner + up to 3 runner-ups, each with tags + a fit percent", async () => {
+  it("returns a winner + runner-up tail, each with tags + a fit percent", async () => {
     const cands = Array.from({ length: 5 }, (_, i) => pm(i + 1, [878, 28], 8 - i * 0.1)); // all eligible
     const out = await bridge(cands, [], [], [878], [28], false, "US", SERVICES, false, [], ["dark"]);
     expect(out.kind).toBe("match");
     if (out.kind === "match") {
-      expect(out.alternatives).toHaveLength(3); // winner + 3 = MAX_MATCHES (4)
+      expect(out.alternatives).toHaveLength(4); // winner + the rest (within MAX_MATCHES)
       expect(out.movie.matchTags).toContain("dark");
       expect(out.movie.matchPercent).toBeGreaterThan(0);
     }

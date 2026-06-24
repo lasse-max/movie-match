@@ -55,13 +55,40 @@ describe("pickMatch", () => {
     expect(pickMatch([rec(1)], [rec(2)], [1], [2])).toBeNull();
   });
 
-  it("returns up to 3 runner-ups, each with tags + a fit percent, winner ranked highest", () => {
+  it("returns the full ranked alternatives tail, each with tags + a descending fit %", () => {
     const recs = [rec(1), rec(2), rec(3), rec(4), rec(5)];
-    const m = pickMatch(recs, recs, [1, 2, 3, 4, 5], [1, 2, 3, 4, 5], ["dark", "tense"]);
+    const m = pickMatch(recs, recs, [1, 2, 3, 4, 5], [1, 2, 3, 4, 5], { services: [], willingToPay: true, moodAxes: ["dark", "tense"] });
     expect(m?.movie.id).toBe(1);
-    expect(m?.alternatives.map((a) => a.id)).toEqual([2, 3, 4]); // capped at 3 runner-ups
+    expect(m?.alternatives.map((a) => a.id)).toEqual([2, 3, 4, 5]); // full tail, not capped at 3
     expect(m?.movie.matchTags).toContain("dark"); // mood tag surfaced
     expect(m!.movie.matchPercent).toBeGreaterThanOrEqual(m!.alternatives[0].matchPercent);
+  });
+
+  it("backfills alternatives from one-picked titles when the overlap is thin (no lone winner)", () => {
+    // id 1 is the only BOTH-picked title; 2,3 are P1-only, 4,5 P2-only.
+    const m = pickMatch(
+      [rec(1), rec(2), rec(3)],
+      [rec(1), rec(4), rec(5)],
+      [1, 2, 3],
+      [1, 4, 5],
+      { services: [], willingToPay: true }
+    );
+    expect(m?.movie.id).toBe(1); // the only both-picked title
+    expect(m!.alternatives.length).toBeGreaterThanOrEqual(2); // backfilled, not stranded
+    expect(m!.alternatives.map((a) => a.id)).not.toContain(1); // winner not duplicated
+  });
+
+  it("never offers a declined or ineligible never-picked title as an alternative", () => {
+    // 1 both-picked (winner). 2 declined by P1. 3 never-picked + ineligible (NO_AVAILABILITY).
+    const m = pickMatch([rec(1), rec(2), rec(3)], [rec(1)], [1], [1], {
+      services: [],
+      willingToPay: true,
+      declined: [2],
+    });
+    expect(m?.movie.id).toBe(1);
+    const ids = m!.alternatives.map((a) => a.id);
+    expect(ids).not.toContain(2); // declined
+    expect(ids).not.toContain(3); // never-picked and ineligible
   });
 });
 

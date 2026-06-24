@@ -17,7 +17,7 @@ import type { MatchMovie } from "./inferTypes";
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2;
 const MAX_SEEDS = 3;
-const MAX_MATCHES = 4; // winner + up to 3 runner-ups
+const MAX_MATCHES = 10; // winner + the full eligible runner-up tail (UI shows ~3 inline + "see more")
 // Availability is fetched in fit-order batches. The scan EARLY-STOPS once enough
 // matches (titles watchable under the current constraint) are collected; a
 // "needs-rentals" or "none" claim — both assertions that NO such title exists —

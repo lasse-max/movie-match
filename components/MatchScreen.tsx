@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useGame } from "./GameProvider";
 import { evaluateAvailability, labelText } from "@/lib/filter";
 import type { MatchMovie } from "@/lib/inferTypes";
@@ -7,10 +8,13 @@ import type { MatchMovie } from "@/lib/inferTypes";
 const primaryBtn =
   "rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]";
 
+const INLINE_ALTERNATIVES = 3; // runner-ups shown inline; the rest behind "See other matches"
+
 const tagLine = (tags: string[]) => tags.join(" · ");
 
 export function MatchScreen() {
   const { state, dispatch } = useGame();
+  const [showAll, setShowAll] = useState(false);
   const match = state.match;
   const { services, willingToPay } = state.setup;
   const labelFor = (m: MatchMovie) => {
@@ -97,10 +101,19 @@ export function MatchScreen() {
             Or also…
           </h3>
           <ul className="flex flex-col gap-2">
-            {alternatives.map((alt) => (
+            {(showAll ? alternatives : alternatives.slice(0, INLINE_ALTERNATIVES)).map((alt) => (
               <AltRow key={alt.id} movie={alt} label={labelFor(alt)} />
             ))}
           </ul>
+          {!showAll && alternatives.length > INLINE_ALTERNATIVES && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="mt-2 text-xs font-medium text-foreground/60 underline underline-offset-4 hover:text-foreground"
+            >
+              See {alternatives.length - INLINE_ALTERNATIVES} other match
+              {alternatives.length - INLINE_ALTERNATIVES === 1 ? "" : "es"}
+            </button>
+          )}
         </div>
       )}
 

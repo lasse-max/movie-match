@@ -44,10 +44,11 @@ for (let i = 0; i < run.length; i++) {
     lines.push(`- ⚠️ ERROR: ${r.error}`, "");
     continue;
   }
-  console.log(r.reason);
+  const altCount = r.altCount ?? r.runnerUps?.length ?? 0;
+  console.log(`${r.reason} · ${altCount} alt`);
   lines.push(`- couple mood: _${r.blendMood.summary}_`);
   lines.push(`- P1 mood: _${r.p1Mood.summary}_  ·  P2 mood: _${r.p2Mood.summary}_`);
-  lines.push(`- **${r.reason}** → ${fmt(r.winner)}`);
+  lines.push(`- **${r.reason}** → ${fmt(r.winner)}  ·  _${altCount} alternative${altCount === 1 ? "" : "s"}_`);
   for (const a of r.runnerUps) lines.push(`    - ${fmt(a)}`);
   lines.push("- **score:** `__`  (✓ / ~ / ✗)");
   lines.push("");

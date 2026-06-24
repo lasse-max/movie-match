@@ -86,7 +86,12 @@ export async function POST(request: Request) {
     let winner: ReturnType<typeof slim> | null = null;
     let runnerUps: ReturnType<typeof slim>[] = [];
 
-    const overlap = pickMatch(inf[1].recs, inf[2].recs, picks1, picks2, moodAxes);
+    const overlap = pickMatch(inf[1].recs, inf[2].recs, picks1, picks2, {
+      services: EVAL_SERVICES,
+      willingToPay: WILLING_TO_PAY,
+      declined: [], // the eval picks every eligible title, so nothing eligible is declined
+      moodAxes,
+    });
     if (overlap) {
       reason = "overlap";
       winner = slim(overlap.movie);
@@ -116,6 +121,7 @@ export async function POST(request: Request) {
       reason,
       winner,
       runnerUps,
+      altCount: runnerUps.length,
     });
   } catch (err) {
     console.error("[/api/eval]", err);

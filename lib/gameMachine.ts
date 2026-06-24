@@ -5,7 +5,7 @@
 // round data slots (categories/swipes/picks) are filled in by later steps; this
 // step establishes the phases, transitions, and pass-the-phone turn tracking.
 import { DEFAULT_REGION } from "./constants";
-import { pickMatch } from "./overlap";
+import { declinedFrom, pickMatch } from "./overlap";
 import type { BlendResult } from "./blendTypes";
 import type { InferResult, MatchResult, PlayerRec } from "./inferTypes";
 
@@ -115,15 +115,15 @@ function combinedMoodAxes(state: GameState): string[] {
   return [...new Set(axes)];
 }
 
-/** Overlap match from Round 3 picks (ranked by combined fit), or null → tiebreak. */
+/** Overlap match from Round 3 picks (ranked by combined fit), or null → tiebreak.
+ * Alternatives are drawn from the eligible shortlist, excluding declined titles. */
 function round3Match(state: GameState): MatchResult | null {
-  return pickMatch(
-    recsOf(state, 1),
-    recsOf(state, 2),
-    state.round.picks[1],
-    state.round.picks[2],
-    combinedMoodAxes(state)
-  );
+  return pickMatch(recsOf(state, 1), recsOf(state, 2), state.round.picks[1], state.round.picks[2], {
+    services: state.setup.services,
+    willingToPay: state.setup.willingToPay,
+    declined: declinedFrom(state.round.shown, state.round.picks),
+    moodAxes: combinedMoodAxes(state),
+  });
 }
 
 function resolveRound3(state: GameState): Phase {
