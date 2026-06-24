@@ -15,6 +15,7 @@ import { round3Rank } from "./ranking";
 import { attachAvailability } from "./availability";
 import { evaluateAvailability, NO_AVAILABILITY } from "./filter";
 import {
+  discoverMovies,
   getCollectionId,
   getRecommendations,
   tmdbImageUrl,
@@ -42,6 +43,8 @@ const MAX_AVAIL_FETCHES = 24; // …deep enough to fill the ~8 target from a nor
 //                               exhaust the full ranked pool first (see build).
 const MIN_VOTES = 100;
 const MIN_VOTE_AVERAGE = 6.2; // quality floor for fresh expansion AND backfill
+const BACKFILL_FLOOR = 5; // below this many eligible, mine the service catalog directly
+const PROVIDER_BUFFER = 6; // extra provider hits fetched to absorb dedup/ineligible drops
 
 interface Candidate {
   id: number;
@@ -378,6 +381,84 @@ function backfillCandidates(
     .map((m) => poolToCandidate(m, "swipe"));
 }
 
+/**
+ * Provider-targeted backfill. The genre-discover pool is filtered to the user's
+ * services AFTER retrieval, so with one or two services most of it drops out and a
+ * player's Round 3 list can come up short. This mines the service's OWN catalog
+ * instead — TMDB discover with `with_watch_providers` = the couple's services, on
+ * the player's anchor genres, monetized to what they'll actually pay for — then
+ * applies the SAME floors and invariants as the rest of the pipeline (quality
+ * floor, franchise dedup, must evaluate eligible). Returns up to `need` watchable,
+ * on-genre recs; if even this can't reach the floor (a niche genre on one service),
+ * it returns fewer — graceful degradation stays the floor, never off-genre padding.
+ */
+async function providerBackfill(
+  anchor: Set<number>,
+  services: number[],
+  willingToPay: boolean,
+  region: string,
+  excludeIds: Set<number>,
+  excludeCollections: Set<number>,
+  allowKidsFare: boolean,
+  need: number
+): Promise<PlayerRec[]> {
+  const genres = [...anchor];
+  // Provider targeting needs a subscription to mine; with no services selected the
+  // rent/buy tier is already region-wide, so there's nothing service-specific here.
+  if (need <= 0 || services.length === 0 || genres.length === 0) return [];
+
+  let discovered: TmdbDiscoverMovie[] = [];
+  try {
+    discovered = await discoverMovies({
+      with_watch_providers: services.join("|"), // OR across the couple's services
+      watch_region: region,
+      with_genres: genres.join("|"), // OR across the player's anchor genres
+      with_watch_monetization_types: willingToPay ? "flatrate|rent|buy" : "flatrate",
+      "vote_count.gte": String(MIN_VOTES),
+      "vote_average.gte": String(MIN_VOTE_AVERAGE),
+      sort_by: "popularity.desc",
+    });
+  } catch {
+    return [];
+  }
+
+  // Same floors as fresh expansion + on the player's genres + not already shown.
+  const filtered = discovered.filter(
+    (m) =>
+      !excludeIds.has(m.id) &&
+      !!m.poster_path &&
+      m.vote_count >= MIN_VOTES &&
+      m.vote_average >= MIN_VOTE_AVERAGE &&
+      (allowKidsFare || !isKidsFare(m.genre_ids)) &&
+      (m.genre_ids ?? []).some((g) => anchor.has(g))
+  );
+
+  // Enrich a bounded slice in parallel (collection id for dedup + real availability),
+  // then keep the eligible, franchise-deduped ones in popularity order up to `need`.
+  const top = filtered.slice(0, need + PROVIDER_BUFFER);
+  const enriched = await Promise.all(
+    top.map(async (m) => {
+      const collectionId = await getCollectionId(m.id);
+      const [rec] = await attachAvailability(
+        [candidateToRec({ ...discoverToCandidate(m, "fresh"), collectionId })],
+        region
+      );
+      const eligible = evaluateAvailability(rec.availability, services, willingToPay).eligible;
+      return { rec, collectionId, eligible };
+    })
+  );
+
+  const out: PlayerRec[] = [];
+  for (const e of enriched) {
+    if (out.length >= need) break;
+    if (!e.eligible) continue; // must evaluate eligible under the real constraint
+    if (e.collectionId != null && excludeCollections.has(e.collectionId)) continue; // franchise dedup
+    if (e.collectionId != null) excludeCollections.add(e.collectionId);
+    out.push(e.rec);
+  }
+  return out;
+}
+
 export async function inferMoods(
   pool: PoolMovie[],
   swipes: Swipes,
@@ -447,6 +528,30 @@ export async function inferMoods(
       eligible += batch.filter(
         (r) => evaluateAvailability(r.availability, services, willingToPay).eligible
       ).length;
+    }
+
+    // Availability-aware backfill: the genre-discover pool is filtered to the user's
+    // services only AFTER retrieval, so with one or two services it can leave a
+    // player short on watchable titles. When that happens, mine the service catalog
+    // directly (provider-targeted discover on the player's genres) and append the
+    // eligible, on-genre, franchise-deduped results — toward the target, never below
+    // the floors and never off-genre padding.
+    if (eligible < BACKFILL_FLOOR) {
+      const shownIds = new Set(finalists.map((r) => r.id));
+      const shownCollections = new Set(
+        finalists.map((r) => r.collectionId).filter((c): c is number => c != null)
+      );
+      const extra = await providerBackfill(
+        anchor,
+        services,
+        willingToPay,
+        region,
+        shownIds,
+        shownCollections,
+        allowKidsFare,
+        TARGET_RECS - eligible
+      );
+      finalists.push(...extra);
     }
 
     // Degrade gracefully: a player who handed no swipe signal (all "Don't know")
