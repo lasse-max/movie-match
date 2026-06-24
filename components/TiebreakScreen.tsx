@@ -6,9 +6,7 @@ import { LoadingQuote } from "./LoadingQuote";
 import { isKidsFare } from "@/lib/genres";
 import { declinedFrom } from "@/lib/overlap";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
-
-const btn =
-  "rounded-full bg-foreground px-6 py-2.5 text-sm font-semibold text-background transition hover:opacity-90 active:scale-[0.98]";
+import { Heart, Spinner, goldCta, loaderCol } from "./marquee";
 
 // The "tiebreak" phase: no clean Round 3 overlap, so bridge from both players'
 // R2 positives (server side) to a WATCHABLE film fitting both — excluding what
@@ -103,12 +101,11 @@ export function TiebreakScreen() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl" aria-hidden>😕</span>
-        <h2 className="text-xl font-semibold">Couldn’t settle the tiebreak</h2>
-        <p className="text-sm text-foreground/60">{error}</p>
+      <div className={loaderCol}>
+        <h2 className="mb-2.5 font-display text-[30px]">Couldn’t settle the tiebreak</h2>
+        <p className="mb-6 max-w-[260px] text-[14px] leading-[1.5] text-text/55">{error}</p>
         <button
-          className={btn}
+          className={goldCta}
           onClick={() => {
             setError(null);
             setAttempt((a) => a + 1);
@@ -123,16 +120,15 @@ export function TiebreakScreen() {
   // Nothing's included on their services, but paying would unlock a fitting pick.
   if (outcome === "needs-rentals") {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl" aria-hidden>💸</span>
-        <h2 className="text-xl font-semibold">Nothing’s included tonight</h2>
-        <p className="text-sm text-foreground/60">
+      <div className={loaderCol}>
+        <h2 className="mb-2.5 font-display text-[32px]">Nothing’s included tonight</h2>
+        <p className="mb-7 max-w-[270px] text-[14px] leading-[1.5] text-text/55">
           {setup.services.length === 0
             ? "You haven’t added any subscriptions — but a great fit is available to rent or buy."
             : "Your bridge pick isn’t on your subscriptions — but it’s available to rent or buy."}
         </p>
         <button
-          className={btn}
+          className={goldCta}
           onClick={() => {
             setOutcome("loading"); // show the spinner while the bridge re-runs with rentals on
             dispatch({ type: "SET_WILLING_TO_PAY", value: true });
@@ -142,7 +138,7 @@ export function TiebreakScreen() {
         </button>
         {setup.services.length === 0 && (
           <button
-            className="text-xs text-foreground/50 underline underline-offset-4 hover:text-foreground"
+            className="mt-3 text-[12px] text-text/45 underline underline-offset-4 transition hover:text-text"
             onClick={() => dispatch({ type: "RESET" })}
           >
             …or start over and add a service
@@ -155,14 +151,13 @@ export function TiebreakScreen() {
   // Honest, recoverable end-state: nothing watchable even with rentals.
   if (outcome === "none") {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl" aria-hidden>🌧️</span>
-        <h2 className="text-xl font-semibold">Nothing watchable tonight</h2>
-        <p className="text-sm text-foreground/60">
-          We couldn’t find a bridge you can stream or rent in {setup.region} right now. Retune
-          your vibes and we’ll try again.
+      <div className={loaderCol}>
+        <h2 className="mb-2.5 font-display text-[32px]">Nothing watchable tonight</h2>
+        <p className="mb-7 max-w-[270px] text-[14px] leading-[1.5] text-text/55">
+          We couldn’t find a bridge you can stream or rent in {setup.region} right now. Retune your
+          vibes and we’ll try again.
         </p>
-        <button className={btn} onClick={() => dispatch({ type: "RESET" })}>
+        <button className={goldCta} onClick={() => dispatch({ type: "RESET" })}>
           Start over
         </button>
       </div>
@@ -170,10 +165,12 @@ export function TiebreakScreen() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-5 py-4 text-center">
-      <span className="text-4xl motion-safe:animate-pulse" aria-hidden>🤝</span>
-      <h2 className="text-xl font-semibold">So close — finding common ground…</h2>
-      <p className="text-sm text-foreground/60">
+    <div className={loaderCol}>
+      <Spinner accent="text-rose">
+        <Heart size={26} />
+      </Spinner>
+      <h2 className="mb-2.5 font-display text-[32px]">Finding common ground…</h2>
+      <p className="mb-6 max-w-[260px] text-[14px] leading-[1.5] text-text/55">
         No exact overlap, so we’re bridging both your tastes into one pick.
       </p>
       <LoadingQuote />
