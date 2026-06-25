@@ -11,6 +11,7 @@ import {
   GOLD_SURFACE,
   Heart,
   Phone,
+  Question,
   XMark,
   eyebrow,
   goldCta,
@@ -163,24 +164,29 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
         </p>
       </div>
 
-      {/* Not the vibe · Skip (neutral, deliberately the low-stakes choice) · This vibe */}
-      <div className="mt-4 flex items-center gap-2.5">
+      {/* Three real, equal choices. "Not it" (outline) and "This vibe" (gold) stay the
+          visual heroes; "Not sure" is a clearly visible, equally-tappable third option —
+          NOT a faint ghost. (The old tiny low-contrast "Skip" caused users to mis-swipe
+          like/pass, polluting the deliberately 0-weight neutral signal that feeds the mood
+          inference, the eval, and the data flywheel.) Semantics unchanged: skip() = neutral. */}
+      <div className="mt-4 flex items-stretch gap-2">
         <button
           onClick={() => swipe(false)}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-text/18 bg-text/[0.03] py-[15px] text-[14px] font-semibold text-text transition active:scale-[0.98]"
+          className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-text/18 bg-text/[0.03] py-[15px] text-[14px] font-semibold text-text transition active:scale-[0.98]"
         >
           <XMark size={16} />
           Not it
         </button>
         <button
           onClick={skip}
-          className="flex-none rounded-2xl px-3.5 py-3 text-[12px] font-medium text-text/40 transition active:scale-[0.98]"
+          className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-text/10 bg-text/[0.08] py-[15px] text-[13.5px] font-medium text-text/80 transition active:scale-[0.98]"
         >
-          Skip
+          <Question size={16} />
+          Not sure
         </button>
         <button
           onClick={() => swipe(true)}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-2xl py-[15px] text-[14px] font-bold transition active:scale-[0.98] ${GOLD_SURFACE}`}
+          className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl py-[15px] text-[14px] font-bold transition active:scale-[0.98] ${GOLD_SURFACE}`}
         >
           <Heart size={16} />
           This vibe

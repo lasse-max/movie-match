@@ -67,6 +67,22 @@ export const XMark = ({ size = 16, className }: IconProps) =>
     />
   );
 
+export const Question = ({ size = 16, className }: IconProps) =>
+  svg(
+    size,
+    className,
+    <>
+      <path
+        d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M12 17h.01" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" />
+    </>
+  );
+
 export const Chevron = ({ size = 14, className }: IconProps) =>
   svg(
     size,
