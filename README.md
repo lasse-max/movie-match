@@ -2,7 +2,7 @@
 
 > Two people, one phone, three rounds, ~2 minutes — and a movie you both actually want to watch tonight.
 
-**Live demo:** _coming soon_ · **Built by:** Lasse
+**Live demo:** **[movie-match-rho.vercel.app](https://movie-match-rho.vercel.app)** · **Built by:** [Lasse](https://github.com/lasse-max)
 
 ---
 
