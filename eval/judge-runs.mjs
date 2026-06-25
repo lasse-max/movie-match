@@ -15,7 +15,22 @@ if (!labelA || !labelB) {
   console.error("usage: node eval/judge-runs.mjs <labelA> <labelB> [floor]");
   process.exit(1);
 }
-const FLOOR = Number(floorArg) || 10; // default conservative; pass the judge-nearmiss floor
+// Calibrated from eval/judge-nearmiss.mjs — do NOT silently fall back to anything else.
+const CALIBRATED_FLOOR = 18; // min clear-pair gap (the judge's resolution floor)
+const WOBBLE = 6; // judge run-to-run wobble observed in near-miss; confirm = floor + wobble
+let FLOOR = CALIBRATED_FLOOR;
+if (floorArg !== undefined) {
+  const f = Number(floorArg);
+  if (!Number.isFinite(f) || f <= 0) {
+    console.error(`invalid floor "${floorArg}" — must be a positive number`);
+    process.exit(1);
+  }
+  FLOOR = f;
+}
+const CONFIRM = FLOOR + WOBBLE; // judge-confirmed win threshold; [FLOOR, CONFIRM) is "too close to call"
+console.log(
+  `Floor: ${FLOOR}${FLOOR === CALIBRATED_FLOOR ? " (calibrated)" : " (override)"} · confirmed win ≥ ${CONFIRM} · too-close [${FLOOR}, ${CONFIRM}) → human pairwise\n`
+);
 const rd = (l) => JSON.parse(readFileSync(new URL(`./results/${l}.json`, import.meta.url)));
 const A = rd(labelA);
 const B = new Map(rd(labelB).map((r) => [r.name, r]));
@@ -63,7 +78,10 @@ for (const a of A) {
     continue;
   }
   const gap = sb - sa;
-  const verdict = gap >= FLOOR ? labelB : gap <= -FLOOR ? labelA : "tie";
+  // A win is judge-CONFIRMED only past floor + wobble; the [floor, confirm) band is
+  // too close to call (route to human pairwise); below floor is within-noise tie.
+  const verdict =
+    gap >= CONFIRM ? labelB : gap <= -CONFIRM ? labelA : Math.abs(gap) >= FLOOR ? "too-close" : "tie";
   console.log(`${a.winner.title} ${sa}  vs  ${b.winner.title} ${sb}  → ${gap > 0 ? "+" : ""}${gap} (${verdict})`);
   rows.push({ name: a.name, wa: a.winner.title, wb: b.winner.title, sa, sb, gap, verdict });
 }
@@ -72,17 +90,21 @@ const scored = rows.filter((r) => r.sa != null && r.sb != null);
 const mean = (k) => (scored.length ? Math.round((10 * scored.reduce((s, r) => s + r[k], 0)) / scored.length) / 10 : 0);
 const winsA = scored.filter((r) => r.verdict === labelA).length;
 const winsB = scored.filter((r) => r.verdict === labelB).length;
+const tooClose = scored.filter((r) => r.verdict === "too-close").length;
 const ties = scored.filter((r) => r.verdict === "tie").length;
 const net = winsB - winsA;
 
 const L = [
   `# Judge run-scoring — ${labelA} vs ${labelB}`,
-  `_${new Date().toISOString().slice(0, 16).replace("T", " ")} · per-couple fit score from the calibrated judge · resolution floor ${FLOOR}_`,
+  `_${new Date().toISOString().slice(0, 16).replace("T", " ")} · per-couple fit score from the calibrated judge_`,
   ``,
   `## Coarse A/B gate`,
+  `- Floor **${FLOOR}**${FLOOR === CALIBRATED_FLOOR ? " (calibrated)" : " (override)"} · judge-confirmed win at gap ≥ **${CONFIRM}** (floor + ~${WOBBLE} wobble) · [${FLOOR}, ${CONFIRM}) = too close to call`,
   `- Mean fit — ${labelA}: **${mean("sa")}** · ${labelB}: **${mean("sb")}**`,
-  `- Couples cleared by floor (≥${FLOOR}) — ${labelB}: ${winsB} · ${labelA}: ${winsA} · within-noise ties: ${ties}`,
-  `- **Net lift (${labelB} − ${labelA}): ${net > 0 ? "+" : ""}${net}** couples — a real lift only if net is clearly positive AND the per-couple gaps clear the floor.`,
+  `- Judge-confirmed wins (gap ≥ ${CONFIRM}) — ${labelB}: ${winsB} · ${labelA}: ${winsA}`,
+  `- **Too close to call** ([${FLOOR}, ${CONFIRM}) gap) → **human blind pairwise**: ${tooClose}`,
+  `- Within-noise ties (< ${FLOOR}): ${ties}`,
+  `- **Net judge-confirmed lift (${labelB} − ${labelA}): ${net > 0 ? "+" : ""}${net}** couples${tooClose ? ` (+ ${tooClose} too-close → human pairwise, not counted)` : ""}.`,
   ``,
   `## Per-couple`,
   `| couple | ${labelA} winner | fit | ${labelB} winner | fit | gap | verdict |`,
@@ -97,6 +119,6 @@ const L = [
 mkdirSync(new URL("./results/", import.meta.url), { recursive: true });
 writeFileSync(new URL(`./results/judge-runs-${labelA}-vs-${labelB}.md`, import.meta.url), L.join("\n"));
 console.log(
-  `\nMean fit ${labelA} ${mean("sa")} · ${labelB} ${mean("sb")} · floor ${FLOOR} → ${labelB} ${winsB} / ${labelA} ${winsA} / tie ${ties} · net ${net > 0 ? "+" : ""}${net}`
+  `\nMean fit ${labelA} ${mean("sa")} · ${labelB} ${mean("sb")} · confirmed (≥${CONFIRM}) ${labelB} ${winsB} / ${labelA} ${winsA} · too-close ${tooClose} → human · tie ${ties} · net ${net > 0 ? "+" : ""}${net}`
 );
 console.log(`Wrote eval/results/judge-runs-${labelA}-vs-${labelB}.md`);
