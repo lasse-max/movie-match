@@ -149,3 +149,4 @@ vite.config.ts.timestamp-*
 
 # generated eval reports (score locally; couples.json + harness are tracked)
 /eval/results/
+eval/cache/
