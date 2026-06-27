@@ -1,22 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "./GameProvider";
 import { categoryLabel } from "@/lib/categories";
-import { hasEnoughSamples } from "@/lib/blendTypes";
+import { hasEnoughSamples, type BlendResult } from "@/lib/blendTypes";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
 import { Clapperboard, Spinner, goldCta, loaderCol, surfaceCard } from "./marquee";
+import { PassPhone } from "./PassPhone";
 
-// The "blending" phase: AI call #1 runs here, prefetching the candidate pool for
-// Round 2. On success we store it and advance straight into Round 2.
+// The "blending" phase: AI call #1 (the candidate pool for Round 2). This is also the
+// Round 1 → Round 2 BOUNDARY — the phone returns to Player 1 — so a "pass it back"
+// gate shows FIRST; the blend fires on mount in the BACKGROUND so it overlaps the
+// physical handoff, and we advance only once P1 is ready AND the pool is back.
 //
-// The effect is replay-safe: cleanup aborts the in-flight request and flags it
-// cancelled, so under React Strict Mode the first (aborted) run never dispatches
-// and the second run completes normally — it cannot get stuck on "Blending…".
+// Replay-safe: cleanup aborts the in-flight request and flags it cancelled, so under
+// Strict Mode the first (aborted) run never resolves and the second completes.
 export function BlendingScreen() {
   const { state, dispatch } = useGame();
+  const [ready, setReady] = useState(false); // boundary handoff: phone back to P1
+  const [result, setResult] = useState<BlendResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const advanced = useRef(false);
 
   const categories = state.round.categories;
   const region = state.setup.region;
@@ -50,8 +55,7 @@ export function BlendingScreen() {
           // non-empty-but-tiny pool would dead-end Player 2 — fail recoverably.
           setError("Couldn't line up enough titles for both of you — try different vibes.");
         } else {
-          dispatch({ type: "SET_BLEND", blend: data });
-          dispatch({ type: "COMPLETE_TURN", player: 1 }); // → Round 2 (no player turn here)
+          setResult(data as BlendResult); // hold it; advance once P1 has the phone
         }
       })
       .catch((e: unknown) => {
@@ -70,7 +74,30 @@ export function BlendingScreen() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [attempt, categories, region, dispatch]);
+  }, [attempt, categories, region]);
+
+  // Advance to Round 2 only once BOTH the handoff is done (P1 ready) and the pool is back.
+  useEffect(() => {
+    if (ready && result && !advanced.current) {
+      advanced.current = true;
+      dispatch({ type: "SET_BLEND", blend: result });
+      dispatch({ type: "COMPLETE_TURN", player: 1 }); // → Round 2 (P1's turn — no further gate)
+    }
+  }, [ready, result, dispatch]);
+
+  // Gate FIRST — the handoff happens as P2 finishes; the loader (and its "Up next ·
+  // Round 2" framing) then builds anticipation in the hands of whoever plays next (P1).
+  if (!ready) {
+    return (
+      <PassPhone
+        kicker="Round 1 done · no peeking"
+        lead="back to"
+        player="Player 1"
+        subcopy="Round 2 starts with Player 1 — hand the phone back, then tap below."
+        onReady={() => setReady(true)}
+      />
+    );
+  }
 
   if (error) {
     return (
@@ -81,6 +108,8 @@ export function BlendingScreen() {
           className={goldCta}
           onClick={() => {
             setError(null);
+            setResult(null);
+            advanced.current = false;
             setAttempt((a) => a + 1);
           }}
         >
