@@ -1,87 +1,109 @@
-# 🎬 Movie Match
+# Movie Match
 
-> Two people, one phone, three rounds, ~2 minutes — and a movie you both actually want to watch tonight.
+**Bring the fun back to movie night.**
 
-**Live demo:** _coming soon_ · **Built by:** Lasse
+You sit down together to watch a film. Half an hour later, you're still switching between streaming apps, scrolling through unfamiliar titles, and trying to agree. Each service shows its own catalog through its own recommendation feed. What it knows about your viewing history is only part of the picture.
 
----
+Movie Match brings that fragmented search together and centres it on two things that matter tonight: **your mood and the person sitting beside you**.
 
-## The problem
+It turns choosing into a game for two people sharing one phone. Pick your moods, react to films, and discover recommendations drawn from across streaming services. Designed to be played in under three minutes, the game produces a shortlist of up to five recommendations with the platforms where you can watch them. Choosing the film becomes part of the night you were looking forward to.
 
-Picking a movie as a couple is a small daily frustration that streaming apps make worse:
+**Beta 1.9 · focused user testing.** Strong early feedback is helping shape the experience ahead of launch.
 
-- **Recommendations are siloed per account.** His feed is tuned to him, hers to her — neither reflects *the two of them together.*
-- **Mood beats history.** What you want tonight swings hard with your mood, and no static "Recommended for You" row captures that.
-- **The title lives somewhere else.** Even once you agree, you're hunting across services to find where it streams.
+**[Try the beta](https://movie-match-rho.vercel.app)**
 
-Movie Match turns the decision into a fast, fun game instead of a scroll.
+Built by Lasse as part of Layline, with AI-assisted implementation and review.
 
-## How it works
+## Built for tonight, together
 
-A ~2–3 minute game played by passing one phone back and forth:
+A viewing history can tell you what someone watched before. It cannot tell the whole story of what two people want from this evening. Movie Match starts with both players' current preferences, then uses their reactions to find common ground.
 
-1. **Round 1 — Categories & mood.** Each player picks 2–3 categories/moods. The app blends them — including fuzzy overlaps a genre tag can't (e.g. *apocalyptic horror + action → Train to Busan, A Quiet Place*).
-2. **Round 2 — Swipe the vibe.** A few well-known titles from the blended pool, hitting different sub-genres. Each player swipes toward what fits — revealing tone, pacing, and darkness that genre labels miss.
-3. **Round 3 — Final picks.** Each player selects every title they'd be willing to watch. Overlap = match. No overlap → a quick tiebreak round.
+The search spans providers, while the final recommendations respect the couple's region, subscriptions, and willingness to rent. The result is a short set of options you can act on together.
 
-Throughout, results are filtered to **services you actually subscribe to** (plus an optional "willing to pay tonight?" tier), so the pick is always watchable right now.
+## Try it
 
-## Architecture — two clean layers
+Open the beta with another person and choose your region and services. Then pass the phone between players:
 
-The design deliberately separates objective facts from subjective taste. This keeps the AI confined to the judgment calls it's good at, and keeps anything factual deterministic.
+1. **Choose your mood.** Each player picks genres or moods they would enjoy tonight.
+2. **React to titles.** Positive, negative, and neutral responses help refine each player's preferences.
+3. **Choose your finalists.** Each player selects films they would watch. Shared picks lead to a match; a tiebreak or bridge recommendation handles the absence of a direct overlap.
 
-| Layer | Responsibility | How |
-|---|---|---|
-| **Facts** | What exists & where it streams | [TMDB API](https://developer.themoviedb.org/) — metadata, genres, watch providers (powered by JustWatch) |
-| **Taste** | Blending tastes & reading mood | Claude API — **exactly two calls** per session |
+See where each recommendation is available and explore the alternatives if the first suggestion does not land. Recommendations can include a mutual pick or a clearly labelled bridge between your tastes.
 
-**Where the AI is — and isn't.** Genre intersection is plain logic. The AI earns its place only in the two spots rule-based code fails: blending fuzzy cross-genre vibes (Round 1 → 2) and inferring a latent mood pattern from a player's swipes (Round 2 → 3). Everything factual stays deterministic.
+<!-- Optional: add a screenshot of the result and alternatives here.
+Use a real product capture; add the image only after the asset exists.
+-->
 
+## Product decisions
+
+| Decision | Why it matters |
+|---|---|
+| One phone, with explicit handoffs | Makes the shared session simple to start and keeps each player's turn clear. |
+| Mood and reactions as inputs | Captures what someone wants tonight, without requiring viewing history. |
+| A neutral response with no positive or negative weight | Avoids treating an unfamiliar title as a dislike. |
+| Provider eligibility enforced in code | Keeps streaming constraints separate from the model's taste judgments. |
+| Alternatives and a distinct bridge path | Supports a useful next step when tastes do not directly overlap. |
+
+## How the system works
+
+```text
+Region + services + two players' mood choices
+    → taste strategy
+    → TMDB candidate pool
+    → reactions from both players
+    → mood inference and candidate ranking
+    → provider eligibility checks
+    → final picks → overlap / tiebreak / bridge
 ```
-setup → Round 1 → [AI: blend] → Round 2 → [AI: infer pattern] → Round 3 → match / tiebreak
-```
 
-## Tech stack
+Claude has two stages of responsibility: interpret the initial preferences into a search strategy, then interpret reactions and rank supplied candidates. The application validates model output and provides deterministic fallbacks.
 
-- **Frontend:** React (web-first, mobile-responsive, swipe interactions)
-- **Movie data & availability:** TMDB API
-- **AI:** Claude API (`claude-sonnet-4-6`) — 2 calls/session
-- **Backend:** serverless functions (keeps API keys off the client)
-- **Hosting:** Vercel
-- *Optional later:* vector embeddings for similarity-based blending
+Movie identities, metadata, and watch-provider information come from TMDB. The model cannot introduce an arbitrary title into the result: selections are checked against the supplied candidate set. Eligibility and final selection rules live in application code.
 
-## Getting started
+**Stack:** Next.js App Router, React, TypeScript, Tailwind CSS, Claude via the Anthropic SDK, TMDB, Vitest, and Vercel.
+
+## Evaluation and limitations
+
+Beta feedback is informing the launch experience. Alongside those sessions, the [evaluation harness](https://github.com/lasse-max/movie-match/tree/main/eval) exercises the matching pipeline with fixed couple profiles and scripted reactions, helping compare whether recommendations plausibly fit both players.
+
+- Streaming availability depends on third-party data and can differ from what a provider offers at the moment of playback.
+- Limited subscriptions and strongly divergent tastes can leave a thin candidate pool.
+- API latency and failures can affect a session; fallbacks preserve a usable path where possible.
+- The current interaction uses one shared phone. Separate-device synchronisation is future work.
+
+## Run locally
+
+Requires Node.js 20.9 or later, matching the project's Next.js dependency.
 
 ```bash
 git clone https://github.com/lasse-max/movie-match.git
 cd movie-match
-npm install
-cp .env.example .env.local   # add TMDB_READ_ACCESS_TOKEN and ANTHROPIC_API_KEY
+npm ci
+cp .env.example .env.local
+```
+
+Set `TMDB_READ_ACCESS_TOKEN` and `ANTHROPIC_API_KEY` in `.env.local`, then run:
+
+```bash
 npm run dev
 ```
 
-### Environment variables
+These credentials are read by server-side code. Keep `.env.local` out of Git.
 
-| Key | Where to get it |
-|---|---|
-| `TMDB_READ_ACCESS_TOKEN` | https://www.themoviedb.org/settings/api (free) — use the **v4 API Read Access Token** |
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com/ |
+Available checks:
 
-> ⚠️ Both keys are used **server-side only** via serverless functions — never exposed to the browser.
+```bash
+npm run lint
+npm test
+npm run build
+```
 
-## Roadmap
+## Next
 
-- [x] Phase 0 — Plan (BRD + roadmap)
-- [ ] **Phase 1 — MVP (pass-the-phone):** 3-round flow, TMDB pool, subscription filter, 2 AI calls, deployed
-- [ ] Phase 2 — Polish: swipe animations, tiebreak logic, loading states, this README + demo GIF
-- [ ] Phase 3 — "Ultimate": two-phone real-time sync
-- [ ] Phase 4 (optional): watch history, embeddings-based blending
-
-## Notes & limitations
-
-- TMDB streaming availability is **region-specific** and refreshed **daily** — treated as "what's streaming today."
-- TMDB doesn't expose in-app deep links, so the final pick links out to JustWatch / the provider.
+- Continue beta 1.9 testing and use feedback from couples to refine the launch experience.
+- Improve candidate variety while preserving eligibility and mutual fit.
+- Add a short visual walkthrough and broaden repeatable end-to-end checks.
 
 ## License
 
-MIT
+[MIT](https://github.com/lasse-max/movie-match/blob/main/LICENSE).
