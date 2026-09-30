@@ -30,9 +30,15 @@ Open the beta with another person and choose your region and services. Then pass
 
 See where each recommendation is available and explore the alternatives if the first suggestion does not land. Recommendations can include a mutual pick or a clearly labelled bridge between your tastes.
 
-<!-- Optional: add a screenshot of the result and alternatives here.
-Use a real product capture; add the image only after the asset exists.
--->
+## Screenshots
+
+<p>
+  <img src="https://raw.githubusercontent.com/lasse-max/lasse-max/main/assets/movie-match/setup.jpg" width="220" alt="Movie Match setup: choose a region and streaming services" />
+  <img src="https://raw.githubusercontent.com/lasse-max/lasse-max/main/assets/movie-match/swipe.jpg" width="220" alt="Movie Match swipe round: react to a film with Not it, Not sure or This vibe" />
+  <img src="https://raw.githubusercontent.com/lasse-max/lasse-max/main/assets/movie-match/match.jpg" width="220" alt="Movie Match result: a shared film choice with a streaming link and alternatives" />
+</p>
+
+*Choose your services, react to films, and find a match. Screens supplied on 30 September 2026; titles and availability reflect the sessions shown.*
 
 ## Product decisions
 
@@ -102,7 +108,7 @@ npm run build
 
 - Continue beta 1.9 testing and use feedback from couples to refine the launch experience.
 - Improve candidate variety while preserving eligibility and mutual fit.
-- Add a short visual walkthrough and broaden repeatable end-to-end checks.
+- Add a short video walkthrough and broaden repeatable end-to-end checks.
 
 ## License
 
