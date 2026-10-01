@@ -116,3 +116,10 @@ alter table public.movies enable row level security;
 
 revoke all on public.movies from anon, authenticated;
 revoke all on function public.match_movies(vector, integer, integer[]) from anon, authenticated, public;
+
+-- Make the server's access explicit. Supabase grants the service role via default
+-- privileges (not through PUBLIC), so the revokes above don't touch it — but grant
+-- exactly what the build and runtime need so it never depends on that default.
+-- Least privilege: the catalogue build upserts (select/insert/update); no delete.
+grant select, insert, update on public.movies to service_role;
+grant execute on function public.match_movies(vector, integer, integer[]) to service_role;
