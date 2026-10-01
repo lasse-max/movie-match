@@ -86,6 +86,10 @@ returns table (
 language sql
 stable
 security invoker
+-- HNSW returns at most hnsw.ef_search rows per scan (default 40), whatever `k`
+-- asks for. The runtime wants more than 40 so availability filtering still leaves
+-- enough, so raise it. ef_search must be >= the largest `k` we allow (200).
+set hnsw.ef_search = 200
 as $$
   select
     m.tmdb_id, m.title, m.year, m.overview, m.keywords, m.genre_ids,
@@ -94,9 +98,11 @@ as $$
     (1 - (m.embedding <=> query))::real as similarity
   from public.movies m
   where m.embedding is not null
-    and not (m.tmdb_id = any(exclude_ids))
+    -- null-safe: a null exclude_ids must not wipe the result set.
+    and not (m.tmdb_id = any(coalesce(exclude_ids, '{}')))
   order by m.embedding <=> query
-  limit greatest(k, 0);
+  -- clamp k to 1..200 (<= ef_search); a null or out-of-range k never runs wild.
+  limit least(greatest(coalesce(k, 20), 1), 200);
 $$;
 
 -- ---------------------------------------------------------------------------
