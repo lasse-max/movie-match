@@ -94,6 +94,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// Candidate ids a player's list sent to Claude (parsed from the prompt).
+const promptCandidates = (player: 1 | 2): number[] => {
+  const text: string = createMock.mock.calls[0][0].messages[0].content;
+  const block = text.split(`Player ${player} candidates`)[1]?.split("\n\n")[0] ?? "";
+  return [...block.matchAll(/^\s+- (\d+):/gm)].map((m) => Number(m[1]));
+};
+const recIds = (r: InferResult, p: 1 | 2) => r[p].recs.map((x) => x.id);
+
 // ---------------------------------------------------------------------------
 // Golden fixture: cross-player + own likes + fresh + padding + availability +
 // provider backfill, with "Not it" swipes that E-9 leaves untouched (each player
@@ -201,5 +209,106 @@ describe("flag off: today's path, unchanged (golden)", () => {
         },
       }
     `);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E-9 · rejections go first. Applies with or without embeddings (flag on below).
+// Each case is built so the rejected film WOULD reach Round 3 without the rule.
+// ---------------------------------------------------------------------------
+describe("E-9: rejections go first (flag off)", () => {
+  beforeEach(() => {
+    vi.stubEnv("EMBEDDINGS_ENABLED", "false");
+    providersMock.mockResolvedValue(onNetflix); // everything watchable: availability can't hide a leak
+  });
+
+  it("a film BOTH players rejected never reaches Round 3: not padding, backfill, provider backfill or cross-player", async () => {
+    // 50 fits both moods; both rejected it. P2 ALSO lists it as a like (a malformed
+    // client), which would make it a cross-player pick for P1.
+    const pool = [
+      pm(50, { genreIds: [878, 28], voteCount: 3000 }),
+      pm(51, { genreIds: [878] }),
+      pm(52, { genreIds: [28] }),
+      pm(53, { genreIds: [878] }),
+      pm(54, { genreIds: [28] }),
+    ];
+    discoverMock.mockResolvedValue([rec(50, { genre_ids: [878, 28] })]); // the service catalog returns it too
+    const result = await inferMoods(
+      pool,
+      { 1: { yes: [51], no: [50] }, 2: { yes: [52, 50], no: [50] } },
+      { 1: ["Sci-Fi"], 2: ["Action"] },
+      "US",
+      [8],
+      false
+    );
+    expect(promptCandidates(1)).not.toContain(50);
+    expect(promptCandidates(2)).not.toContain(50);
+    expect(recIds(result, 1)).not.toContain(50);
+    expect(recIds(result, 2)).not.toContain(50);
+  });
+
+  it("a player's OWN rejection never pads their own list, but can still pad the other player's", async () => {
+    const pool = [
+      pm(60, { genreIds: [878, 28], voteCount: 3000 }), // fits both moods; only P1 rejected it
+      pm(61, { genreIds: [878] }),
+      pm(62, { genreIds: [28] }),
+      pm(63, { genreIds: [878] }),
+      pm(64, { genreIds: [28] }),
+    ];
+    discoverMock.mockResolvedValue([rec(60, { genre_ids: [878, 28] })]);
+    const result = await inferMoods(
+      pool,
+      { 1: { yes: [61], no: [60] }, 2: { yes: [62], no: [] } },
+      { 1: ["Sci-Fi"], 2: ["Action"] },
+      "US",
+      [8],
+      false
+    );
+    expect(promptCandidates(1)).not.toContain(60);
+    expect(recIds(result, 1)).not.toContain(60); // not padding, backfill or provider backfill
+    expect(recIds(result, 2)).toContain(60); // P2 never rejected it
+  });
+
+  it("an own rejection may still reach the player as the OTHER player's pick (cross-player)", async () => {
+    // Only padding is barred. If the other player liked it, it is a real match signal.
+    const pool = [pm(60, { genreIds: [878, 28] }), pm(61, { genreIds: [878] }), pm(62, { genreIds: [28] })];
+    const result = await inferMoods(
+      pool,
+      { 1: { yes: [61], no: [60] }, 2: { yes: [62, 60], no: [] } },
+      { 1: ["Sci-Fi"], 2: ["Action"] },
+      "US",
+      [8],
+      false
+    );
+    expect(result[1].recs.find((r) => r.id === 60)?.source).toBe("cross-player");
+  });
+
+  it("a fresh film from a liked film's franchise never pushes the liked film out", async () => {
+    // P1 liked 70 (franchise 777). TMDB recommends 170, a sequel in the same
+    // franchise, and the AI ranks the sequel first. Without the guard the
+    // franchise dedup keeps the higher-ranked fresh sequel and drops the like.
+    const pool = [
+      pm(70, { genreIds: [878], collectionId: 777 }),
+      pm(71, { genreIds: [878] }),
+      pm(72, { genreIds: [28] }),
+    ];
+    recMock.mockResolvedValue([rec(170)]);
+    collectionMock.mockImplementation(async (id: number) => (id === 170 ? 777 : null));
+    createMock.mockResolvedValue(
+      aiInfer([
+        { player: 1, moodRead: { summary: "Sci-fi", axes: [] }, recIds: [170, 70, 71] },
+        { player: 2, moodRead: { summary: "Action", axes: [] }, recIds: [72] },
+      ])
+    );
+    const result = await inferMoods(
+      pool,
+      { 1: { yes: [70], no: [] }, 2: { yes: [72], no: [] } },
+      { 1: ["Sci-Fi"], 2: ["Action"] },
+      "US",
+      [8],
+      false
+    );
+    expect(recIds(result, 1)).toContain(70); // the liked film stays
+    expect(recIds(result, 1)).not.toContain(170); // the same-franchise fresh pick is dropped
   });
 });

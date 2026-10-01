@@ -118,13 +118,36 @@ const candidateToRec = (c: Candidate): PlayerRec => ({
   availability: NO_AVAILABILITY, // replaced by the availability step
 });
 
+// ---- E-9: rejections go first (with or without embeddings) -----------------
+
+/** "Not it" swipes. A film BOTH players rejected never reaches Round 3 by any
+ * path; a player's OWN rejection never pads their own list (it may still reach
+ * them as the other player's pick). `own[p]` contains `both`. */
+interface Rejections {
+  both: Set<number>;
+  own: Record<Player, Set<number>>;
+}
+
+function rejectionsOf(swipes: Swipes): Rejections {
+  const own1 = new Set(swipes[1].no);
+  const own2 = new Set(swipes[2].no);
+  return { both: new Set([...own1].filter((id) => own2.has(id))), own: { 1: own1, 2: own2 } };
+}
+
+/** Last line of defence on a player's Round 3 list (every source already
+ * excludes these): drop a both-rejected film, and an own-rejected film that
+ * arrived any way other than as the other player's pick. */
+const keepAfterRejections = (r: PlayerRec, player: Player, rej: Rejections) =>
+  !rej.both.has(r.id) && (r.source === "cross-player" || !rej.own[player].has(r.id));
+
 // ---- candidate assembly ----------------------------------------------------
 
 /** ≤2 best-rated fresh titles from the recommendation graph (quality-floored). */
 async function freshExpansion(
   seeds: PoolMovie[],
   excludeIds: Set<number>,
-  allowKidsFare: boolean
+  allowKidsFare: boolean,
+  likedCollections: Set<number>
 ): Promise<Candidate[]> {
   const eligible: Candidate[] = [];
   const seen = new Set(excludeIds);
@@ -146,8 +169,13 @@ async function freshExpansion(
   // Prefer the best-rated fits rather than the first ones the graph returned, then
   // attach collection ids so a fresh sequel of a pool title can be de-duped.
   const kept = eligible.sort((a, b) => b.voteAverage - a.voteAverage).slice(0, MAX_FRESH);
-  return Promise.all(
+  const withCollections = await Promise.all(
     kept.map(async (c) => ({ ...c, collectionId: await getCollectionId(c.id) }))
+  );
+  // E-9: fresh films take padding slots only. One from a liked film's franchise
+  // would win the downstream franchise dedup and push the liked film out.
+  return withCollections.filter(
+    (c) => c.collectionId == null || !likedCollections.has(c.collectionId)
   );
 }
 
@@ -156,7 +184,8 @@ function assembleCandidates(
   pool: PoolMovie[],
   swipes: Swipes,
   fresh: Candidate[],
-  anchor: Set<number>
+  anchor: Set<number>,
+  rej: Rejections
 ): Candidate[] {
   const other: Player = player === 1 ? 2 : 1;
   const byId = new Map(pool.map((m) => [m.id, m]));
@@ -183,19 +212,23 @@ function assembleCandidates(
 
   // (a) cross-player positives that fit this player's mood — the easiest match.
   for (const m of lookup(swipes[other].yes)) {
-    if (fitsMood(m.genreIds)) add(poolToCandidate(m, "cross-player"));
+    if (fitsMood(m.genreIds) && !rej.both.has(m.id)) add(poolToCandidate(m, "cross-player"));
   }
   // (b) this player's own positives.
-  for (const m of lookup(swipes[player].yes)) add(poolToCandidate(m, "swipe"));
-  // (c) fresh expansion.
-  for (const c of fresh) add(c);
+  for (const m of lookup(swipes[player].yes)) {
+    if (!rej.both.has(m.id)) add(poolToCandidate(m, "swipe"));
+  }
+  // (c) fresh expansion — after every liked film, so it only ever takes padding
+  // slots (the final slice drops padding first, then fresh, never a like).
+  for (const c of fresh) if (!rej.own[player].has(c.id)) add(c);
   // Pad with the best remaining MOOD-FIT pool titles so the AI always has enough
   // to rank (off-mood titles stay out — same gate as cross-player). Ordered by the
   // soft Round 3 rank, so the padding leans toward discoveries over the canon.
+  // Never this player's own "Not it" (E-9).
   if (candidates.length < TARGET_RECS + 1) {
     for (const m of [...pool].sort((a, b) => round3Rank(b) - round3Rank(a))) {
       if (candidates.length >= MAX_CANDIDATES) break;
-      if (fitsMood(m.genreIds)) add(poolToCandidate(m, "swipe"));
+      if (fitsMood(m.genreIds) && !rej.own[player].has(m.id)) add(poolToCandidate(m, "swipe"));
     }
   }
   return candidates.slice(0, MAX_CANDIDATES);
@@ -480,11 +513,18 @@ export async function inferMoods(
   const anchor1 = anchorGenres(categories[1]);
   const anchor2 = anchorGenres(categories[2]);
   const poolIds = new Set(pool.map((m) => m.id));
-  const fresh1 = await freshExpansion(positives(1), poolIds, allowKidsFare);
-  const fresh2 = await freshExpansion(positives(2), poolIds, allowKidsFare);
+  const rej = rejectionsOf(swipes);
+  // Franchises of the films either player liked: no fresh title may come from one.
+  const likedCollections = new Set(
+    [...swipes[1].yes, ...swipes[2].yes]
+      .map((id) => byId.get(id)?.collectionId)
+      .filter((c): c is number => c != null)
+  );
+  const fresh1 = await freshExpansion(positives(1), poolIds, allowKidsFare, likedCollections);
+  const fresh2 = await freshExpansion(positives(2), poolIds, allowKidsFare, likedCollections);
 
-  const cand1 = assembleCandidates(1, pool, swipes, fresh1, anchor1);
-  const cand2 = assembleCandidates(2, pool, swipes, fresh2, anchor2);
+  const cand1 = assembleCandidates(1, pool, swipes, fresh1, anchor1, rej);
+  const cand2 = assembleCandidates(2, pool, swipes, fresh2, anchor2, rej);
 
   const ai = await callInferAI(pool, swipes, cand1, cand2);
 
@@ -495,7 +535,10 @@ export async function inferMoods(
   ): Promise<PlayerInference> => {
     const recs = finalizeRecs(cands, ai ? ai[player].recIds : []);
     const recIds = new Set(recs.map((r) => r.id));
-    const backfill = backfillCandidates(pool, recIds, anchor).map(candidateToRec);
+    // Backfill is padding too: never this player's own "Not it" (E-9).
+    const backfill = backfillCandidates(pool, new Set([...recIds, ...rej.own[player]]), anchor).map(
+      candidateToRec
+    );
 
     // Fit-ranked candidate list (recs by fit, then backfill by fit/voteCount).
     // Eligibility NEVER reorders this — willing-to-pay/access-type only FILTERS at
@@ -546,7 +589,7 @@ export async function inferMoods(
         services,
         willingToPay,
         region,
-        shownIds,
+        new Set([...shownIds, ...rej.own[player]]), // a pool film they rejected may be on their service
         shownCollections,
         allowKidsFare,
         TARGET_RECS - eligible
@@ -560,7 +603,7 @@ export async function inferMoods(
     const moodRead =
       ai && hasSignal ? ai[player].moodRead : round1Mood(categories[player]);
 
-    return { moodRead, recs: finalists };
+    return { moodRead, recs: finalists.filter((r) => keepAfterRejections(r, player, rej)) };
   };
 
   const [p1, p2] = await Promise.all([build(1, cand1, anchor1), build(2, cand2, anchor2)]);
