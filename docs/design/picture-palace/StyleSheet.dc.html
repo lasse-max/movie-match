@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Movie Match style sheet</title>
+<script src="../support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Big+Shoulders+Inline+Display:wght@800&family=Courier+Prime:wght@400;700&family=Libre+Franklin:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0A09;color:#F2E8D5;font-family:'Libre Franklin','Franklin Gothic Medium','Helvetica Neue',Arial,sans-serif}
+a{color:#F2CF7E}a:hover{color:#FFE9B0}
+.display{font-family:'Big Shoulders Display','Oswald','Arial Narrow',sans-serif;font-weight:900;text-transform:uppercase}
+.inline{font-family:'Big Shoulders Inline Display','Big Shoulders Display','Arial Narrow',sans-serif;font-weight:800;text-transform:uppercase}
+.mono{font-family:'Courier Prime','Courier New',monospace;text-transform:uppercase;letter-spacing:.28em;font-size:11px;font-weight:700}
+.bulbs{display:flex;justify-content:space-between;padding:0 12px}
+.bulb{width:7px;height:7px;border-radius:50%;background:#FFE9B0;box-shadow:0 0 8px 2px rgba(255,200,110,.65);animation:mmChase 1.2s ease-in-out infinite}
+.bulb:nth-child(3n+2){animation-delay:.4s}
+.bulb:nth-child(3n){animation-delay:.8s}
+@keyframes mmChase{0%,100%{opacity:1}50%{opacity:.25;box-shadow:0 0 0 0 rgba(255,200,110,0)}}
+@media (prefers-reduced-motion: reduce){.bulb{animation:none}}
+.sw{width:100%;height:96px;border-radius:10px}
+.ticket{display:flex;align-items:stretch;width:280px;height:64px;background:#B8141E;color:#F2E8D5;border-radius:8px;-webkit-mask:radial-gradient(circle 10px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 10px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat;mask:radial-gradient(circle 10px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 10px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat}
+.curtainsw{width:150px;height:130px;border-radius:6px;position:relative;overflow:hidden;background:linear-gradient(90deg,rgba(0,0,0,.35),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,rgba(0,0,0,.35)),repeating-linear-gradient(90deg,#5E0A10 0,#9E121B 11px,#C3202A 19px,#9E121B 27px,#5E0A10 38px)}
+.curtainsw::after{content:"";position:absolute;left:0;right:0;bottom:0;height:10px;background:repeating-linear-gradient(90deg,#D6A24A 0 3px,#8A6526 3px 6px)}
+.rule{display:flex;gap:12px;font-size:15px;line-height:1.5;color:rgba(242,232,213,.84)}
+.rule b{color:#F2E8D5}
+</style>
+</helmet>
+<div style="width: 1200px; height: 1600px; box-sizing: border-box; padding: 64px; display: flex; flex-direction: column; gap: 52px; background: #0E0A09; color: #F2E8D5; overflow: hidden">
+
+  <header style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 48px; align-items: end">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <span class="mono" style="color: #D6A24A">Movie Match · design pass 2</span>
+      <h1 class="display" style="margin: 0; font-size: 120px; line-height: 0.82; letter-spacing: -0.01em">Picture<br><span style="color: #E3312D">Palace</span></h1>
+    </div>
+    <p style="margin: 0; font-size: 18px; line-height: 1.5; color: rgba(242,232,213,0.8); text-wrap: pretty">An old picture palace meets the mid-century two-colour poster. Three materials, each with one job: <b style="color: #F2CF7E">light</b>, <b style="color: #E3312D">fabric</b> and <b style="color: #F2E8D5">paper</b>.</p>
+  </header>
+
+  <section style="display: grid; grid-template-columns: 2fr 3fr 3fr; gap: 28px">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <span class="mono" style="color: #D6A24A">Light · brass and bulbs</span>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+        <div style="display: flex; flex-direction: column; gap: 8px"><div class="sw" style="background: #D6A24A"></div><span style="font-weight: 700; font-size: 14px">Brass</span><span class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: rgba(242,232,213,0.62)">#D6A24A · CTAs, stamps</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div class="sw" style="background: #FFE9B0; box-shadow: 0 0 24px 2px rgba(255,200,110,0.45)"></div><span style="font-weight: 700; font-size: 14px">Bulb</span><span class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: rgba(242,232,213,0.62)">#FFE9B0 · glow only</span></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <span class="mono" style="color: #E3312D">Fabric · velvet</span>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+        <div style="display: flex; flex-direction: column; gap: 8px"><div class="sw" style="background: #B8141E"></div><span style="font-weight: 700; font-size: 14px">House velvet</span><span class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: rgba(242,232,213,0.62)">#B8141E · tickets, titles</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div class="sw" style="background: #6E0B12"></div><span style="font-weight: 700; font-size: 14px">Oxblood</span><span class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: rgba(242,232,213,0.62)">#6E0B12 · folds, pressed</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div class="sw" style="background: #E3312D"></div><span style="font-weight: 700; font-size: 14px">Signal red</span><span class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: rgba(242,232,213,0.62)">#E3312D · red text on black</span></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <span class="mono" style="color: rgba(242,232,213,0.72)">Paper and the house</span>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+        <div style="display: flex; flex-direction: column; gap: 8px"><div class="sw" style="background: #F2E8D5"></div><span style="font-weight: 700; font-size: 14px">Poster cream</span><span class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: rgba(242,232,213,0.62)">#F2E8D5 · cards, text</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div class="sw" style="background: #17100E; box-shadow: inset 0 0 0 1px rgba(242,232,213,0.14)"></div><span style="font-weight: 700; font-size: 14px">Aisle</span><span class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: rgba(242,232,213,0.62)">#17100E · raised surface</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div class="sw" style="background: #0E0A09; box-shadow: inset 0 0 0 1px rgba(242,232,213,0.14)"></div><span style="font-weight: 700; font-size: 14px">Projection black</span><span class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: rgba(242,232,213,0.62)">#0E0A09 · the room</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 48px">
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border-radius: 16px; background: #17100E">
+      <span class="mono" style="color: #D6A24A">Big Shoulders Display 900</span>
+      <span class="display" style="font-size: 84px; line-height: 0.85">Admit two</span>
+      <span style="font-size: 14px; color: rgba(242,232,213,0.7)">Headlines and film titles. Always caps, set tight. The poster voice.</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border-radius: 16px; background: #17100E">
+      <span class="mono" style="color: #D6A24A">Big Shoulders Inline Display</span>
+      <span class="inline" style="font-size: 74px; line-height: 0.9; color: #FFE9B0; text-shadow: 0 0 20px rgba(255,200,110,0.5)">Now showing</span>
+      <span style="font-size: 14px; color: rgba(242,232,213,0.7)">Marquee signage only: the sign on setup, the valance, the match.</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border-radius: 16px; background: #17100E">
+      <span class="mono" style="color: #D6A24A">Libre Franklin 400 to 800</span>
+      <span style="font-size: 26px; line-height: 1.3; font-weight: 500">Tell us where you watch. Every pick will be something you can stream tonight.</span>
+      <span style="font-size: 14px; color: rgba(242,232,213,0.7)">UI and body. A Franklin Gothic revival, the sans of mid-century posters and playbills.</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border-radius: 16px; background: #17100E">
+      <span class="mono" style="color: #D6A24A">Courier Prime 700</span>
+      <span class="mono" style="font-size: 20px; line-height: 1.7; letter-spacing: 0.24em">Round 2 · The vibe<br>Directed by · Runtime</span>
+      <span style="font-size: 14px; color: rgba(242,232,213,0.7)">Tickets, labels and credits. Always caps, wide tracking, small.</span>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 18px">
+    <span class="mono" style="color: #D6A24A">Motifs</span>
+    <div style="display: flex; align-items: center; gap: 36px">
+      <div style="display: flex; flex-direction: column; gap: 10px; width: 220px; padding: 14px 0; border-radius: 12px; background: #17100E">
+        <div class="bulbs"><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span></div>
+        <span class="inline" style="text-align: center; font-size: 30px; line-height: 1; color: #FFE9B0">Tonight</span>
+        <div class="bulbs"><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span></div>
+      </div>
+      <div class="ticket">
+        <span class="mono" style="display: flex; align-items: center; justify-content: center; width: 80px; flex: none; border-right: 2px dashed rgba(242,232,213,0.5); font-size: 11px; letter-spacing: 0.2em; line-height: 1.35; text-align: center">Admit<br>two</span>
+        <span class="display" style="display: flex; align-items: center; padding: 0 18px; font-size: 26px">Take your seats</span>
+      </div>
+      <span class="display" style="padding: 6px 16px 4px; border: 4px solid #F2CF7E; border-radius: 8px; color: #F2CF7E; font-size: 36px; line-height: 1; transform: rotate(-12deg)">This vibe</span>
+      <div style="position: relative; width: 130px; height: 130px; flex: none; border-radius: 50%; background: #1A1411; box-shadow: inset 0 0 0 2px rgba(242,232,213,0.5), 0 0 0 6px #0E0A09, 0 0 0 7px rgba(242,232,213,0.22)">
+        <div style="position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: rgba(242,232,213,0.4)"></div>
+        <div style="position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: rgba(242,232,213,0.4)"></div>
+        <div style="position: absolute; inset: 18px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(242,232,213,0.5)"></div>
+        <span class="display" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 76px; line-height: 1">2</span>
+      </div>
+      <div class="curtainsw"></div>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <span class="mono" style="color: #D6A24A">Motion</span>
+      <div class="rule"><span class="mono" style="color: #D6A24A; padding-top: 4px">01</span><span><b>One entry curve.</b> cubic-bezier(0.16, 1, 0.3, 1), 0.5 to 0.6 s, lists stagger by 50 ms.</span></div>
+      <div class="rule"><span class="mono" style="color: #D6A24A; padding-top: 4px">02</span><span><b>The curtain is the peak.</b> 1.9 s, cubic-bezier(0.65, 0, 0.25, 1). Tap to open early.</span></div>
+      <div class="rule"><span class="mono" style="color: #D6A24A; padding-top: 4px">03</span><span><b>The countdown hides the wait.</b> It loops while the AI works and never adds time.</span></div>
+      <div class="rule"><span class="mono" style="color: #D6A24A; padding-top: 4px">04</span><span><b>Physical swipe.</b> The card flies with a 16 degree tilt and a stamp. Press scales to 0.97.</span></div>
+      <div class="rule"><span class="mono" style="color: #D6A24A; padding-top: 4px">05</span><span><b>Reduced motion means a clean cut.</b> Every animation becomes instant.</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <span class="mono" style="color: #D6A24A">Rules</span>
+      <div class="rule"><span class="mono" style="color: #E3312D; padding-top: 4px">A</span><span><b>Brass is light, red is fabric, cream is paper.</b> No colour does another's job.</span></div>
+      <div class="rule"><span class="mono" style="color: #E3312D; padding-top: 4px">B</span><span><b>Real posters, framed.</b> Our graphics never replace the film's own art.</span></div>
+      <div class="rule"><span class="mono" style="color: #E3312D; padding-top: 4px">C</span><span><b>Every fact on screen comes from TMDB.</b> No AI-written trivia.</span></div>
+      <div class="rule"><span class="mono" style="color: #E3312D; padding-top: 4px">D</span><span><b>"Not sure" stays equal.</b> Same size and weight as the other two choices.</span></div>
+      <div class="rule"><span class="mono" style="color: #E3312D; padding-top: 4px">E</span><span><b>Big moments stay short.</b> Under 5 s per game in total, and skippable on replay.</span></div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Setup A2 revised</title>
+<script src="../support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Big+Shoulders+Inline+Display:wght@800&family=Courier+Prime:wght@400;700&family=Libre+Franklin:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0A09;color:#F2E8D5;font-family:'Libre Franklin','Franklin Gothic Medium','Helvetica Neue',Arial,sans-serif}
+a{color:#F2CF7E}a:hover{color:#FFE9B0}
+.display{font-family:'Big Shoulders Display','Oswald','Arial Narrow',sans-serif;font-weight:900;text-transform:uppercase}
+.mono{font-family:'Courier Prime','Courier New',monospace;text-transform:uppercase;letter-spacing:.28em;font-size:11px;font-weight:700}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer}
+.ico{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.hscroll{scrollbar-width:none}.hscroll::-webkit-scrollbar{display:none}
+.bulbs{display:flex;justify-content:space-between;padding:0 14px}
+.bulb{width:7px;height:7px;border-radius:50%;background:#FFE9B0;box-shadow:0 0 8px 2px rgba(255,200,110,.65);animation:mmChase 1.2s ease-in-out infinite}
+.bulb:nth-child(3n+2){animation-delay:.4s}.bulb:nth-child(3n){animation-delay:.8s}
+@keyframes mmChase{0%,100%{opacity:1}50%{opacity:.25;box-shadow:0 0 0 0 rgba(255,200,110,0)}}
+.region{appearance:none;-webkit-appearance:none;background:transparent;border:0;border-radius:0;color:#F2E8D5;cursor:pointer;min-height:44px}
+.region option{color:#0E0A09;font-size:16px}
+.svc{position:relative;display:flex;align-items:center;gap:10px;height:46px;padding:0 12px 0 9px;border-radius:12px;background:#17100E;text-align:left;transition:background .3s cubic-bezier(.16,1,.3,1),box-shadow .3s cubic-bezier(.16,1,.3,1),transform .18s cubic-bezier(.16,1,.3,1)}
+.svc .logo{width:32px;height:32px;flex:none;display:block;border-radius:8px;background:#2A1D19;object-fit:cover;filter:grayscale(1) sepia(.3) brightness(.72) contrast(1.05);opacity:.75;transition:filter .35s cubic-bezier(.16,1,.3,1),opacity .35s cubic-bezier(.16,1,.3,1)}
+.svc.on .logo{filter:saturate(.9);opacity:1}
+.svc .sname{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(242,232,213,.78)}
+.svc .check{flex:none;color:#D6A24A;opacity:0;transform:scale(.6);transition:opacity .25s,transform .3s cubic-bezier(.16,1,.3,1)}
+.svc.on{background:#241911;box-shadow:inset 0 0 0 1.5px rgba(214,162,74,.75),0 10px 26px -14px rgba(214,162,74,.55)}
+.svc.on .sname{color:#F2E8D5}
+.svc.on .check{opacity:1;transform:none}
+.svc:active{transform:scale(.97)}
+.switch{appearance:none;-webkit-appearance:none;width:52px;height:30px;border-radius:999px;background:#2A1D19;position:relative;flex:none;cursor:pointer;margin:0}
+.switch::before{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#F2E8D5}
+.ticket{position:relative;display:flex;align-items:stretch;width:100%;height:64px;flex:none;background:#B8141E;color:#F2E8D5;border-radius:8px;-webkit-mask:radial-gradient(circle 10px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 10px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat;mask:radial-gradient(circle 10px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 10px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat}
+.ticket .stub{display:flex;align-items:center;justify-content:center;width:86px;flex:none;border-right:2px dashed rgba(242,232,213,.5);font-size:12px;letter-spacing:.22em;line-height:1.35;text-align:center}
+.ticket .tmain{flex:1;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 18px;font-size:28px;line-height:1}
+@media (prefers-reduced-motion: reduce){.bulb{animation:none}}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; padding: 20px 22px 18px; background: #0E0A09; color: #F2E8D5">
+  <div style="display: flex; flex-direction: column; gap: 14px; padding: 14px 0; border-radius: 16px; background: #17100E; flex: none">
+    <div class="bulbs"><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span></div>
+    <div style="display: flex; flex-direction: column; gap: 8px; padding: 2px 20px">
+      <span class="mono" style="color: #D6A24A">Tonight only</span>
+      <h1 class="display" style="margin: 0; font-size: 52px; line-height: 0.86; letter-spacing: -0.005em; color: #F2E8D5">One film.<br><span style="color: #E3312D">Two of you.</span></h1>
+    </div>
+    <div class="bulbs"><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span></div>
+  </div>
+  <p style="margin: 0; font-size: 15px; line-height: 1.5; color: rgba(242,232,213,0.74)">A quick 2-minute game. We use AI to match your moods to a movie you can both watch tonight.</p>
+  <div style="display: flex; flex-direction: column; gap: 4px; flex: none">
+    <label for="a-region" class="mono" style="color: rgba(242,232,213,0.62)">Screening in</label>
+    <div style="position: relative; display: flex; align-items: center; box-shadow: inset 0 -1px 0 rgba(214,162,74,0.5)">
+      <select id="a-region" class="region" style="width: 100%; font-family: 'Big Shoulders Display', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 28px; text-transform: uppercase; padding: 0 34px 6px 0"><option value="Australia">Australia</option><option value="Canada">Canada</option><option value="Germany">Germany</option><option value="United Kingdom">United Kingdom</option><option value="United States">United States</option></select>
+      <span style="position: absolute; right: 4px; top: 10px; pointer-events: none"><svg class="ico" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="color: #D6A24A"><path d="M6 9l6 6 6-6"></path></svg></span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px; flex: none">
+    <div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="color: rgba(242,232,213,0.62)">Your services</span><span class="mono" style="color: #D6A24A">2 selected</span></div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-top: 6px"><button type="button" class="svc on" aria-pressed="true"><img class="logo" src="/_blob/c25f02e6feb62fad344df45896687985" alt=""><span class="sname">Netflix</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><button type="button" class="svc" aria-pressed="false"><img class="logo" src="/_blob/9d4ef5470c1909b8145cd70752990f41" alt=""><span class="sname">Prime Video</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><button type="button" class="svc" aria-pressed="false"><img class="logo" src="/_blob/1d949666a098bccc8f6f5c6323d0a78d" alt=""><span class="sname">Disney+</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><button type="button" class="svc on" aria-pressed="true"><img class="logo" src="/_blob/c5b01b245335c0a5c816b06d2e7173be" alt=""><span class="sname">Stan</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><button type="button" class="svc" aria-pressed="false"><img class="logo" src="/_blob/8083593187598ca7a4c10032fc591e3c" alt=""><span class="sname">Binge</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><button type="button" class="svc" aria-pressed="false"><img class="logo" src="/_blob/85cb6b3a91b9ae6c533a8157b63a207b" alt=""><span class="sname">Apple TV+</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><button type="button" class="svc" aria-pressed="false"><img class="logo" src="/_blob/afdd6e2f72c9043a133af90f8548a342" alt=""><span class="sname">Paramount+</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><button type="button" class="svc" aria-pressed="false"><img class="logo" src="/_blob/9c81552a74293acbd563111beae1bdf6" alt=""><span class="sname">Foxtel Now</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><button type="button" class="svc" aria-pressed="false"><img class="logo" src="/_blob/1c82bdb410179f4c7862b7ed04969076" alt=""><span class="sname">BritBox</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><button type="button" class="svc" aria-pressed="false"><img class="logo" src="/_blob/de474ad068484dbccef83d84630be60f" alt=""><span class="sname">YouTube Premium</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button></div>
+  </div>
+  <label for="a-rent" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; box-shadow: inset 0 1px 0 rgba(214,162,74,0.25); cursor: pointer; flex: none">
+    <span style="display: flex; flex-direction: column; gap: 3px">
+      <span style="font-size: 15px; font-weight: 600">Open to renting tonight?</span>
+      <span style="font-size: 13px; color: rgba(242,232,213,0.62)">Adds paid titles. Never changes the ranking.</span>
+    </span>
+    <input id="a-rent" type="checkbox" class="switch">
+  </label>
+  <button type="button" class="ticket"><span class="stub mono">Admit<br>two</span><span class="tmain display">Take your seats<svg class="ico" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

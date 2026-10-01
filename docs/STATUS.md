@@ -24,7 +24,7 @@ Living status doc. Single source of truth for *where things stand right now and 
 
 - **2.0 kickoff:** decisions locked 1 Oct (parallel tracks, Supabase project, share card in 2.0, CLAUDE.md added).
 - **Track A · Embeddings v1:** E1 (schema) + E2 (catalogue script, dry run: 15,175 films, ~$0.03, ~8 min) built by Arthur and accepted by Otto; all five review fixes verified (`docs/reviews/2026-10-01_otto-review-E1-E2.md`). Catalogue built 1 Oct: 15,162 films embedded, 0 failures, ~16 min, ~$0.03; Knives Out check sane. Next: anon lockout check (needs publishable key) → E3 per `docs/decisions/2026-10-01_embeddings-v1-E3-addendum.md` → E4 → Cato.
-- **Track B · Design pass 2 (Picture Palace):** prototype built, plus three landing page options (A marquee sign, B quiet house, C poster). Lasse to pick, then take the brief to Claude Design or Figma.
+- **Track B · Design pass 2 (Picture Palace):** design agreed 1 Oct (landing A2, all screens on the canvas, exported to `docs/design/picture-palace/`). Build brief: `docs/decisions/2026-10-01_design-pass-2-build.md`. Next: Arthur builds D1 to D5 straight on `main` after E3 (live game, nobody using it yet), Lasse plays it, then Otto and Cato review. Quote list cleanup: separate session before launch.
 - *Closed:* first friend or beta test, done 30 Sep (Lasse). Full notes still to be written up.
 
 ## Recently closed

@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Movie Match game flow</title>
+<script src="../support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Big+Shoulders+Inline+Display:wght@800&family=Courier+Prime:wght@400;700&family=Libre+Franklin:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0A09;color:#F2E8D5;font-family:'Libre Franklin','Franklin Gothic Medium','Helvetica Neue',Arial,sans-serif}
+a{color:#F2CF7E}a:hover{color:#FFE9B0}
+.display{font-family:'Big Shoulders Display','Oswald','Arial Narrow',sans-serif;font-weight:900;text-transform:uppercase}
+.inline{font-family:'Big Shoulders Inline Display','Big Shoulders Display','Arial Narrow',sans-serif;font-weight:800;text-transform:uppercase}
+.mono{font-family:'Courier Prime','Courier New',monospace;text-transform:uppercase;letter-spacing:.28em;font-size:11px;font-weight:700}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #F2CF7E;outline-offset:3px}
+.ico{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ico.fill{fill:currentColor;stroke:none}
+.hscroll{scrollbar-width:none}
+.hscroll::-webkit-scrollbar{display:none}
+
+/* one entry curve for everything */
+.screen{animation:mmEnter .6s cubic-bezier(.16,1,.3,1) both}
+@keyframes mmEnter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* marquee bulbs: a three-step chase */
+.bulbs{display:flex;justify-content:space-between;padding:0 14px}
+.bulb{width:7px;height:7px;border-radius:50%;background:#FFE9B0;box-shadow:0 0 8px 2px rgba(255,200,110,.65);animation:mmChase 1.2s ease-in-out infinite}
+.bulb:nth-child(3n+2){animation-delay:.4s}
+.bulb:nth-child(3n){animation-delay:.8s}
+@keyframes mmChase{0%,100%{opacity:1}50%{opacity:.25;box-shadow:0 0 0 0 rgba(255,200,110,0)}}
+
+/* setup */
+.region{appearance:none;-webkit-appearance:none;background:transparent;border:0;border-radius:0;color:#F2E8D5;font-family:'Big Shoulders Display','Arial Narrow',sans-serif;font-weight:800;font-size:28px;text-transform:uppercase;padding:0 34px 6px 0;width:100%;cursor:pointer;min-height:44px}
+.region option{color:#0E0A09;font-size:16px}
+.svc{position:relative;display:flex;align-items:center;gap:10px;height:46px;padding:0 12px 0 9px;border-radius:12px;background:#17100E;text-align:left;transition:background .3s cubic-bezier(.16,1,.3,1),box-shadow .3s cubic-bezier(.16,1,.3,1),transform .18s cubic-bezier(.16,1,.3,1)}
+.svc .logo{width:32px;height:32px;flex:none;display:block;border-radius:8px;background:#2A1D19;object-fit:cover;filter:grayscale(1) sepia(.3) brightness(.72) contrast(1.05);opacity:.75;transition:filter .35s cubic-bezier(.16,1,.3,1),opacity .35s cubic-bezier(.16,1,.3,1)}
+.svc.on .logo{filter:saturate(.9);opacity:1}
+.svc .sname{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(242,232,213,.78)}
+.svc .check{flex:none;color:#D6A24A;opacity:0;transform:scale(.6);transition:opacity .25s,transform .3s cubic-bezier(.16,1,.3,1)}
+.svc.on{background:#241911;box-shadow:inset 0 0 0 1.5px rgba(214,162,74,.75),0 10px 26px -14px rgba(214,162,74,.55)}
+.svc.on .sname{color:#F2E8D5}
+.svc.on .check{opacity:1;transform:none}
+.svc:active{transform:scale(.97)}
+.switch{appearance:none;-webkit-appearance:none;width:52px;height:30px;border-radius:999px;background:#2A1D19;position:relative;flex:none;cursor:pointer;margin:0;transition:background .3s cubic-bezier(.16,1,.3,1)}
+.switch::before{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#F2E8D5;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.switch:checked{background:#B8141E}
+.switch:checked::before{transform:translateX(22px)}
+
+/* the ADMIT TWO ticket */
+.ticket{position:relative;display:flex;align-items:stretch;width:100%;height:64px;flex:none;background:#B8141E;color:#F2E8D5;border-radius:8px;-webkit-mask:radial-gradient(circle 10px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 10px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat;mask:radial-gradient(circle 10px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 10px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat;transition:transform .18s cubic-bezier(.16,1,.3,1),filter .3s}
+.ticket:active{transform:scale(.97)}
+.ticket:disabled{filter:grayscale(.85) brightness(.55);cursor:not-allowed}
+.ticket .stub{display:flex;align-items:center;justify-content:center;width:86px;flex:none;border-right:2px dashed rgba(242,232,213,.5);font-size:12px;letter-spacing:.22em;line-height:1.35;text-align:center}
+.ticket .tmain{flex:1;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 18px;font-size:28px;line-height:1}
+
+/* swipe deck */
+.card{position:absolute;inset:0;border-radius:22px;overflow:hidden;box-shadow:0 30px 60px -24px rgba(0,0,0,.9);transition:transform .56s cubic-bezier(.16,1,.3,1),opacity .56s cubic-bezier(.16,1,.3,1),filter .56s cubic-bezier(.16,1,.3,1);will-change:transform}
+.card.top{transform:none;z-index:3}
+.card.next{transform:translateY(14px) scale(.95);z-index:2;filter:brightness(.6)}
+.card.later{transform:translateY(26px) scale(.9);z-index:1;filter:brightness(.4)}
+.card.hidden{opacity:0;transform:translateY(30px) scale(.86);z-index:0}
+.card.leave-right,.card.gone-right{transform:translateX(130%) rotate(16deg);z-index:4;pointer-events:none}
+.card.leave-left,.card.gone-left{transform:translateX(-130%) rotate(-16deg);z-index:4;pointer-events:none}
+.card.leave-down,.card.gone-down{transform:translateY(38%) scale(.86);opacity:0;z-index:4;pointer-events:none}
+.card.gone-right,.card.gone-left,.card.gone-down{opacity:0}
+.scrim{position:absolute;inset:0;background:linear-gradient(to top,rgba(14,10,9,.96) 0%,rgba(14,10,9,.74) 34%,rgba(14,10,9,0) 60%)}
+.tag{position:absolute;top:16px;left:16px;padding:8px 12px;border-radius:999px;background:rgba(14,10,9,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:#F2E8D5;font-family:'Courier Prime','Courier New',monospace;font-weight:700;font-size:11px;letter-spacing:.24em;text-transform:uppercase}
+.cardtext{position:absolute;left:22px;right:22px;bottom:122px;display:flex;flex-direction:column;gap:6px}
+.stamp{position:absolute;top:24%;left:50%;padding:8px 18px 6px;border:4px solid currentColor;border-radius:8px;font-family:'Big Shoulders Display','Arial Narrow',sans-serif;font-weight:900;font-size:40px;line-height:1;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;background:rgba(14,10,9,.35);transform:translateX(-50%) rotate(-12deg) scale(1.5);opacity:0;z-index:5;transition:transform .28s cubic-bezier(.16,1,.3,1),opacity .18s}
+.stamp.show{opacity:1;transform:translateX(-50%) rotate(-12deg) scale(1)}
+.stamp.s-right{color:#F2CF7E}
+.stamp.s-left{color:#F2E8D5}
+.stamp.s-down{color:#F2E8D5;border-style:dashed}
+.controls{position:absolute;left:0;right:0;bottom:18px;display:flex;justify-content:center;gap:28px;z-index:10}
+.ctl{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12px;font-weight:600;color:#F2E8D5;min-width:64px}
+.ctl .disc{width:62px;height:62px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(14,10,9,.5);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);box-shadow:inset 0 0 0 1px rgba(242,232,213,.24);transition:transform .18s cubic-bezier(.16,1,.3,1)}
+.ctl:active .disc{transform:scale(.92)}
+.ctl.brass .disc{background:#D6A24A;color:#0E0A09;box-shadow:0 12px 30px -10px rgba(214,162,74,.8)}
+
+/* projector countdown */
+@property --mm-a{syntax:'<angle>';inherits:false;initial-value:0deg}
+.leader{position:relative;width:272px;height:272px;flex:none;border-radius:50%;background:#1A1411;box-shadow:inset 0 0 0 2px rgba(242,232,213,.5),0 0 0 12px #0E0A09,0 0 0 14px rgba(242,232,213,.22)}
+.sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(rgba(242,232,213,.14) var(--mm-a),rgba(242,232,213,0) 0);animation:mmSweep 1s linear infinite}
+@keyframes mmSweep{from{--mm-a:0deg}to{--mm-a:360deg}}
+.cross-h{position:absolute;left:0;right:0;top:50%;height:2px;margin-top:-1px;background:rgba(242,232,213,.4)}
+.cross-v{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:rgba(242,232,213,.4)}
+.ring-in{position:absolute;inset:36px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(242,232,213,.5)}
+.num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:160px;line-height:1;color:#F2E8D5;opacity:0}
+.num.on{animation:mmNum 1s cubic-bezier(.16,1,.3,1) both}
+@keyframes mmNum{0%{opacity:0;transform:scale(1.25)}18%{opacity:1;transform:scale(1)}82%{opacity:1}100%{opacity:0}}
+.flicker{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(255,233,176,.07),rgba(0,0,0,.6) 78%);animation:mmFlick 2.2s steps(1) infinite}
+@keyframes mmFlick{0%{opacity:1}7%{opacity:.7}9%{opacity:1}43%{opacity:.82}45%{opacity:1}71%{opacity:.74}72%{opacity:1}}
+.scratch{position:absolute;top:0;bottom:0;width:1px;background:rgba(242,232,213,.2);pointer-events:none;animation:mmScratch 1.6s steps(1) infinite}
+.scratch.s2{animation-duration:2.3s;animation-delay:.5s}
+@keyframes mmScratch{0%{left:22%}25%{left:71%}50%{left:38%;opacity:.4}75%{left:84%}100%{left:12%}}
+.skip{position:absolute;right:18px;bottom:18px;min-width:64px;min-height:44px;color:rgba(242,232,213,.62);letter-spacing:.24em}
+
+/* the stage: valance, curtains, reveal */
+.valance{position:absolute;left:0;right:0;top:0;z-index:20;pointer-events:none}
+.vbody{height:74px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;background:linear-gradient(#9A1019,#6E0B12)}
+.scallop{height:18px;background:radial-gradient(circle 3px at 50% 15px,#D6A24A 95%,rgba(214,162,74,0) 100%) 0 0/28px 18px repeat-x,radial-gradient(circle 14px at 50% 0,#6E0B12 97%,rgba(110,11,18,0) 100%) 0 0/28px 18px repeat-x}
+.curtain{position:absolute;top:0;bottom:0;width:52%;z-index:15;border-radius:0;background:linear-gradient(90deg,rgba(0,0,0,.35),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,rgba(0,0,0,.35)),repeating-linear-gradient(90deg,#5E0A10 0,#9E121B 11px,#C3202A 19px,#9E121B 27px,#5E0A10 38px);transition:transform 1.9s cubic-bezier(.65,0,.25,1)}
+.curtain::after{content:"";position:absolute;left:0;right:0;bottom:0;height:10px;background:repeating-linear-gradient(90deg,#D6A24A 0 3px,#8A6526 3px 6px)}
+.curtain.l{left:0;transform-origin:0 50%}
+.curtain.r{right:0;transform-origin:100% 50%}
+.curtain.open{transform:scaleX(.13);pointer-events:none}
+.stage .r{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+.stage.open .r{opacity:1;transform:none}
+.stage.open .r1{transition-delay:1.05s}
+.stage.open .r2{transition-delay:1.15s}
+.stage.open .r3{transition-delay:1.3s}
+.stage.open .r4{transition-delay:1.4s}
+.stage.open .r5{transition-delay:1.5s}
+.pcard{position:relative;flex:none;background:#F2E8D5;color:#0E0A09;border-radius:6px;padding:10px 10px 14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 30px 60px -20px rgba(0,0,0,.9)}
+.mstamp{position:absolute;top:-18px;right:-14px;width:86px;height:86px;border-radius:50%;background:#D6A24A;color:#0E0A09;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transform:rotate(-12deg);box-shadow:0 10px 24px -8px rgba(0,0,0,.8),inset 0 0 0 3px #0E0A09,inset 0 0 0 5px #D6A24A,inset 0 0 0 6px #0E0A09}
+.chip{padding:7px 12px;border-radius:999px;background:#1E1512;font-size:13px;color:#F2E8D5}
+.cta{display:flex;align-items:center;justify-content:center;gap:10px;height:56px;border-radius:14px;background:#D6A24A;color:#0E0A09;font-weight:700;font-size:16px;box-shadow:0 14px 34px -12px rgba(214,162,74,.7);transition:transform .18s cubic-bezier(.16,1,.3,1)}
+.cta:active{transform:scale(.97)}
+.cta2{display:flex;align-items:center;justify-content:center;gap:10px;height:52px;border-radius:14px;box-shadow:inset 0 0 0 1.5px rgba(242,232,213,.4);color:#F2E8D5;font-weight:600;font-size:15px;text-decoration:none}
+.cta2:hover{color:#FFE9B0}
+.again{align-self:center;min-height:44px;padding:0 16px;color:rgba(242,232,213,.62)}
+.corn{position:absolute;inset:0;pointer-events:none;z-index:12}
+.kernel{position:absolute;bottom:250px;left:50%;width:17px;height:15px;margin-left:-8px;border-radius:48% 52% 44% 56%/55% 45% 55% 45%;background:#FFF4DC;box-shadow:inset -3px -3px 0 rgba(214,162,74,.6);opacity:0}
+.stage.open .kernel{animation:mmPop 1.3s cubic-bezier(.2,.7,.3,1) 1.55s both}
+.kernel:nth-child(1){--x:-120px;--y:-230px;--r:220deg}
+.kernel:nth-child(2){--x:-70px;--y:-290px;--r:-160deg;animation-delay:1.6s}
+.kernel:nth-child(3){--x:-20px;--y:-320px;--r:300deg}
+.kernel:nth-child(4){--x:40px;--y:-300px;--r:-240deg;animation-delay:1.62s}
+.kernel:nth-child(5){--x:95px;--y:-260px;--r:180deg}
+.kernel:nth-child(6){--x:130px;--y:-210px;--r:-200deg;animation-delay:1.58s}
+.kernel:nth-child(7){--x:-150px;--y:-180px;--r:140deg}
+@keyframes mmPop{0%{opacity:0;transform:translate(0,0) rotate(0)}10%{opacity:1}50%{transform:translate(calc(var(--x) * .8),var(--y)) rotate(calc(var(--r) * .6))}100%{opacity:0;transform:translate(var(--x),calc(var(--y) + 280px)) rotate(var(--r))}}
+
+/* film grain over everything */
+.grain{position:absolute;left:-100%;top:-100%;width:300%;height:300%;pointer-events:none;opacity:.08;z-index:60;animation:mmGrain .9s steps(5) infinite}
+@keyframes mmGrain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-1%)}80%{transform:translate(3%,3%)}100%{transform:translate(0,0)}}
+
+@media (prefers-reduced-motion: reduce){
+*,*::before,*::after{animation-duration:.001s !important;animation-iteration-count:1 !important;animation-delay:0s !important;transition-duration:.001s !important;transition-delay:0s !important}
+.kernel,.grain,.flicker,.scratch{display:none}
+}
+</style>
+</helmet>
+<div class="root" style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #0E0A09; color: #F2E8D5">
+
+<sc-if value="{{isSetup}}" hint-placeholder-val="{{true}}">
+<section class="screen" style="position: absolute; inset: 0; display: flex; flex-direction: column; gap: 16px; padding: 20px 22px 18px; box-sizing: border-box; overflow-y: auto">
+  <div style="display: flex; flex-direction: column; gap: 14px; padding: 14px 0; border-radius: 16px; background: #17100E; flex: none">
+    <div class="bulbs"><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span></div>
+    <div style="display: flex; flex-direction: column; gap: 8px; padding: 2px 20px">
+      <span class="mono" style="color: #D6A24A">Tonight only</span>
+      <h1 class="display" style="margin: 0; font-size: 52px; line-height: 0.86; letter-spacing: -0.005em; color: #F2E8D5">One film.<br><span style="color: #E3312D">Two of you.</span></h1>
+    </div>
+    <div class="bulbs"><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span></div>
+  </div>
+
+  <p style="margin: 0; font-size: 15px; line-height: 1.5; color: rgba(242,232,213,0.74); text-wrap: pretty">A quick 2-minute game. We use AI to match your moods to a movie you can both watch tonight.</p>
+
+  <div style="display: flex; flex-direction: column; gap: 4px; flex: none">
+    <label for="mm-region" class="mono" style="color: rgba(242,232,213,0.62)">Screening in</label>
+    <div style="position: relative; display: flex; align-items: center; box-shadow: inset 0 -1px 0 rgba(214,162,74,0.5)">
+      <select id="mm-region" class="region" value="{{region}}" onChange="{{pickRegion}}">
+        <option value="Australia">Australia</option>
+        <option value="Canada">Canada</option>
+        <option value="Germany">Germany</option>
+        <option value="United Kingdom">United Kingdom</option>
+        <option value="United States">United States</option>
+      </select>
+      <svg class="ico" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="position: absolute; right: 4px; top: 8px; pointer-events: none; color: #D6A24A"><path d="M6 9l6 6 6-6"></path></svg>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 2px; flex: none">
+    <div style="display: flex; align-items: baseline; gap: 10px">
+      <span class="mono" style="color: rgba(242,232,213,0.62)">Your services</span>
+      <span class="mono" style="color: #D6A24A">{{selectedCount}} selected</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-top: 6px">
+      <sc-for list="{{services}}" as="s" hint-placeholder-count="8">
+        <button type="button" class="{{s.cls}}" aria-pressed="{{s.pressed}}" onClick="{{s.toggle}}"><img class="logo" src="{{s.logo}}" alt=""><span class="sname">{{s.name}}</span><svg class="ico check" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button>
+      </sc-for>
+    </div>
+  </div>
+
+  <label for="mm-rent" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0 2px; box-shadow: inset 0 1px 0 rgba(214,162,74,0.25); cursor: pointer; flex: none">
+    <span style="display: flex; flex-direction: column; gap: 3px">
+      <span style="font-size: 15px; font-weight: 600">Open to renting tonight?</span>
+      <span style="font-size: 13px; color: rgba(242,232,213,0.62)">Adds paid titles. Never changes the ranking.</span>
+    </span>
+    <input id="mm-rent" type="checkbox" class="switch" checked="{{rent}}" onChange="{{toggleRent}}">
+  </label>
+
+  <button type="button" class="ticket" onClick="{{start}}" disabled="{{cantStart}}">
+    <span class="stub mono">Admit<br>two</span>
+    <span class="tmain display">Take your seats<svg class="ico" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span>
+  </button>
+</section>
+</sc-if>
+
+<sc-if value="{{isSwipe}}" hint-placeholder-val="{{false}}">
+<section class="screen" style="position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px 12px; box-sizing: border-box">
+  <header style="display: flex; justify-content: space-between; align-items: center; padding: 0 8px; flex: none">
+    <span class="mono" style="color: #D6A24A">Round 2 · The vibe</span>
+    <span class="mono" style="color: rgba(242,232,213,0.62)">Player 1 · {{cardNum}}/3</span>
+  </header>
+  <div style="position: relative; flex-grow: 1">
+    <sc-for list="{{films}}" as="f" hint-placeholder-count="3">
+      <article class="{{f.cls}}" style="background: {{f.field}}">
+        <sc-if value="{{f.isSun}}" hint-placeholder-val="{{false}}">
+          <div style="position: absolute; left: 50%; top: 13%; width: 220px; height: 220px; margin-left: -110px; border-radius: 50%; background: #F2E8D5"></div>
+          <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 47%; background: #0E0A09"></div>
+          <div style="position: absolute; left: 60%; bottom: 47%; width: 44px; height: 40px; background: #0E0A09; clip-path: polygon(50% 0, 100% 100%, 0 100%)"></div>
+          <div style="position: absolute; left: calc(60% - 8px); bottom: calc(47% - 6px); width: 60px; height: 8px; background: #0E0A09; border-radius: 0 0 8px 8px"></div>
+        </sc-if>
+        <sc-if value="{{f.isKey}}" hint-placeholder-val="{{false}}">
+          <div style="position: absolute; inset: 0; background: repeating-linear-gradient(180deg, rgba(242,232,213,0.07) 0 2px, rgba(242,232,213,0) 2px 22px)"></div>
+          <div style="position: absolute; left: 50%; top: 11%; width: 160px; height: 160px; margin-left: -80px; border-radius: 50%; background: #0E0A09"></div>
+          <div style="position: absolute; left: 50%; top: calc(11% + 120px); width: 170px; height: 210px; margin-left: -85px; background: #0E0A09; clip-path: polygon(32% 0, 68% 0, 90% 100%, 10% 100%)"></div>
+          <div style="position: absolute; left: 50%; top: calc(11% + 208px); width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: #F2E8D5"></div>
+          <div style="position: absolute; left: 50%; top: calc(11% + 230px); width: 24px; height: 58px; margin-left: -12px; border-radius: 6px 6px 0 0; background: #F2E8D5"></div>
+        </sc-if>
+        <sc-if value="{{f.isOrchard}}" hint-placeholder-val="{{false}}">
+          <div style="position: absolute; left: 12%; top: 12%; width: 200px; height: 200px; border-radius: 50%; background: #E3312D"></div>
+          <div style="position: absolute; left: 36%; top: 19%; width: 200px; height: 200px; border-radius: 50%; background: #7A8B4F; mix-blend-mode: multiply"></div>
+          <div style="position: absolute; left: 62%; top: 9%; width: 34px; height: 64px; border-radius: 50% 50% 50% 50%/70% 70% 30% 30%; background: #0E0A09; transform: rotate(28deg)"></div>
+        </sc-if>
+        <div class="scrim"></div>
+        <span class="tag">{{f.tags}}</span>
+        <div class="cardtext">
+          <h2 class="display" style="margin: 0; font-size: 48px; line-height: 0.86; color: #F2E8D5">{{f.title}}</h2>
+          <span style="font-size: 13px; color: rgba(242,232,213,0.72)">{{f.year}}</span>
+          <p style="margin: 0; font-size: 14px; line-height: 1.45; color: rgba(242,232,213,0.82); text-wrap: pretty">{{f.overview}}</p>
+        </div>
+        <span class="{{f.stampCls}}">{{f.stampText}}</span>
+      </article>
+    </sc-for>
+    <div class="controls">
+      <button type="button" class="ctl" onClick="{{notIt}}"><span class="disc"><svg class="ico" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>Not it</button>
+      <button type="button" class="ctl" onClick="{{notSure}}"><span class="disc"><svg class="ico" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M9.2 9a2.9 2.9 0 1 1 4 2.7c-.8.4-1.2.9-1.2 1.8v.6"></path><path d="M12 17.6v.1"></path></svg></span>Not sure</button>
+      <button type="button" class="ctl brass" onClick="{{vibe}}"><span class="disc"><svg class="ico fill" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.8c0 5.8-7.5 10.4-7.5 10.4z"></path></svg></span>This vibe</button>
+    </div>
+  </div>
+  <p style="margin: 0; text-align: center; font-size: 14px; color: rgba(242,232,213,0.66); flex: none">In the mood for something <em style="color: #F2CF7E">like</em> this?</p>
+</section>
+</sc-if>
+
+<sc-if value="{{isCount}}" hint-placeholder-val="{{false}}">
+<section class="screen" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; padding: 32px 28px; box-sizing: border-box; background: #0E0A09">
+  <div class="flicker"></div>
+  <span class="scratch"></span>
+  <span class="scratch s2"></span>
+  <div class="leader">
+    <div class="sweep"></div>
+    <div class="cross-h"></div>
+    <div class="cross-v"></div>
+    <div class="ring-in"></div>
+    <sc-for list="{{nums}}" as="n" hint-placeholder-count="3"><span class="{{n.cls}}">{{n.n}}</span></sc-for>
+  </div>
+  <div style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; max-width: 300px">
+    <span class="mono" style="color: #D6A24A">Reading the mood</span>
+    <span class="display" aria-hidden="true" style="font-size: 72px; line-height: 0.6; height: 30px; color: #D6A24A">“</span><p class="display" style="margin: 0; font-size: 34px; line-height: 1; font-weight: 800; text-transform: none; color: #F2E8D5">May the Force be with you.</p><span class="mono" style="color: rgba(242,232,213,0.62); letter-spacing: 0.22em">Star Wars · 1977</span>
+  </div>
+  <button type="button" class="mono skip" onClick="{{skip}}">Skip</button>
+</section>
+</sc-if>
+
+<sc-if value="{{isStage}}" hint-placeholder-val="{{false}}">
+<section class="{{stageCls}}" style="position: absolute; inset: 0; overflow: hidden; background: radial-gradient(ellipse 80% 55% at 50% 40%, #2A1612 0%, #0E0A09 72%)">
+  <div style="position: absolute; inset: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding: 112px 36px 30px; box-sizing: border-box">
+    <h2 class="inline r r1" style="margin: 0; text-align: center; font-size: 46px; line-height: 1; letter-spacing: 0.02em; color: #F2CF7E; text-shadow: 0 0 22px rgba(255,200,110,0.55)">It's a match</h2>
+
+    <div class="pcard r r2">
+      <div style="position: relative; height: 230px; border-radius: 3px; overflow: hidden; background: #F0B7C0; flex: none">
+        <div style="position: absolute; left: 10%; top: 12%; width: 150px; height: 150px; border-radius: 50%; background: #E3312D"></div>
+        <div style="position: absolute; left: 34%; top: 20%; width: 150px; height: 150px; border-radius: 50%; background: #7A8B4F; mix-blend-mode: multiply"></div>
+        <div style="position: absolute; left: 66%; top: 8%; width: 26px; height: 50px; border-radius: 50% 50% 50% 50%/70% 70% 30% 30%; background: #0E0A09; transform: rotate(28deg)"></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 7px; padding: 0 4px">
+        <h3 class="display" style="margin: 0; font-size: 54px; line-height: 0.82; color: #B8141E">Neon<br>Orchard</h3>
+        <span class="mono" style="font-size: 10px; letter-spacing: 0.18em; color: #0E0A09">2022 · Romance · Comedy · 104 min</span>
+        <p style="margin: 0; font-size: 13px; line-height: 1.45; color: #3A2C26">Two rival florists share a rooftop greenhouse for one summer.</p>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding: 0 4px">
+        <div style="display: flex">
+          <span style="width: 22px; height: 22px; background: #F0B7C0"></span>
+          <span style="width: 22px; height: 22px; background: #E3312D"></span>
+          <span style="width: 22px; height: 22px; background: #7A8B4F"></span>
+          <span style="width: 22px; height: 22px; background: #3B2A1E"></span>
+          <span style="width: 22px; height: 22px; background: #0E0A09"></span>
+        </div>
+        <span class="mono" style="font-size: 10px; letter-spacing: 0.16em; line-height: 1.5; text-align: right; color: #0E0A09">Watch on<br>Netflix</span>
+      </div>
+      <div class="mstamp"><span class="display" style="font-size: 30px; line-height: 1">88%</span><span class="mono" style="font-size: 9px; letter-spacing: 0.2em">Match</span></div>
+    </div>
+
+    <p class="r r3" style="margin: 0; text-align: center; font-size: 14px; line-height: 1.5; color: rgba(242,232,213,0.76); text-wrap: pretty">You both leaned warm and funny, and it made both your shortlists.</p>
+    <div class="r r3" style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap">
+      <span class="chip">warm</span><span class="chip">funny</span><span class="chip">a little romantic</span>
+    </div>
+
+    <div class="r r4" style="display: flex; flex-direction: column; gap: 10px">
+      <button type="button" class="cta">Watch on Netflix<svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg></button>
+      <a class="cta2" href="ShareCard.dc.html">Share the poster</a>
+    </div>
+
+    <div class="r r5" style="display: flex; flex-direction: column; gap: 10px">
+      <span class="mono" style="color: rgba(242,232,213,0.58)">Or also</span>
+      <sc-for list="{{alts}}" as="a" hint-placeholder-count="2">
+        <div style="display: flex; align-items: center; gap: 14px; padding: 10px; border-radius: 12px; background: #17100E">
+          <div style="position: relative; width: 44px; height: 62px; flex: none; overflow: hidden; border-radius: 4px; background: {{a.field}}">
+            <span style="position: absolute; left: 50%; top: 10px; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%; background: {{a.dot}}"></span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1">
+            <span class="display" style="font-size: 21px; line-height: 1; font-weight: 800">{{a.title}}</span>
+            <span style="font-size: 12px; color: rgba(242,232,213,0.64)">{{a.meta}}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <button type="button" class="mono again r r5" onClick="{{reset}}">Play again</button>
+  </div>
+
+  <div class="corn"><span class="kernel"></span><span class="kernel"></span><span class="kernel"></span><span class="kernel"></span><span class="kernel"></span><span class="kernel"></span><span class="kernel"></span></div>
+
+  <button type="button" class="curtain l {{curtainCls}}" aria-label="Open the curtain" onClick="{{openNow}}"></button>
+  <button type="button" class="curtain r {{curtainCls}}" aria-label="Open the curtain" onClick="{{openNow}}"></button>
+
+  <div class="valance">
+    <div class="vbody">
+      <div class="bulbs" style="align-self: stretch"><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span></div>
+      <span class="inline" style="font-size: 27px; line-height: 1; letter-spacing: 0.05em; color: #FFE9B0; text-shadow: 0 0 16px rgba(255,200,110,0.6)">Tonight's feature</span>
+    </div>
+    <div class="scallop"></div>
+  </div>
+</section>
+</sc-if>
+
+<sc-if value="{{showGrain}}" hint-placeholder-val="{{true}}">
+<svg class="grain" aria-hidden="true"><filter id="mmgrain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#mmgrain)"></rect></svg>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"showGrain":{"editor":"boolean","default":true},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(...args) {
+    super(...args);
+    this.state = Object.assign({}, this.state || {}, {
+      screen: 'setup',
+      region: 'Australia',
+      sel: { netflix: true, stan: true },
+      rent: false,
+      card: 0,
+      decisions: [],
+      leaving: null,
+      count: 3,
+      open: false
+    });
+    this.timers = [];
+    this.iv = null;
+  }
+
+  componentWillUnmount() {
+    this.clearAll();
+  }
+
+  clearAll() {
+    this.timers.forEach(function (t) { clearTimeout(t); });
+    this.timers = [];
+    if (this.iv) { clearInterval(this.iv); this.iv = null; }
+  }
+
+  later(fn, ms) {
+    this.timers.push(setTimeout(fn, ms));
+  }
+
+  toggleService(id) {
+    const sel = Object.assign({}, this.state.sel);
+    sel[id] = !sel[id];
+    this.setState({ sel: sel });
+  }
+
+  decide(dir) {
+    const s = this.state;
+    if (s.leaving) return;
+    const decisions = s.decisions.slice();
+    decisions[s.card] = dir;
+    const last = s.card >= 2;
+    this.setState({ leaving: dir, decisions: decisions });
+    this.later(() => {
+      if (last) this.goCount();
+      else this.setState({ card: this.state.card + 1, leaving: null });
+    }, 560);
+  }
+
+  goCount() {
+    this.clearAll();
+    this.setState({ screen: 'count', count: 3, leaving: null });
+    this.iv = setInterval(() => {
+      const c = this.state.count;
+      if (c <= 1) this.goStage();
+      else this.setState({ count: c - 1 });
+    }, 1000);
+  }
+
+  goStage() {
+    this.clearAll();
+    this.setState({ screen: 'stage', open: false });
+    this.later(() => this.setState({ open: true }), 900);
+  }
+
+  reset() {
+    this.clearAll();
+    this.setState({ screen: 'setup', card: 0, decisions: [], leaving: null, count: 3, open: false });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const catalog = [
+      ['netflix', 'Netflix', '/_blob/c25f02e6feb62fad344df45896687985'],
+      ['prime', 'Prime Video', '/_blob/9d4ef5470c1909b8145cd70752990f41'],
+      ['disney', 'Disney+', '/_blob/1d949666a098bccc8f6f5c6323d0a78d'],
+      ['stan', 'Stan', '/_blob/c5b01b245335c0a5c816b06d2e7173be'],
+      ['binge', 'Binge', '/_blob/8083593187598ca7a4c10032fc591e3c'],
+      ['apple', 'Apple TV+', '/_blob/85cb6b3a91b9ae6c533a8157b63a207b'],
+      ['paramount', 'Paramount+', '/_blob/afdd6e2f72c9043a133af90f8548a342'],
+      ['foxtel', 'Foxtel Now', '/_blob/9c81552a74293acbd563111beae1bdf6'],
+      ['britbox', 'BritBox', '/_blob/1c82bdb410179f4c7862b7ed04969076'],
+      ['youtube', 'YouTube Premium', '/_blob/de474ad068484dbccef83d84630be60f']
+    ];
+    const services = catalog.map(([id, name, logo]) => ({
+      id: id,
+      name: name,
+      logo: logo,
+      cls: 'svc' + (s.sel[id] ? ' on' : ''),
+      pressed: !!s.sel[id],
+      toggle: () => this.toggleService(id)
+    }));
+    const selectedCount = catalog.filter(([id]) => s.sel[id]).length;
+
+    const base = [
+      { id: 'salt', title: 'Saltwater', year: '2019', tags: 'Heist · Comedy', art: 'sun', field: '#E4572E',
+        overview: 'A retired lifeguard and a card sharp plan one last job on a sleepy coast.' },
+      { id: 'quiet', title: 'The Quiet Assignment', year: '2016', tags: 'Spy · Thriller', art: 'key', field: '#20344F',
+        overview: 'An interpreter realises the summit she is working is a trap.' },
+      { id: 'orchard', title: 'Neon Orchard', year: '2022', tags: 'Romance · Comedy', art: 'orchard', field: '#F0B7C0',
+        overview: 'Two rival florists share a rooftop greenhouse for one summer.' }
+    ];
+    const words = { right: 'This vibe', left: 'Not it', down: 'Not sure' };
+    const films = base.map((f, i) => {
+      const d = s.decisions[i];
+      let cls = 'card hidden';
+      if (i < s.card) cls = 'card gone-' + d;
+      else if (i === s.card) cls = s.leaving ? 'card leave-' + s.leaving : 'card top';
+      else if (i === s.card + 1) cls = s.leaving ? 'card top' : 'card next';
+      else if (i === s.card + 2) cls = s.leaving ? 'card next' : 'card later';
+      const dir = i === s.card ? s.leaving : d;
+      const stamped = i < s.card || (i === s.card && !!s.leaving);
+      return Object.assign({}, f, {
+        cls: cls,
+        isSun: f.art === 'sun',
+        isKey: f.art === 'key',
+        isOrchard: f.art === 'orchard',
+        stampCls: 'stamp' + (stamped && dir ? ' show s-' + dir : ''),
+        stampText: dir ? words[dir] : ''
+      });
+    });
+
+    const nums = [3, 2, 1].map((n) => ({ n: n, cls: 'num display' + (s.count === n ? ' on' : '') }));
+
+    const alts = [
+      { title: 'Saltwater', meta: 'Stan · 81% match', field: '#E4572E', dot: '#F2E8D5' },
+      { title: 'The Quiet Assignment', meta: 'Netflix · 76% match', field: '#20344F', dot: '#0E0A09' }
+    ];
+
+    const cantStart = selectedCount === 0 && !s.rent;
+
+    return {
+      isSetup: s.screen === 'setup',
+      isSwipe: s.screen === 'swipe',
+      isCount: s.screen === 'count',
+      isStage: s.screen === 'stage',
+      showGrain: this.props.showGrain ?? true,
+      region: s.region,
+      rent: s.rent,
+      services: services,
+      selectedCount: selectedCount,
+      cantStart: cantStart,
+      films: films,
+      cardNum: Math.min(s.card + 1, 3),
+      nums: nums,
+      alts: alts,
+      stageCls: 'screen stage' + (s.open ? ' open' : ''),
+      curtainCls: s.open ? 'open' : '',
+      pickRegion: (e) => this.setState({ region: e.target.value }),
+      toggleRent: () => this.setState({ rent: !this.state.rent }),
+      start: () => {
+        if (cantStart) return;
+        this.setState({ screen: 'swipe', card: 0, decisions: [], leaving: null });
+      },
+      notIt: () => this.decide('left'),
+      notSure: () => this.decide('down'),
+      vibe: () => this.decide('right'),
+      skip: () => this.goStage(),
+      openNow: () => this.setState({ open: true }),
+      reset: () => this.reset()
+    };
+  }
+}
+</script>
+</body>
+</html>

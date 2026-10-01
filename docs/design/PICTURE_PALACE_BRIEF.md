@@ -41,7 +41,7 @@ One system, three materials, each with one job:
 1. **Setup sign.** A marquee board with chasing bulbs: "Tonight only / One film. Two of you." Under it, in plain words: "A quick 2-minute game. We use AI to match your moods to a movie you can both watch tonight." (Layout A2 on the canvas is the agreed setup.)
 2. **ADMIT TWO ticket.** The start button is a ticket with a stub and notched edges. It suits a couples app.
 3. **Physical swipe.** Real drag with a tilt; the card flies off with a rubber stamp (THIS VIBE / NOT SURE / NOT IT). Controls float over the poster, round, same size.
-4. **Projector countdown.** An Academy-leader style 3-2-1 with sweep, crosshair, flicker and scratches. It loops while the AI works, so it hides the wait instead of adding one. Under it: a true fact from the couple's own pool (a TMDB tagline, year, director).
+4. **Projector countdown + an iconic quote.** An Academy-leader style 3-2-1 with sweep, crosshair, flicker and scratches. It loops while the AI works, so it hides the wait instead of adding one. The hero of the loader is an iconic line, from a film or a famous actor, shown big with its source, in the spirit of the old Total War loading screens (Lasse, 1 Oct). Lines come from the curated list in `lib/quotes.ts`: short and attributed. No "guess the film".
 5. **The curtain.** On the match, a velvet curtain parts (about 1.9 s) under a valance that reads "Tonight's feature". Tap to open early.
 6. **The poster card.** The match is shown as a collectible retro info card: the real poster, the title in big red caps, year, genre, runtime, where to watch, a colour strip taken from the poster, and a round brass "88% match" stamp. The same card is the share card (9:16 for stories).
 7. **One delight:** a small popcorn burst as the curtain opens. Optional; cut it if it feels cartoonish.
@@ -52,7 +52,7 @@ One system, three materials, each with one job:
 
 - **Real TMDB posters, framed.** Our graphics never replace a film's own art. Poster placeholders in the prototype are fictional films drawn in the house style.
 - **Service picker (Lasse, 1 Oct):** a two-column grid with real TMDB logos, all services visible without scrolling. Tiles are tone-stepped, no borders; selected = brass ring and a check. Logos are muted until picked (greyscale with a slight warm tint, about 75% opacity), then full colour. Fast to scan beats clever.
-- **Every fact on screen comes from TMDB.** No AI-written trivia (it invents things).
+- **Every fact on screen comes from TMDB.** No AI-written trivia (it invents things). Loader quotes come only from the curated, hand-checked list in `lib/quotes.ts`.
 - **"Not sure" stays equal.** Same size and weight as the other two swipe choices. This is a data-integrity rule from fix #8, not a style choice.
 - **Motion:** one entry curve `cubic-bezier(0.16, 1, 0.3, 1)` at 0.5 to 0.6 s; lists stagger 50 ms; press scales to 0.97; curtain `cubic-bezier(0.65, 0, 0.25, 1)` at about 1.9 s.
 - **Short and skippable:** the big moments add under 5 s per game in total, and every one can be skipped on replay. The game stays under 3 minutes.
@@ -69,15 +69,15 @@ Every screen and state, phone size (390 x 844), in this direction:
 1. Setup (region, services, renting, ADMIT TWO)
 2. Round 1: moods and genres picker (moods on top, per the backlog)
 3. Pass-the-phone gate (to Player 2, and back to Player 1 at round boundaries)
-4. Loader after Round 1 ("Blending your tastes"): projector countdown + pool fact
+4. Loader after Round 1 ("Blending your tastes"): projector countdown + an iconic quote
 5. Round 2: swipe card, all three decisions, stamp states
 6. Loader after Round 2 ("Reading the mood")
 7. Round 3: the shortlist, multi-select, with availability labels ("Included with X", "Rent on X")
-8. Tiebreak or bridge pick (no overlap), clearly labelled as a bridge
-9. Match: curtain closed, curtain open, poster card, reasons, Watch CTA, runner-ups, play again
-10. Share card, 9:16
-11. Honest end-state ("nothing on your services tonight") with a light way back to setup
-12. Error and retry state for an AI or network failure
+8. Match: curtain closed, curtain open, poster card, reasons, Watch CTA, runner-ups, play again. There is always a match (the core promise), so a bridge pick uses this same reveal; only the one-line "why it matched" says it sits between your tastes (Lasse, 1 Oct)
+9. Share card, 9:16
+10. Error and retry state for an AI or network failure
+
+Dropped on purpose (Lasse, 1 Oct): a separate "no overlap" screen and a "nothing on your services" screen. The engine only offers films the couple can watch, so the code keeps a plain safety-net message for that edge case, with no special design.
 
 Plus: the colour and type tokens as a table, and short notes on any motion that differs from section 5.
 
