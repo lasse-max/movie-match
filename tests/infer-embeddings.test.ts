@@ -26,8 +26,10 @@ vi.mock("@/lib/tmdb", () => ({
 }));
 
 import { inferMoods } from "@/lib/infer";
+import { FRESH_SLOTS } from "@/lib/retrieve";
 import type { PoolMovie } from "@/lib/blendTypes";
 import type { InferResult } from "@/lib/inferTypes";
+import { fakeSupabase, film, hangingFetch, vec, type Row } from "./helpers/fakeSupabase";
 
 const onNetflix = {
   link: "https://jw.test",
@@ -75,13 +77,19 @@ const view = (r: InferResult) => ({
   2: { mood: r[2].moodRead.summary, recs: r[2].recs.map((x) => `${x.id}:${x.source}:${x.availability.flatrate.length ? "inc" : "-"}`) },
 });
 
-const fetchSpy = vi.fn(async () => {
-  throw new Error("unexpected network call in test");
-});
+const fetchSpy = vi.fn();
+let warn: ReturnType<typeof vi.spyOn>;
+let info: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Any network call fails loudly unless a test installs a fake database.
+  fetchSpy.mockImplementation(async () => {
+    throw new Error("unexpected network call in test");
+  });
   vi.stubGlobal("fetch", fetchSpy);
+  warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  info = vi.spyOn(console, "info").mockImplementation(() => {});
   createMock.mockResolvedValue(refusal);
   recMock.mockResolvedValue([]);
   providersMock.mockResolvedValue(null);
@@ -92,6 +100,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  warn.mockRestore();
+  info.mockRestore();
 });
 
 // Candidate ids a player's list sent to Claude (parsed from the prompt).
@@ -310,5 +320,192 @@ describe("E-9: rejections go first (flag off)", () => {
     );
     expect(recIds(result, 1)).toContain(70); // the liked film stays
     expect(recIds(result, 1)).not.toContain(170); // the same-franchise fresh pick is dropped
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Flag on: a fake Supabase at the fetch boundary serves the fresh films.
+// Vectors for the golden pool's liked films (P1: 1, 3 · P2: 2, 5), plus a sci-fi
+// cluster near P1 and an action cluster near P2. Film 2 sits close to P1's likes,
+// so the closest cross-player pair clears the threshold and seeds shared films.
+// ---------------------------------------------------------------------------
+const goldenCatalogue: Row[] = [
+  film(1, vec(1, 0)),
+  film(3, vec(0.9, 0.1)),
+  film(2, vec(0.95, 0.05)),
+  film(5, vec(0, 1)),
+  ...Array.from({ length: 10 }, (_, i) => film(401 + i, vec(1, 0.02 * (i + 1)), { genre_ids: [878] })),
+  ...Array.from({ length: 10 }, (_, i) => film(501 + i, vec(0.02 * (i + 1), 1), { genre_ids: [28] })),
+];
+
+function flagOn(catalogue: Row[] = goldenCatalogue, opts: { honourExclude?: boolean } = {}) {
+  vi.stubEnv("EMBEDDINGS_ENABLED", "true");
+  vi.stubEnv("SUPABASE_URL", "https://db.test");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "sb_secret_test");
+  fetchSpy.mockImplementation(fakeSupabase(catalogue, opts));
+}
+const freshIn = (ids: number[]) => ids.filter((id) => id > 400);
+
+describe("flag on: catalogue retrieval serves the fresh films", () => {
+  beforeEach(() => {
+    providersMock.mockResolvedValue(onNetflix);
+  });
+
+  it("replaces today's fresh expansion with up to six catalogue films per player, after every liked film", async () => {
+    flagOn();
+    await inferMoods(goldenPool, goldenSwipes, goldenCategories, "US", [8], false);
+
+    expect(fetchSpy).toHaveBeenCalled(); // the catalogue
+    expect(recMock).not.toHaveBeenCalled(); // not today's TMDB recommendations
+    const c1 = promptCandidates(1);
+    expect(c1.slice(0, 3)).toEqual([2, 1, 3]); // cross-player, then own likes, first
+    expect(freshIn(c1)).toHaveLength(FRESH_SLOTS);
+    expect(freshIn(promptCandidates(2))).toHaveLength(FRESH_SLOTS);
+  });
+
+  it("puts the shared films in BOTH players' lists", async () => {
+    flagOn();
+    await inferMoods(goldenPool, goldenSwipes, goldenCategories, "US", [8], false);
+    const shared = freshIn(promptCandidates(1)).filter((id) => promptCandidates(2).includes(id));
+    expect(shared.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("lets more than two fresh films reach Round 3 when Claude ranks them first (today's cap is two)", async () => {
+    flagOn();
+    createMock.mockImplementation(async (req: { messages: { content: string }[] }) => {
+      const content = req.messages[0].content;
+      const fresh = (p: 1 | 2) =>
+        [...((content.split(`Player ${p} candidates`)[1] ?? "").split("\n\n")[0]).matchAll(/- (\d+):/g)]
+          .map((m) => Number(m[1]))
+          .filter((id) => id > 400);
+      return aiInfer([
+        { player: 1, moodRead: { summary: "Sci-fi", axes: [] }, recIds: [...fresh(1), 2, 1, 3] },
+        { player: 2, moodRead: { summary: "Action", axes: [] }, recIds: [...fresh(2), 2, 5] },
+      ]);
+    });
+    const result = await inferMoods(goldenPool, goldenSwipes, goldenCategories, "US", [8], false);
+    expect(result[1].recs.slice(0, 8).filter((r) => r.source === "fresh")).toHaveLength(FRESH_SLOTS);
+  });
+
+  it("never pushes a liked film out of the 16 candidates, however many fresh films there are", async () => {
+    // 14 liked sci-fi films between them: only 2 of P1's 16 slots are left for fresh.
+    const likedIds = Array.from({ length: 14 }, (_, i) => 21 + i);
+    const pool = likedIds.map((id) => pm(id, { genreIds: [878] }));
+    const catalogue = [
+      ...likedIds.map((id) => film(id, vec(1, 0.001 * id))),
+      ...Array.from({ length: 10 }, (_, i) => film(401 + i, vec(1, 0.02 * (i + 1)), { genre_ids: [878] })),
+    ];
+    flagOn(catalogue);
+    await inferMoods(
+      pool,
+      { 1: { yes: likedIds.slice(0, 8), no: [] }, 2: { yes: likedIds.slice(8), no: [] } },
+      { 1: ["Sci-Fi"], 2: ["Sci-Fi"] },
+      "US",
+      [8],
+      false
+    );
+    const c1 = promptCandidates(1);
+    expect(c1).toHaveLength(16);
+    for (const id of likedIds) expect(c1).toContain(id); // all 14 likes kept
+    expect(freshIn(c1)).toHaveLength(2); // fresh only took what padding would have
+  });
+
+  it("keeps E-9 even when the database ignores exclude_ids and returns a rejected film first", async () => {
+    const pool = [
+      pm(50, { genreIds: [878, 28] }),
+      pm(51, { genreIds: [878] }),
+      pm(52, { genreIds: [28] }),
+    ];
+    const catalogue = [
+      film(51, vec(1, 0)),
+      film(52, vec(0, 1)),
+      film(50, vec(0.99, 0.01), { genre_ids: [878, 28] }), // right at P1's fingerprint
+      ...Array.from({ length: 10 }, (_, i) => film(401 + i, vec(1, 0.02 * (i + 1)), { genre_ids: [878] })),
+      ...Array.from({ length: 10 }, (_, i) => film(501 + i, vec(0.02 * (i + 1), 1), { genre_ids: [28] })),
+    ];
+    flagOn(catalogue, { honourExclude: false });
+    discoverMock.mockResolvedValue([rec(50, { genre_ids: [878, 28] })]);
+    const result = await inferMoods(
+      pool,
+      { 1: { yes: [51], no: [50] }, 2: { yes: [52], no: [50] } },
+      { 1: ["Sci-Fi"], 2: ["Action"] },
+      "US",
+      [8],
+      false
+    );
+    expect(promptCandidates(1)).not.toContain(50);
+    expect(promptCandidates(2)).not.toContain(50);
+    expect(recIds(result, 1)).not.toContain(50);
+    expect(recIds(result, 2)).not.toContain(50);
+  });
+
+  it("lets the eval route force retrieval off or on per request, whatever the env says", async () => {
+    flagOn(); // env says on
+    await inferMoods(goldenPool, goldenSwipes, goldenCategories, "US", [8], false, { embeddings: false });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    vi.stubEnv("EMBEDDINGS_ENABLED", "false"); // env says off
+    await inferMoods(goldenPool, goldenSwipes, goldenCategories, "US", [8], false, { embeddings: true });
+    expect(fetchSpy).toHaveBeenCalled();
+  });
+
+  it("logs one structured line per game: counts and similarity, no titles", async () => {
+    flagOn();
+    await inferMoods(goldenPool, goldenSwipes, goldenCategories, "US", [8], false);
+    expect(info).toHaveBeenCalledTimes(1);
+    const line = String(info.mock.calls[0][0]);
+    expect(JSON.parse(line)).toMatchObject({
+      event: "embeddings.retrieval",
+      outcome: "embeddings",
+      fingerprints: { 1: true, 2: true },
+      sharedSeed: true,
+      selected: { 1: FRESH_SLOTS, 2: FRESH_SLOTS },
+      servedBy: { 1: "embeddings", 2: "embeddings" },
+    });
+    expect(JSON.parse(line).used[1]).toBeGreaterThan(0);
+    expect(line).not.toMatch(/Pool |Cat |Rec /); // no titles
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fail safe. Regression tests for the fallback: with the flag ON and the database
+// failing, the game returns exactly today's output (the golden path) instead of an
+// error. Each fails without its fix (verified by reverting it; see the report).
+// ---------------------------------------------------------------------------
+describe("fail safe: a broken database falls back to today's path, exactly", () => {
+  async function todaysOutput() {
+    vi.stubEnv("EMBEDDINGS_ENABLED", "false");
+    arrangeGolden();
+    const result = await inferMoods(goldenPool, goldenSwipes, goldenCategories, "US", [8], false);
+    const prompt = createMock.mock.calls[0][0].messages[0].content;
+    createMock.mockClear();
+    return { result, prompt };
+  }
+  async function withBrokenDatabase(fetchImpl: (url: string, init?: RequestInit) => Promise<Response>) {
+    flagOn();
+    fetchSpy.mockImplementation(fetchImpl);
+    const result = await inferMoods(goldenPool, goldenSwipes, goldenCategories, "US", [8], false);
+    return { result, prompt: createMock.mock.calls[0][0].messages[0].content };
+  }
+
+  it("when the database is down", async () => {
+    const today = await todaysOutput();
+    const broken = await withBrokenDatabase(async () => {
+      throw new TypeError("fetch failed");
+    });
+    expect(fetchSpy).toHaveBeenCalled();
+    expect(broken.prompt).toBe(today.prompt);
+    expect(view(broken.result)).toEqual(view(today.result));
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("when the database hangs (1.5 s timeout)", async () => {
+    const today = await todaysOutput();
+    const started = Date.now();
+    const broken = await withBrokenDatabase(hangingFetch);
+    expect(Date.now() - started).toBeLessThan(2500);
+    expect(broken.prompt).toBe(today.prompt);
+    expect(view(broken.result)).toEqual(view(today.result));
   });
 });

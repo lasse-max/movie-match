@@ -3,10 +3,11 @@
 // Round 2 swipes are read as VIBE signals about the direction a player leans
 // (not verdicts on titles). For each player we deterministically assemble a
 // candidate set — (a) cross-player positives the OTHER player liked, (b) this
-// player's own swipe-validated pool picks, (c) ≤2 fresh titles from TMDB's
-// recommendation graph — then Claude infers the mood and ranks/selects IDs from
-// that set. The AI never names titles; output is validated against the set and
-// shortfalls are filled deterministically, so it never crashes.
+// player's own swipe-validated pool picks, (c) fresh titles: up to 6 from the
+// embeddings catalogue when EMBEDDINGS_ENABLED (lib/retrieve.ts), else ≤2 from
+// TMDB's recommendation graph — then Claude infers the mood and ranks/selects IDs
+// from that set. The AI never names titles; output is validated against the set
+// and shortfalls are filled deterministically, so it never crashes.
 import "server-only";
 import { CLAUDE_MODEL, getAnthropic } from "./anthropic";
 import { categoryGenreId } from "./categories";
@@ -14,6 +15,13 @@ import { genreNames, isKidsFare } from "./genres";
 import { round3Rank } from "./ranking";
 import { attachAvailability } from "./availability";
 import { evaluateAvailability, NO_AVAILABILITY } from "./filter";
+import {
+  embeddingsEnabled,
+  FRESH_SLOTS,
+  logRetrieval,
+  retrieveFresh,
+  type FreshFilm,
+} from "./retrieve";
 import {
   discoverMovies,
   getCollectionId,
@@ -86,6 +94,21 @@ const discoverToCandidate = (m: TmdbDiscoverMovie, source: RecSource): Candidate
   directionTheme: "Fresh pick",
   source,
   collectionId: null, // filled for the kept fresh picks (see freshExpansion)
+});
+
+/** A catalogue film (already checked, collection known) as a fresh candidate. */
+const freshToCandidate = (f: FreshFilm): Candidate => ({
+  id: f.id,
+  title: f.title,
+  year: f.year,
+  overview: f.overview,
+  posterUrl: tmdbImageUrl(f.posterPath, "w342"),
+  genreIds: f.genreIds,
+  voteAverage: f.voteAverage,
+  voteCount: f.voteCount,
+  directionTheme: "Fresh pick",
+  source: "fresh",
+  collectionId: f.collectionId,
 });
 
 /** Anchor genres = the TMDB genres behind a player's Round 1 category picks. */
@@ -236,10 +259,15 @@ function assembleCandidates(
 
 /**
  * Turn ranked ids into the final ≤8 recs: keep only ids present in the candidate
- * set (drop invented ones), de-dupe, cap fresh expansion at 2, then fill any
+ * set (drop invented ones), de-dupe, cap fresh titles at `maxFresh` (2 on today's
+ * path, FRESH_SLOTS when the catalogue served this player), then fill any
  * shortfall from the candidate assembly order (cross-player first).
  */
-export function finalizeRecs(candidates: Candidate[], recIds: number[]): PlayerRec[] {
+export function finalizeRecs(
+  candidates: Candidate[],
+  recIds: number[],
+  maxFresh: number = MAX_FRESH
+): PlayerRec[] {
   const byId = new Map(candidates.map((c) => [c.id, c]));
   const chosen: Candidate[] = [];
   const used = new Set<number>();
@@ -247,7 +275,7 @@ export function finalizeRecs(candidates: Candidate[], recIds: number[]): PlayerR
 
   const tryAdd = (c: Candidate | undefined) => {
     if (!c || used.has(c.id) || chosen.length >= TARGET_RECS) return;
-    if (c.source === "fresh" && freshCount >= MAX_FRESH) return;
+    if (c.source === "fresh" && freshCount >= maxFresh) return;
     used.add(c.id);
     chosen.push(c);
     if (c.source === "fresh") freshCount++;
@@ -492,13 +520,21 @@ async function providerBackfill(
   return out;
 }
 
+/** Eval-only switches. The live /api/infer route never passes these. */
+export interface InferOptions {
+  /** Force the embeddings retrieval on or off for this request (E4's A/B),
+   * overriding EMBEDDINGS_ENABLED. */
+  embeddings?: boolean;
+}
+
 export async function inferMoods(
   pool: PoolMovie[],
   swipes: Swipes,
   categories: Categories,
   region: string,
   services: number[],
-  willingToPay: boolean
+  willingToPay: boolean,
+  opts: InferOptions = {}
 ): Promise<InferResult> {
   // If the pool already carries kids' fare, the couple opted into it (Animated
   // pick), so fresh expansion may too.
@@ -520,8 +556,35 @@ export async function inferMoods(
       .map((id) => byId.get(id)?.collectionId)
       .filter((c): c is number => c != null)
   );
-  const fresh1 = await freshExpansion(positives(1), poolIds, allowKidsFare, likedCollections);
-  const fresh2 = await freshExpansion(positives(2), poolIds, allowKidsFare, likedCollections);
+  // Fresh titles. With EMBEDDINGS_ENABLED the catalogue serves them (E3); a player
+  // it can't serve (no usable likes, or any database problem) gets today's TMDB
+  // recommendation path, exactly as with the flag off.
+  const retrieval = embeddingsEnabled(opts.embeddings)
+    ? await retrieveFresh({
+        pool,
+        likes: { 1: swipes[1].yes, 2: swipes[2].yes },
+        swiped: new Set([...swipes[1].yes, ...swipes[1].no, ...swipes[2].yes, ...swipes[2].no]),
+        allowKidsFare,
+        likedCollections,
+        region,
+        services,
+        willingToPay,
+      })
+    : null;
+  const freshFor = async (player: Player) => {
+    const films = retrieval?.fresh[player];
+    return films
+      ? films.map(freshToCandidate)
+      : freshExpansion(positives(player), poolIds, allowKidsFare, likedCollections);
+  };
+  const fresh1 = await freshFor(1);
+  const fresh2 = await freshFor(2);
+  // A catalogue-served player may get up to FRESH_SLOTS fresh titles in Round 3;
+  // today's path keeps its cap.
+  const maxFresh: Record<Player, number> = {
+    1: retrieval?.fresh[1] ? FRESH_SLOTS : MAX_FRESH,
+    2: retrieval?.fresh[2] ? FRESH_SLOTS : MAX_FRESH,
+  };
 
   const cand1 = assembleCandidates(1, pool, swipes, fresh1, anchor1, rej);
   const cand2 = assembleCandidates(2, pool, swipes, fresh2, anchor2, rej);
@@ -533,7 +596,7 @@ export async function inferMoods(
     cands: Candidate[],
     anchor: Set<number>
   ): Promise<PlayerInference> => {
-    const recs = finalizeRecs(cands, ai ? ai[player].recIds : []);
+    const recs = finalizeRecs(cands, ai ? ai[player].recIds : [], maxFresh[player]);
     const recIds = new Set(recs.map((r) => r.id));
     // Backfill is padding too: never this player's own "Not it" (E-9).
     const backfill = backfillCandidates(pool, new Set([...recIds, ...rej.own[player]]), anchor).map(
@@ -607,5 +670,17 @@ export async function inferMoods(
   };
 
   const [p1, p2] = await Promise.all([build(1, cand1, anchor1), build(2, cand2, anchor2)]);
+
+  if (retrieval) {
+    const used = (player: Player, inf: PlayerInference) => {
+      const ids = new Set((retrieval.fresh[player] ?? []).map((f) => f.id));
+      return inf.recs.filter((r) => ids.has(r.id)).length;
+    };
+    logRetrieval(
+      retrieval.stats,
+      { 1: used(1, p1), 2: used(2, p2) },
+      { 1: retrieval.fresh[1] ? "embeddings" : "today", 2: retrieval.fresh[2] ? "embeddings" : "today" }
+    );
+  }
   return { 1: p1, 2: p2 };
 }
