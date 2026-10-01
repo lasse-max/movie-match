@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
 import { isKidsFare } from "@/lib/genres";
 import { declinedFrom } from "@/lib/overlap";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
 import type { MatchMovie } from "@/lib/inferTypes";
 import { ERROR_LINES, ErrorState } from "./ErrorState";
+import { Notice } from "./Notice";
 import { ProjectorLoader } from "./Projector";
-import { brassCta, display, label, textButton } from "./palace";
+import { brassCta, textButton } from "./palace";
 
 /** What the bridge said: a watchable match, or a recoverable state. */
 type BridgeAnswer =
@@ -190,29 +191,5 @@ export function TiebreakScreen() {
     <ProjectorLoader title="Finding common ground" done={!!answer} onDone={land}>
       No exact overlap, so we’re bridging both your tastes into one pick.
     </ProjectorLoader>
-  );
-}
-
-/** A plain notice in the house style: kicker, headline, one line, actions. */
-function Notice({
-  kicker,
-  title,
-  body,
-  children,
-}: {
-  kicker: string;
-  title: string;
-  body: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="pp-enter flex min-h-full flex-1 flex-col gap-[26px]">
-      <div className="flex flex-1 flex-col justify-center gap-2.5">
-        <span className={`${label} text-brass`}>{kicker}</span>
-        <h1 className={`${display} text-[46px] leading-[0.88]`}>{title}</h1>
-        <p className="text-[15px] leading-[1.5] text-cream/75">{body}</p>
-      </div>
-      <div className="flex flex-col gap-2.5">{children}</div>
-    </div>
   );
 }

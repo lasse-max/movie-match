@@ -3,24 +3,26 @@
 import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
 import { PassPhone } from "./PassPhone";
+import { Notice } from "./Notice";
 import { selectWatchable, labelText, type AvailabilityLabel } from "@/lib/filter";
 import { genreNames } from "@/lib/genres";
 import type { Player } from "@/lib/gameMachine";
 import type { PlayerRec } from "@/lib/inferTypes";
-import { Check, Progress, goldCta, loaderCol, pill, screenCol, tag } from "./marquee";
+import { Check, Ticket, brassCta, display, label, mono, textButton } from "./palace";
 
 const TARGET = 8;
 
 // No source attribution is shown here. Cross-player positives are a SILENT
-// seeding mechanism (lib/infer.ts) — surfacing "they're into this" would nudge
-// compromise picks and spoil the "you both picked it!" reveal on the match
-// screen. Each card stays a clean, genuine "would I watch this?".
+// seeding mechanism (lib/infer.ts): surfacing "they're into this" would nudge
+// compromise picks and spoil the "you both picked it" reveal on the match
+// screen. Each row stays a clean, genuine "would I watch this?".
 
 export function Round3Screen() {
   const { state } = useGame();
   return <PlayerPicks key={state.currentPlayer} player={state.currentPlayer} />;
 }
 
+// Round 3, built to docs/design/picture-palace/R3Shortlist.dc.html.
 function PlayerPicks({ player }: { player: Player }) {
   const { state, dispatch } = useGame();
   const inference = state.inference?.[player];
@@ -32,7 +34,7 @@ function PlayerPicks({ player }: { player: Player }) {
   const [submitted, setSubmitted] = useState(false);
   const submittedRef = useRef(false);
 
-  // Resolve to a SINGLE watchable view — eligible titles, the rentals expand, or
+  // Resolve to a SINGLE watchable view: eligible titles, the rentals expand, or
   // the honest end-state. We never render ineligible titles as selectable picks.
   const view = selectWatchable(finalists, services, willingToPay, TARGET);
 
@@ -44,54 +46,53 @@ function PlayerPicks({ player }: { player: Player }) {
     );
   }
 
-  // Nothing's included, but paying would unlock titles → offer the expand. When
+  // Nothing's included, but paying would unlock titles: offer the expand. When
   // they've selected NO services at all, also surface the path back to setup.
   if (view.kind === "offer-rentals") {
     return (
-      <div className={loaderCol}>
-        <h2 className="mb-2.5 font-display text-[32px]">Nothing’s included tonight</h2>
-        <p className="mb-7 max-w-[270px] text-[14px] leading-[1.5] text-text/55">
-          {services.length === 0
-            ? "You haven’t added any subscriptions — but these are available to rent or buy."
-            : "None of your picks are on your subscriptions — but they’re available to rent or buy."}
-        </p>
+      <Notice
+        kicker="Round 3 · Shortlist"
+        title="Nothing’s included tonight"
+        body={
+          services.length === 0
+            ? "You haven’t added any subscriptions, but these are available to rent or buy."
+            : "None of your picks are on your subscriptions, but they’re available to rent or buy."
+        }
+      >
         <button
-          className={goldCta}
+          type="button"
+          className={brassCta}
           onClick={() => dispatch({ type: "SET_WILLING_TO_PAY", value: true })}
         >
-          Include rentals &amp; purchases
+          Include rentals and purchases
         </button>
         {services.length === 0 && (
-          <button
-            className="mt-3 text-[12px] text-text/45 underline underline-offset-4 transition hover:text-text"
-            onClick={() => dispatch({ type: "RESET" })}
-          >
-            …or start over and add a service
+          <button type="button" className={`${textButton} self-center`} onClick={() => dispatch({ type: "RESET" })}>
+            Start over and add a service
           </button>
         )}
-      </div>
+      </Notice>
     );
   }
 
   // Honest, recoverable end-state: nothing is streamable or rentable for these
-  // picks in this region tonight. We never pad the screen with unwatchable titles
-  // — offer an honest retune instead.
+  // picks in this region tonight. We never pad the screen with unwatchable titles;
+  // we offer an honest retune instead.
   if (view.kind === "none") {
     return (
-      <div className={loaderCol}>
-        <h2 className="mb-2.5 font-display text-[32px]">Nothing watchable tonight</h2>
-        <p className="mb-7 max-w-[270px] text-[14px] leading-[1.5] text-text/55">
-          We couldn’t find any of these to stream or rent in {region} right now. Retune your vibes
-          and we’ll try again.
-        </p>
-        <button className={goldCta} onClick={() => dispatch({ type: "RESET" })}>
+      <Notice
+        kicker="Round 3 · Shortlist"
+        title="Nothing watchable tonight"
+        body={`We couldn’t find any of these to stream or rent in ${region} right now. Retune your vibes and we’ll try again.`}
+      >
+        <button type="button" className={brassCta} onClick={() => dispatch({ type: "RESET" })}>
           Start over
         </button>
-      </div>
+      </Notice>
     );
   }
 
-  const rows = view.rows; // every row is eligible — nothing unwatchable is shown
+  const rows = view.rows; // every row is eligible: nothing unwatchable is shown
 
   const toggle = (id: number) =>
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
@@ -101,108 +102,109 @@ function PlayerPicks({ player }: { player: Player }) {
     submittedRef.current = true;
     setSubmitted(true);
     // Record exactly the titles displayed (post rentals-expand) so the bridge can
-    // treat shown-but-unpicked as declined — and never-shown titles as available.
+    // treat shown-but-unpicked as declined, and never-shown titles as available.
     dispatch({ type: "SET_PICKS", player, movieIds: selected, shown: rows.map((r) => r.item.id) });
     dispatch({ type: "COMPLETE_TURN", player });
   };
 
   return (
-    <div className={screenCol}>
-      <div className="flex-1">
-        <div className="mb-4 flex items-center justify-between">
-          <span className={pill}>Round 3 · Shortlist</span>
-          <Progress done={3} />
-        </div>
+    <div className="pp-enter flex min-h-full flex-1 flex-col gap-3.5">
+      <header className="flex flex-none items-center justify-between">
+        <span className={`${label} text-brass`}>Round 3 · Shortlist</span>
+        <span className={`${label} text-cream/65`}>Player {player}</span>
+      </header>
 
-        <h2 className="mb-1 font-display text-[32px] leading-[1.06]">
-          Which would you <span className="italic text-gold">watch</span>?
-        </h2>
-        <p className="mb-5 text-[13.5px] text-text/50">
-          Tap every title you’d be up for.{" "}
-          {selected.length > 0 && <span className="text-gold">{selected.length} selected</span>}
+      <div className="flex flex-none flex-col gap-2">
+        <h1 className={`${display} text-[44px] leading-[0.86]`}>
+          What would
+          <br />
+          <span className="text-signal">you watch?</span>
+        </h1>
+        <p className="text-[14px] leading-[1.45] text-cream/75">
+          Pick every film you’d happily watch tonight. More picks, better odds.
         </p>
-
-        <ul className="flex flex-col gap-[9px]">
-          {rows.map(({ item, label }) => (
-            <RecRow
-              key={item.id}
-              rec={item}
-              label={label}
-              selected={selected.includes(item.id)}
-              onToggle={() => toggle(item.id)}
-            />
-          ))}
-        </ul>
       </div>
 
-      <div className="mt-4">
-        {/* Zero picks is a valid path — the reducer routes an empty shortlist to the
-            bridge (→ a watchable end-state), so the CTA stays enabled at 0 selected. */}
-        <button className={goldCta} disabled={submitted} onClick={lockIn}>
-          {player === 1 ? "Done — pass the phone" : "Find your match"}
-        </button>
+      <ul className="flex flex-col gap-1.5">
+        {rows.map(({ item, label: availability }, i) => (
+          <RecRow
+            key={item.id}
+            index={i}
+            rec={item}
+            availability={availability}
+            selected={selected.includes(item.id)}
+            onToggle={() => toggle(item.id)}
+          />
+        ))}
+      </ul>
+
+      {/* Zero picks is a valid path: the reducer routes an empty shortlist to the
+          bridge (a watchable end-state), so the ticket stays live at 0 picked. */}
+      <div className="mt-auto pt-1">
+        <Ticket
+          stub={
+            <span aria-live="polite">
+              {selected.length}
+              <br />
+              picked
+            </span>
+          }
+          disabled={submitted}
+          onClick={lockIn}
+        >
+          Lock my picks
+        </Ticket>
       </div>
     </div>
   );
 }
 
 function RecRow({
+  index,
   rec,
-  label,
+  availability,
   selected,
   onToggle,
 }: {
+  index: number;
   rec: PlayerRec;
-  label: AvailabilityLabel; // always present — only eligible titles are rendered
+  availability: AvailabilityLabel; // always present: only eligible titles are rendered
   selected: boolean;
   onToggle: () => void;
 }) {
-  const tags = genreNames(rec.genreIds).slice(0, 2);
+  const meta = [rec.year, ...genreNames(rec.genreIds).slice(0, 2)].filter(Boolean).join(" · ");
   return (
-    <li>
+    <li className="pp-enter" style={{ animationDelay: `${120 + index * 50}ms` }}>
       <button
         type="button"
         onClick={onToggle}
         aria-pressed={selected}
-        className={`flex w-full items-center gap-3 rounded-2xl border p-[9px] text-left transition active:scale-[0.99] ${
-          selected ? "border-gold/65 bg-gold/[0.08]" : "border-text/9 bg-text/[0.02]"
+        className={`flex min-h-14 w-full items-center gap-3 rounded-xl py-1.5 pl-1.5 pr-2.5 text-left transition-[background-color,box-shadow,transform] duration-300 ease-entry active:scale-[0.98] ${
+          selected ? "bg-[#241911] shadow-[inset_0_0_0_1.5px_rgba(214,162,74,0.75)]" : "bg-aisle"
         }`}
       >
-        <div className="h-[66px] w-[46px] shrink-0 overflow-hidden rounded-lg border border-text/10 bg-text/10">
-          {rec.posterUrl ? (
+        <span className="relative h-[52px] w-9 flex-none overflow-hidden rounded bg-[#2a1d19]">
+          {rec.posterUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- external TMDB poster
-            <img
-              src={rec.posterUrl}
-              alt={rec.title}
-              width={46}
-              height={66}
-              className="h-full w-full object-cover"
-            />
-          ) : null}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[14.5px] font-semibold">
-            {rec.title}
-            {rec.year ? <span className="font-normal text-text/45"> · {rec.year}</span> : null}
-          </div>
-          {tags.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {tags.map((t) => (
-                <span key={t} className={tag}>
-                  {t}
-                </span>
-              ))}
-            </div>
+            <img src={rec.posterUrl} alt="" className="h-full w-full object-cover" />
           )}
-          <div className="mt-1 text-[11.5px] text-gold">{labelText(label)}</div>
-        </div>
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
+          <span className="truncate font-display text-[19px] font-extrabold uppercase leading-none">
+            {rec.title}
+          </span>
+          {meta && <span className="truncate text-[12px] leading-[15px] text-cream/65">{meta}</span>}
+          <span className={`${mono} text-[9.5px] leading-[10px] tracking-[0.16em] text-brass`}>
+            {labelText(availability)}
+          </span>
+        </span>
         <span
-          className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full transition ${
-            selected ? "bg-gold text-ink" : "border border-text/25"
-          }`}
           aria-hidden
+          className={`flex h-7 w-7 flex-none items-center justify-center rounded-full transition-[background-color,box-shadow] duration-300 ${
+            selected ? "bg-brass text-projection" : "shadow-[inset_0_0_0_1.5px_rgba(242,232,213,0.35)]"
+          }`}
         >
-          {selected && <Check size={13} />}
+          {selected && <Check size={16} />}
         </span>
       </button>
     </li>

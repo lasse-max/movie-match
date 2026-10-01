@@ -69,7 +69,7 @@ export function Bulbs({ count = 16 }: { count?: number }) {
 }
 
 /** A velvet ticket button with a stub and notched edges: ADMIT TWO on setup,
- * LOCK IT IN on Round 1. */
+ * LOCK IT IN on Round 1, the picked count on Round 3. */
 export function Ticket({
   children,
   stub = (
