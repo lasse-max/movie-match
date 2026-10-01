@@ -9,6 +9,7 @@ import { categoryGenreId, normalizeCategoryPicks } from "@/lib/categories";
 import { isKidsFare } from "@/lib/genres";
 import { selectSwipeSamples, type BlendResult, type PoolMovie } from "@/lib/blendTypes";
 import { DEFAULT_REGION } from "@/lib/constants";
+import { embeddingsEnabled } from "@/lib/retrieve";
 import type { MatchMovie, PlayerRec } from "@/lib/inferTypes";
 
 // EVAL-ONLY pipeline runner (dev only — 404 in production). Runs one couple's
@@ -123,8 +124,14 @@ export async function POST(request: Request) {
     const willingToPay = typeof lane.willingToPay === "boolean" ? lane.willingToPay : true;
     const threshold = lane.picker === "threshold";
     const TARGET = 8; // Round 3 display size (matches the UI)
+    // Embeddings A/B (E4): `embeddings: true|false` forces the catalogue retrieval on
+    // or off for this request, overriding EMBEDDINGS_ENABLED. Eval only: this route
+    // is dev-only, and the live /api/infer route never passes the override.
+    const embeddings = typeof body?.embeddings === "boolean" ? body.embeddings : undefined;
 
-    const inf = await inferMoods(pool, swipes, categories, EVAL_REGION, services, willingToPay);
+    const inf = await inferMoods(pool, swipes, categories, EVAL_REGION, services, willingToPay, {
+      embeddings,
+    });
     const isEligible = (r: PlayerRec) =>
       evaluateAvailability(r.availability, services, willingToPay).eligible;
 
@@ -187,6 +194,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       p1,
       p2,
+      embeddings: embeddingsEnabled(embeddings), // which arm actually ran
       blendMood: blend.moodRead,
       p1Mood: inf[1].moodRead,
       p2Mood: inf[2].moodRead,
