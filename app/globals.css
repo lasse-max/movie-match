@@ -1,39 +1,189 @@
 @import "tailwindcss";
 
-/* Marquee theme — always dark, "watching at night" canvas with champagne-gold
-   accents. Rose is reserved for the Match peak (and the Inferring "reading the
-   mood" beat) only. */
+/* Picture Palace (design pass 2): an old picture palace meets the mid-century
+   two-colour poster. One system, three materials, each with one job:
+   - Light (brass, bulb): anything that glows or is pressed. CTAs, stamps, bulbs, the match.
+   - Fabric (velvet, oxblood, signal red): curtains, tickets, poster titles. Signal red
+     is the red for text on black; keep it to large type (it sits right at 4.5:1).
+   - Paper and the house (cream, aisle, projection black): cards and posters are paper,
+     the room is black, raised surfaces step up in tone. No grey lines.
+   Values come from docs/design/picture-palace/*.dc.html. */
 :root {
-  --ink: #0a0810;
-  --ink-2: #0e0c14;
-  --surface: rgba(245, 241, 232, 0.03);
-  --surface-2: rgba(245, 241, 232, 0.07);
-  --line: rgba(245, 241, 232, 0.1);
-  --gold: #e8c07d;
-  --gold-deep: #c99b53;
-  --rose: #f0685a;
-  --text: #f5f1e8;
-  --muted: rgba(245, 241, 232, 0.55);
+  --brass: #d6a24a;
+  --brass-light: #f2cf7e; /* brass for text, rings and stamps on black */
+  --bulb: #ffe9b0;
+  --velvet: #b8141e;
+  --oxblood: #6e0b12;
+  --signal: #e3312d;
+  --cream: #f2e8d5;
+  --aisle: #17100e;
+  --projection: #0e0a09;
 }
 
 @theme inline {
-  --color-ink: var(--ink);
-  --color-ink-2: var(--ink-2);
-  --color-gold: var(--gold);
-  --color-gold-deep: var(--gold-deep);
-  --color-rose: var(--rose);
-  --color-text: var(--text);
-  --font-display: var(--font-display);
-  --font-sans: var(--font-sans);
+  --color-brass: var(--brass);
+  --color-brass-light: var(--brass-light);
+  --color-bulb: var(--bulb);
+  --color-velvet: var(--velvet);
+  --color-oxblood: var(--oxblood);
+  --color-signal: var(--signal);
+  --color-cream: var(--cream);
+  --color-aisle: var(--aisle);
+  --color-projection: var(--projection);
+
+  /* Transition aliases: the old Marquee names point at the new palette, so screens
+     not yet rebuilt stay playable in the new colours. Removed once every screen is
+     rebuilt (slice D5). */
+  --color-ink: var(--projection);
+  --color-ink-2: var(--aisle);
+  --color-gold: var(--brass);
+  --color-gold-deep: var(--brass);
+  --color-rose: var(--signal);
+  --color-text: var(--cream);
+
+  --font-display: var(--font-display); /* Big Shoulders 900: headlines, film titles */
+  --font-signage: var(--font-signage); /* Big Shoulders Inline: marquee signage only */
+  --font-sans: var(--font-sans); /* Libre Franklin: UI and body */
+  --font-mono: var(--font-mono); /* Courier Prime 700: tickets, labels, credits */
+
+  --ease-entry: cubic-bezier(0.16, 1, 0.3, 1); /* the one entry curve */
+  --ease-curtain: cubic-bezier(0.65, 0, 0.25, 1);
 }
 
 body {
-  background: var(--ink);
-  color: var(--text);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  background: var(--projection);
+  color: var(--cream);
+  font-family: var(--font-sans), "Franklin Gothic Medium", "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Decorative loaders / ambient motion (used via motion-safe:animate-[…]). */
+:where(button, a, select, input):focus-visible {
+  outline: 2px solid var(--brass-light);
+  outline-offset: 3px;
+}
+
+@layer components {
+  /* One entry curve for every screen. */
+  .pp-enter {
+    animation: mmEnter 0.6s var(--ease-entry) both;
+  }
+
+  /* Marquee bulbs: a three-step chase. */
+  .pp-bulbs {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 14px;
+  }
+  .pp-bulb {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--bulb);
+    box-shadow: 0 0 8px 2px rgba(255, 200, 110, 0.65);
+    animation: mmChase 1.2s ease-in-out infinite;
+  }
+  .pp-bulb:nth-child(3n + 2) {
+    animation-delay: 0.4s;
+  }
+  .pp-bulb:nth-child(3n) {
+    animation-delay: 0.8s;
+  }
+
+  /* The ADMIT TWO ticket: velvet, a dashed stub, notched edges. */
+  .pp-ticket {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    height: 64px;
+    flex: none;
+    background: var(--velvet);
+    color: var(--cream);
+    border-radius: 8px;
+    -webkit-mask:
+      radial-gradient(circle 10px at 0 50%, #0000 97%, #000) left / 51% 100% no-repeat,
+      radial-gradient(circle 10px at 100% 50%, #0000 97%, #000) right / 51% 100% no-repeat;
+    mask:
+      radial-gradient(circle 10px at 0 50%, #0000 97%, #000) left / 51% 100% no-repeat,
+      radial-gradient(circle 10px at 100% 50%, #0000 97%, #000) right / 51% 100% no-repeat;
+    transition:
+      transform 0.18s var(--ease-entry),
+      filter 0.3s;
+  }
+  .pp-ticket:active {
+    transform: scale(0.97);
+  }
+  .pp-ticket:disabled {
+    filter: grayscale(0.85) brightness(0.55);
+    cursor: not-allowed;
+  }
+
+  /* Film grain over everything (about 8%), a desaturated noise tile that jitters. */
+  .pp-grain {
+    position: fixed;
+    inset: -10%;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0.08;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
+    will-change: transform;
+    animation: mmGrain 0.9s steps(5) infinite;
+  }
+}
+
+@keyframes mmEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mmChase {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+    box-shadow: 0 0 0 0 rgba(255, 200, 110, 0);
+  }
+}
+@keyframes mmGrain {
+  0% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-3%, 2%);
+  }
+  40% {
+    transform: translate(2%, -3%);
+  }
+  60% {
+    transform: translate(-2%, -1%);
+  }
+  80% {
+    transform: translate(3%, 3%);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Marquee-era loops, still used by screens not yet rebuilt. Removed at slice D5. */
+@keyframes mmGlow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
+}
 @keyframes mmSpin {
   to {
     transform: rotate(360deg);
@@ -48,17 +198,6 @@ body {
     transform: translateY(-7px);
   }
 }
-@keyframes mmGlow {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.9;
-    transform: scale(1.06);
-  }
-}
 @keyframes mmPulseRing {
   0% {
     transform: scale(0.7);
@@ -67,5 +206,26 @@ body {
   100% {
     transform: scale(1.5);
     opacity: 0;
+  }
+}
+
+/* Reduced motion: every animation is an instant cut, and the purely decorative
+   layers (grain, flicker, scratches, popcorn) are not drawn at all. Motion's own
+   animations follow MotionConfig reducedMotion="user" (components/MotionRoot). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.001s !important;
+    transition-delay: 0s !important;
+  }
+  .pp-grain,
+  .pp-flicker,
+  .pp-scratch,
+  .pp-kernel {
+    display: none;
   }
 }

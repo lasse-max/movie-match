@@ -137,7 +137,7 @@ export const Phone = ({ size = 34, className }: IconProps) =>
 
 /** Gold gradient surface fragment (compose with sizing). */
 export const GOLD_SURFACE =
-  "bg-[linear-gradient(150deg,#E8C07D,#C99B53)] text-ink shadow-[0_14px_34px_-12px_rgba(232,192,125,0.6)]";
+  "bg-brass text-projection shadow-[0_14px_34px_-12px_rgba(214,162,74,0.7)]";
 
 /** Full-width pinned CTA. Disabled → faint flat fill. */
 export const goldCta =
