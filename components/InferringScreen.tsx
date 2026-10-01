@@ -2,16 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "./GameProvider";
-import { LoadingQuote } from "./LoadingQuote";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
 import type { InferResult } from "@/lib/inferTypes";
-import { Sparkle, Spinner, goldCta, loaderCol } from "./marquee";
+import { ERROR_LINES, ErrorState } from "./ErrorState";
 import { PassPhone } from "./PassPhone";
+import { ProjectorLoader } from "./Projector";
 
 // The "inferring" phase: AI call #2 (each player's ~8 Round 3 recs). This is also the
-// Round 2 → Round 3 BOUNDARY — the phone returns to Player 1 — so a "pass it back"
-// gate shows FIRST; the infer fires on mount in the BACKGROUND so it overlaps the
-// physical handoff, and we advance only once P1 is ready AND the recs are back.
+// Round 2 to Round 3 BOUNDARY: the phone returns to Player 1, so the "pass it back"
+// gate shows FIRST while the infer runs in the BACKGROUND, overlapping the physical
+// handoff. If the recs are back by the time P1 takes the phone, we go straight on;
+// otherwise the projector countdown hides the rest of the wait.
 // Replay-safe (AbortController + cancelled flag).
 export function InferringScreen() {
   const { state, dispatch } = useGame();
@@ -47,20 +48,16 @@ export function InferringScreen() {
         if (cancelled) return;
         clearTimeout(timer);
         if (data.error || !data[1] || !data[2]) {
-          setError(data.error ?? "Couldn't read the room — try again.");
+          setError(ERROR_LINES.server);
         } else {
-          setResult(data as InferResult); // hold it; advance once P1 has the phone
+          setResult(data as InferResult); // hold it; move on once P1 has the phone
         }
       })
       .catch((e: unknown) => {
         if (cancelled) return;
         clearTimeout(timer);
-        if (timedOut) {
-          setError("This is taking longer than usual — check your connection and try again.");
-          return;
-        }
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        setError(e instanceof Error ? e.message : "Network error");
+        if (!timedOut && e instanceof DOMException && e.name === "AbortError") return;
+        setError(ERROR_LINES.connection);
       });
 
     return () => {
@@ -70,17 +67,16 @@ export function InferringScreen() {
     };
   }, [attempt, blend, swipes, categories, region, services, willingToPay]);
 
-  // Advance to Round 3 only once BOTH the handoff is done (P1 ready) and the recs are back.
-  useEffect(() => {
-    if (ready && result && !advanced.current) {
-      advanced.current = true;
-      dispatch({ type: "SET_INFERENCE", inference: result });
-      dispatch({ type: "COMPLETE_TURN", player: 1 }); // → Round 3 (P1's turn — no further gate)
-    }
-  }, [ready, result, dispatch]);
+  // On to Round 3, once: the recs, then P1's turn (no further gate).
+  const advance = (inference: InferResult) => {
+    if (advanced.current) return;
+    advanced.current = true;
+    dispatch({ type: "SET_INFERENCE", inference });
+    dispatch({ type: "COMPLETE_TURN", player: 1 });
+  };
 
-  // Gate FIRST — the handoff happens as P2 finishes; the "Reading the mood…" loader
-  // (and its quote) then lands in the hands of whoever plays next (P1).
+  // Gate FIRST: the handoff happens as P2 finishes, and the countdown (with its
+  // "Up next · Round 3" line) only plays in P1's hands if the call is still running.
   if (!ready) {
     return (
       <PassPhone
@@ -88,7 +84,7 @@ export function InferringScreen() {
         back
         working
         kicker="Both swiped · reading the mood now"
-        onReady={() => setReady(true)}
+        onReady={() => (result ? advance(result) : setReady(true))}
       >
         Hand it back. We’re already working while you pass it, so Round 3 is ready when you are.
       </PassPhone>
@@ -97,34 +93,35 @@ export function InferringScreen() {
 
   if (error) {
     return (
-      <div className={loaderCol}>
-        <h2 className="mb-2.5 font-display text-[30px]">Couldn’t read the mood</h2>
-        <p className="mb-6 max-w-[260px] text-[14px] leading-[1.5] text-text/55">{error}</p>
-        <button
-          className={goldCta}
-          onClick={() => {
-            setError(null);
-            setResult(null);
-            advanced.current = false;
-            setAttempt((a) => a + 1);
-          }}
-        >
-          Try again
-        </button>
-      </div>
+      <ErrorState
+        title={
+          <>
+            We couldn’t
+            <br />
+            read the mood
+          </>
+        }
+        onRetry={() => {
+          setError(null);
+          setResult(null);
+          advanced.current = false;
+          setAttempt((a) => a + 1);
+        }}
+      >
+        {error}
+      </ErrorState>
     );
   }
 
   return (
-    <div className={loaderCol}>
-      <Spinner accent="text-rose">
-        <Sparkle size={30} />
-      </Spinner>
-      <h2 className="mb-2.5 font-display text-[32px]">Reading the mood…</h2>
-      <p className="mb-6 max-w-[250px] text-[14px] leading-[1.5] text-text/55">
-        Turning your swipes into a shortlist you’ll both be into.
-      </p>
-      <LoadingQuote />
-    </div>
+    <ProjectorLoader
+      title="Reading the mood"
+      done={!!result}
+      onDone={() => {
+        if (result) advance(result);
+      }}
+    >
+      Up next · Round 3. Pick every film you’d happily watch. More picks, better odds.
+    </ProjectorLoader>
   );
 }

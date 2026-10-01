@@ -5,13 +5,15 @@ import { useGame } from "./GameProvider";
 import { categoryLabel } from "@/lib/categories";
 import { hasEnoughSamples, type BlendResult } from "@/lib/blendTypes";
 import { REQUEST_TIMEOUT_MS } from "@/lib/constants";
-import { Clapperboard, Spinner, goldCta, loaderCol, surfaceCard } from "./marquee";
+import { ERROR_LINES, ErrorState } from "./ErrorState";
 import { PassPhone } from "./PassPhone";
+import { ProjectorLoader } from "./Projector";
 
 // The "blending" phase: AI call #1 (the candidate pool for Round 2). This is also the
-// Round 1 → Round 2 BOUNDARY — the phone returns to Player 1 — so a "pass it back"
-// gate shows FIRST; the blend fires on mount in the BACKGROUND so it overlaps the
-// physical handoff, and we advance only once P1 is ready AND the pool is back.
+// Round 1 to Round 2 BOUNDARY: the phone returns to Player 1, so the "pass it back"
+// gate shows FIRST while the blend runs in the BACKGROUND, overlapping the physical
+// handoff. If the pool is back by the time P1 takes the phone, we go straight on;
+// otherwise the projector countdown hides the rest of the wait.
 //
 // Replay-safe: cleanup aborts the in-flight request and flags it cancelled, so under
 // Strict Mode the first (aborted) run never resolves and the second completes.
@@ -49,24 +51,20 @@ export function BlendingScreen() {
         if (cancelled) return;
         clearTimeout(timer);
         if (data.error) {
-          setError(data.error);
+          setError(ERROR_LINES.server);
         } else if (!Array.isArray(data.pool) || !hasEnoughSamples(data.pool)) {
           // Postcondition: BOTH players need enough distinct swipe samples. A
-          // non-empty-but-tiny pool would dead-end Player 2 — fail recoverably.
-          setError("Couldn't line up enough titles for both of you — try different vibes.");
+          // non-empty-but-tiny pool would dead-end Player 2, so fail recoverably.
+          setError("We couldn’t line up enough films for both of you this time. Your picks are safe, so try again.");
         } else {
-          setResult(data as BlendResult); // hold it; advance once P1 has the phone
+          setResult(data as BlendResult); // hold it; move on once P1 has the phone
         }
       })
       .catch((e: unknown) => {
         if (cancelled) return;
         clearTimeout(timer);
-        if (timedOut) {
-          setError("This is taking longer than usual — check your connection and try again.");
-          return;
-        }
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        setError(e instanceof Error ? e.message : "Network error");
+        if (!timedOut && e instanceof DOMException && e.name === "AbortError") return;
+        setError(ERROR_LINES.connection);
       });
 
     return () => {
@@ -76,17 +74,16 @@ export function BlendingScreen() {
     };
   }, [attempt, categories, region]);
 
-  // Advance to Round 2 only once BOTH the handoff is done (P1 ready) and the pool is back.
-  useEffect(() => {
-    if (ready && result && !advanced.current) {
-      advanced.current = true;
-      dispatch({ type: "SET_BLEND", blend: result });
-      dispatch({ type: "COMPLETE_TURN", player: 1 }); // → Round 2 (P1's turn — no further gate)
-    }
-  }, [ready, result, dispatch]);
+  // On to Round 2, once: the pool, then P1's turn (no further gate).
+  const advance = (blend: BlendResult) => {
+    if (advanced.current) return;
+    advanced.current = true;
+    dispatch({ type: "SET_BLEND", blend });
+    dispatch({ type: "COMPLETE_TURN", player: 1 });
+  };
 
-  // Gate FIRST — the handoff happens as P2 finishes; the loader (and its "Up next ·
-  // Round 2" framing) then builds anticipation in the hands of whoever plays next (P1).
+  // Gate FIRST: the handoff happens as P2 finishes, and the countdown (with its
+  // "Up next · Round 2" line) only plays in P1's hands if the blend is still running.
   if (!ready) {
     return (
       <PassPhone
@@ -94,7 +91,7 @@ export function BlendingScreen() {
         back
         working
         kicker="Both picked · blending now"
-        onReady={() => setReady(true)}
+        onReady={() => (result ? advance(result) : setReady(true))}
       >
         Hand it back. We’re already working while you pass it, so Round 2 is ready when you are.
       </PassPhone>
@@ -103,40 +100,35 @@ export function BlendingScreen() {
 
   if (error) {
     return (
-      <div className={loaderCol}>
-        <h2 className="mb-2.5 font-display text-[30px]">Couldn’t blend your picks</h2>
-        <p className="mb-6 max-w-[260px] text-[14px] leading-[1.5] text-text/55">{error}</p>
-        <button
-          className={goldCta}
-          onClick={() => {
-            setError(null);
-            setResult(null);
-            advanced.current = false;
-            setAttempt((a) => a + 1);
-          }}
-        >
-          Try again
-        </button>
-      </div>
+      <ErrorState
+        title={
+          <>
+            We couldn’t
+            <br />
+            blend your picks
+          </>
+        }
+        onRetry={() => {
+          setError(null);
+          setResult(null);
+          advanced.current = false;
+          setAttempt((a) => a + 1);
+        }}
+      >
+        {error}
+      </ErrorState>
     );
   }
 
   return (
-    <div className={loaderCol}>
-      <Spinner accent="text-gold">
-        <Clapperboard size={30} />
-      </Spinner>
-      <h2 className="mb-2.5 font-display text-[32px]">Blending your tastes…</h2>
-      <p className="mb-6 max-w-[250px] text-[14px] leading-[1.5] text-text/55">
-        Reading the room and lining up titles you might both lean into.
-      </p>
-      {/* This wait precedes Round 2 — prime the vibe-framing while they wait. */}
-      <div className={`w-full max-w-[280px] p-4 text-left ${surfaceCard}`}>
-        <p className="mb-1 text-[10.5px] uppercase tracking-[1.5px] text-text/40">Up next · Round 2</p>
-        <p className="text-[13.5px] text-text/75">
-          Swipe on the <span className="font-display italic text-gold">vibe</span> — fine if you’ve seen it.
-        </p>
-      </div>
-    </div>
+    <ProjectorLoader
+      title="Blending your tastes"
+      done={!!result}
+      onDone={() => {
+        if (result) advance(result);
+      }}
+    >
+      Up next · Round 2. Swipe on the vibe, not on whether you’ve seen it.
+    </ProjectorLoader>
   );
 }

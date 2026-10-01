@@ -9,8 +9,9 @@ import { useReducedMotion, type Transition } from "motion/react";
 
 // ---- type ---------------------------------------------------------------------
 
-/** Big Shoulders 900, caps, set tight: headlines and film titles. */
-export const display = "font-display font-black uppercase leading-[0.85] tracking-[-0.01em]";
+/** Big Shoulders 900, caps, set tight: headlines and film titles. Each use sets
+ * its own size and line-height (so no two line-heights ever compete). */
+export const display = "font-display font-black uppercase tracking-[-0.01em]";
 /** Big Shoulders Inline: marquee signage only (setup sign, valance, "It's a match"). */
 export const signage = "font-signage font-extrabold uppercase";
 /** Courier Prime 700: labels, tickets, credits. Caps, wide tracking, small. */
