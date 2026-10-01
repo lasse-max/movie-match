@@ -311,7 +311,7 @@ function Stamp({
   return (
     <motion.span
       aria-hidden
-      className={`${display} pointer-events-none absolute left-1/2 top-[24%] z-[5] whitespace-nowrap rounded-[8px] border-4 border-current bg-[rgba(14,10,9,0.35)] px-[18px] pb-1.5 pt-2 text-[40px] leading-none tracking-[0.04em] ${className}`}
+      className={`pointer-events-none absolute left-1/2 top-[24%] z-[5] whitespace-nowrap rounded-[8px] border-4 border-current bg-[rgba(14,10,9,0.35)] px-[18px] pb-1.5 pt-2 font-display text-[40px] font-black uppercase leading-none tracking-[0.04em] ${className}`}
       style={{ opacity: value, scale, x: "-50%", rotate: -12 }}
     >
       {children}

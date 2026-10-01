@@ -14,8 +14,12 @@ import { useReducedMotion, type Transition } from "motion/react";
 export const display = "font-display font-black uppercase tracking-[-0.01em]";
 /** Big Shoulders Inline: marquee signage only (setup sign, valance, "It's a match"). */
 export const signage = "font-signage font-extrabold uppercase";
-/** Courier Prime 700: labels, tickets, credits. Caps, wide tracking, small. */
-export const label = "font-mono text-[11px] font-bold uppercase tracking-[0.28em]";
+/** Courier Prime 700 caps, with no size or tracking: the base for any label that
+ * isn't the standard one. (Adding a second size or tracking class on top of `label`
+ * doesn't reliably win: Tailwind orders same-property classes itself.) */
+export const mono = "font-mono font-bold uppercase";
+/** The standard label: Courier Prime 700 caps, 11 px, wide tracking. Labels, tickets, credits. */
+export const label = `${mono} text-[11px] tracking-[0.28em]`;
 
 // ---- layout and surfaces ------------------------------------------------------
 
@@ -80,7 +84,7 @@ export function Ticket({
   return (
     <button type="button" className="pp-ticket" {...rest}>
       <span
-        className={`${label} flex w-[86px] flex-none items-center justify-center border-r-2 border-dashed border-cream/50 text-center text-[12px] leading-[1.35] tracking-[0.22em]`}
+        className={`${mono} flex w-[86px] flex-none items-center justify-center border-r-2 border-dashed border-cream/50 text-center text-[12px] leading-[1.35] tracking-[0.22em]`}
       >
         {stub}
       </span>

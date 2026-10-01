@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Player } from "@/lib/gameMachine";
-import { Bulbs, brassCta, display, label } from "./palace";
+import { Bulbs, brassCta, display, label, mono } from "./palace";
 
 /**
  * The one pass-the-phone gate, for every hand-off: within a round (to Player 2)
@@ -58,7 +58,7 @@ export function PassPhone({
           // The leader's rings are box-shadows (no layout space), so leave them room.
           <div className="pp-enter ml-3.5 flex items-center gap-[26px]" style={delay(4)}>
             <WarmingLeader />
-            <span className={`${label} tracking-[0.2em] text-cream/65`}>Projector warming up</span>
+            <span className={`${mono} text-[11px] tracking-[0.2em] text-cream/65`}>Projector warming up</span>
           </div>
         )}
       </div>
@@ -78,14 +78,14 @@ function SeatTicket({ player }: { player: Player }) {
       className="flex h-[74px] w-[250px] -rotate-[4deg] items-stretch rounded-[6px] bg-cream text-projection shadow-[0_20px_40px_-18px_rgba(0,0,0,0.9)]"
     >
       <span
-        className={`${label} flex w-[70px] flex-none items-center justify-center border-r-2 border-dashed border-projection/35 text-center text-[10px] leading-[1.4] tracking-[0.2em]`}
+        className={`${mono} flex w-[70px] flex-none items-center justify-center border-r-2 border-dashed border-projection/35 text-center text-[10px] leading-[1.4] tracking-[0.2em]`}
       >
         Admit
         <br />
         one
       </span>
       <span className="flex flex-col justify-center gap-0.5 px-4">
-        <span className={`${label} text-[9px] tracking-[0.22em] text-[#6b5a50]`}>Seat</span>
+        <span className={`${mono} text-[9px] tracking-[0.22em] text-[#6b5a50]`}>Seat</span>
         <span className={`${display} text-[34px] leading-none text-velvet`}>Player {player}</span>
       </span>
     </div>

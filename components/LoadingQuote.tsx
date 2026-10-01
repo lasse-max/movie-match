@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { randomQuote, type MovieQuote } from "@/lib/quotes";
-import { ENTRY_EASE, display, label } from "./palace";
+import { ENTRY_EASE, display, mono } from "./palace";
 
 /** If one wait passes about this long, fade to a second quote. */
 const SECOND_QUOTE_MS = 8000;
@@ -48,7 +48,7 @@ export function LoadingQuote() {
         <blockquote className="font-display text-[40px] font-extrabold leading-[0.98] tracking-[-0.005em] text-cream">
           {q.quote}
         </blockquote>
-        <figcaption className={`${label} tracking-[0.22em] text-cream/65`}>{q.film}</figcaption>
+        <figcaption className={`${mono} text-[11px] tracking-[0.22em] text-cream/65`}>{q.film}</figcaption>
       </motion.figure>
     </AnimatePresence>
   );
