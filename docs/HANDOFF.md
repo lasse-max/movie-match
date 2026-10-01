@@ -21,7 +21,7 @@ Per `docs/STATUS.md`: #8 shipped + Cato-cleared; **Lasse running the first frien
 
 ---
 ### → Arthur (builder)
-**Status:** 🔵 DONE — awaiting Otto — fix #9: pass-the-phone gate at round boundaries.
+**Status:** ✅ Otto-triaged → passed to Cato — fix #9: pass-the-phone gate at round boundaries. *(Otto: matches the corrected design, real-run verified, wait absorbed behind the handoff as intended. Dedup logged as deferred tech-debt.)*
 
 **Task:** The pass-the-phone gate is missing when the phone must return to **Player 1** at a round boundary. Today, after P2 finishes a round, the loading screen plays and the next round's content appears for P1 — but the phone is still in P2's hands, with no "pass it back" prompt. (Each round screen sets `ready = (player === 1)`, so P1 always starts immediately — fine for Round 1, wrong for Rounds 2 & 3.)
 
@@ -49,9 +49,29 @@ Per `docs/STATUS.md`: #8 shipped + Cato-cleared; **Lasse running the first frien
 
 ---
 ### → Cato (reviewer)
-**Status:** ⚪ no active task — last: #8 spot-check, cleared.
-**Charge:** —
-**Report back:** —
+**Status:** ✅ Otto-cleared — **#9 CLOSED** (clean, Cato-cleared; every charge item verified with specifics). Build-only caveat = known Google-Fonts sandbox fetch (backlog P2), not an app error — works on Vercel; lint/TS/122 tests pass. Bus idle until friend feedback → embeddings brief.
+**Charge:**
+1. **Two-condition advance (priority).** The loaders now hold the phase dispatch until BOTH `ready` (P1 tapped "I'm ready") AND `result` (blend/infer returned). Review the two `useEffect`s — confirm it advances correctly in every ordering (result-before-ready and result-after-ready), never double-dispatches, and never hangs/deadlocks if one condition never arrives.
+2. **Error-during-gate.** If blend/infer fails while the gate is up, confirm the error + retry UX still surfaces correctly after P1 taps ready (no swallowed error, no stuck state). Replay-safety (AbortController/cancelled) intact.
+3. **No regressions.** Within-round "to Player 2" gates still fire; P1 starts each new round cleanly (no double-gate); Round 1 unchanged; labels correct at both boundaries.
+4. **Scope.** Components-only (`BlendingScreen`, `InferringScreen`, new `PassPhone.tsx`); no `lib/`/`gameMachine`/`app/api/` change.
+5. **Noted, not a blocker.** Gate markup is duplicated (new shared `PassPhone` for the loading screens vs. inline copies still in the round screens — per the brief's "don't touch round screens"). Confirm it's a cosmetic dup, not a behavioral fork. Otto logged the dedupe as deferred tech-debt (fold into design pass #2).
+**Report back:** (Cato, 2026-06-27)
+
+**Plain-English:** I reviewed the #9 boundary handoff fix. The new "pass the phone back to Player 1" gates are in the right place, the blend/infer calls still run in the background, and the phase only advances after both conditions are true: Player 1 tapped ready and the API result returned. I found no blocker or major issue; the only caveat is that I could not complete `next build` in my sandbox because Next tried to fetch Google fonts over restricted network, while lint, TypeScript, and all 122 tests passed.
+
+**Prioritized findings:** None for #9.
+
+**Review notes / confirmations:**
+- **Two-condition advance:** `BlendingScreen` and `InferringScreen` both store the API result, hold the phase transition until `ready && result`, and guard with `advanced.current`, so result-before-ready and ready-before-result both converge correctly without double-dispatch. If either condition never arrives, the component stays in the appropriate gate/loader state rather than advancing incorrectly.
+- **Error-during-gate:** errors are not swallowed. If blend/infer fails while the gate is still up, `error` is stored; after Player 1 taps "I'm ready," the error screen appears with retry. Retry clears `error`/`result`, keeps the handoff complete, restarts the request via `attempt`, and advances once a valid result returns. AbortController + `cancelled` cleanup remain intact.
+- **No gate regressions:** Round 1 is unchanged. Round 2 and Round 3 still use their existing within-round "pass to Player 2" gates. The new boundary gates are only on the loading screens and label correctly as "back to Player 1," so P1 starts Round 2/Round 3 cleanly with no second P1 gate.
+- **Scope:** commit `7e42bc7` touches only `components/BlendingScreen.tsx`, `components/InferringScreen.tsx`, and new `components/PassPhone.tsx`. No `lib/`, `gameMachine`, or `app/api` changes.
+- **Duplication note:** the shared `PassPhone` component and the inline round-screen gates are a cosmetic duplication, not a behavioral fork: shared = boundary handoff back to P1; inline = within-round handoff to P2. Fine to defer dedupe to design pass #2, as already logged.
+
+**Verification run:** `eslint .` passed; `tsc --noEmit` passed; `vitest run` passed (`11` files / `122` tests). `next build` was attempted but blocked by sandboxed network fetching `next/font` Google fonts, not by an app/type/test error.
+
+**Overall verdict:** #9 is clean; Cato-cleared, with only the already-logged gate-component dedupe as later tech debt.
 
 ---
 *Log: 2026-06-25 — handoff bus created (V0). #8 closed; awaiting friend-test feedback before the embeddings build brief.*
