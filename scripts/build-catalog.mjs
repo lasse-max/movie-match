@@ -62,16 +62,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fmt = (n) => n.toLocaleString("en-US");
 const usd = (n) => `$${n.toFixed(n < 1 ? 4 : 2)}`;
 
-async function tmdb(path, params = {}, tries = 3) {
+async function tmdb(path, params = {}, tries = 4) {
   const u = new URL("https://api.themoviedb.org/3" + path);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, String(v));
   for (let attempt = 1; ; attempt++) {
-    const r = await fetch(u, {
-      headers: { accept: "application/json", Authorization: `Bearer ${TMDB}` },
-    });
+    let r;
+    try {
+      r = await fetch(u, {
+        headers: { accept: "application/json", Authorization: `Bearer ${TMDB}` },
+      });
+    } catch (e) {
+      // A thrown network error ("fetch failed": reset/timeout/DNS) is transient at
+      // this concurrency — retry with backoff rather than killing the whole run.
+      if (attempt > tries) throw new Error(`tmdb ${path} network error: ${e.message}`);
+      await sleep(500 * attempt);
+      continue;
+    }
     if (r.ok) return r.json();
-    if (r.status === 429 && attempt <= tries) {
-      const wait = Number(r.headers.get("retry-after") ?? 1) * 1000 || 1000;
+    if ((r.status === 429 || r.status >= 500) && attempt <= tries) {
+      const retryAfter = Number(r.headers.get("retry-after"));
+      const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 500 * attempt;
       await sleep(wait);
       continue;
     }
