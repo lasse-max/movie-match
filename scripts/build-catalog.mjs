@@ -318,10 +318,13 @@ async function realRun() {
     process.exit(1);
   }
   const rest = `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1`;
+  // Supabase key formats: a legacy JWT (eyJ...) goes in BOTH the apikey and the
+  // Authorization: Bearer headers; a new secret key (sb_secret_...) is not a JWT and
+  // goes in the apikey header ONLY (sent as Bearer it would be rejected). Detect both.
   const sbHeaders = {
     apikey: SERVICE_KEY,
-    Authorization: `Bearer ${SERVICE_KEY}`,
     "content-type": "application/json",
+    ...(SERVICE_KEY.startsWith("eyJ") ? { Authorization: `Bearer ${SERVICE_KEY}` } : {}),
   };
 
   // OpenAI + Supabase helpers, both retry 429/5xx (fetchRetry). One embed request
