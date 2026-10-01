@@ -48,8 +48,8 @@ const THIS_YEAR = new Date().getFullYear();
 const MODEL = "text-embedding-3-small";
 const EMBED_PRICE_PER_MTOK = 0.02; // USD per 1M tokens (text-embedding-3-small)
 const CHARS_PER_TOKEN = 4; // cl100k_base English approximation (stated, not exact)
-const EMBED_BATCH = 256; // inputs per OpenAI embeddings request
-const UPSERT_BATCH = 500; // rows per Supabase upsert request
+const UPSERT_BATCH = 100; // films per embed+upsert batch. 100 x 1536-float vectors
+                          // is ~1.5 MB/request; 500 was ~7-8 MB (Otto fix 5).
 const TMDB_CONCURRENCY = 16; // parallel TMDB requests
 const TMDB_RATE = 40; // assumed sustained req/s for the time estimate (conservative)
 const SAMPLE_KEYWORDS = 250; // films sampled for the token estimate (dry run)
@@ -77,6 +77,31 @@ async function tmdb(path, params = {}, tries = 3) {
     }
     if (attempt <= tries) { await sleep(300 * attempt); continue; }
     throw new Error(`tmdb ${path} ${r.status}`);
+  }
+}
+
+// Retrying fetch for OpenAI + Supabase (real build only). Retries 429 and 5xx with
+// exponential backoff (honouring Retry-After), 3 tries, then throws a labelled error.
+async function fetchRetry(url, options, label, tries = 3) {
+  for (let attempt = 1; ; attempt++) {
+    let r;
+    try {
+      r = await fetch(url, options);
+    } catch (e) {
+      if (attempt > tries) throw new Error(`${label} network error: ${e.message}`);
+      await sleep(500 * attempt);
+      continue;
+    }
+    if (r.ok) return r;
+    if ((r.status === 429 || r.status >= 500) && attempt <= tries) {
+      const retryAfter = Number(r.headers.get("retry-after"));
+      const wait = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : 500 * 2 ** (attempt - 1);
+      await sleep(wait);
+      continue;
+    }
+    throw new Error(`${label} ${r.status} ${(await r.text().catch(() => "")).slice(0, 200)}`.trim());
   }
 }
 
@@ -148,11 +173,13 @@ async function enrich(tmdbId) {
   try {
     const d = await tmdb(`/movie/${tmdbId}`, { append_to_response: "keywords" });
     return {
+      ok: true,
       keywords: (d.keywords?.keywords ?? []).map((k) => k.name),
       collection_id: d.belongs_to_collection?.id ?? null,
     };
   } catch {
-    return { keywords: [], collection_id: null };
+    // tmdb() already retried; a throw here is a real failure, not just "no keywords".
+    return { ok: false, keywords: [], collection_id: null };
   }
 }
 
@@ -235,11 +262,11 @@ async function dryRun() {
   // NET film (/movie/{id}?append_to_response=keywords gives franchise id AND
   // keywords together).
   const realTmdbCalls = discoverPages + net;
-  const embedRequests = Math.ceil(net / EMBED_BATCH);
-  const upsertRequests = Math.ceil(net / UPSERT_BATCH);
+  // Real build embeds + upserts coupled, one request each per UPSERT_BATCH chunk.
+  const batches = Math.ceil(net / UPSERT_BATCH);
   const tmdbSeconds = realTmdbCalls / TMDB_RATE;
-  const embedSeconds = embedRequests * 1.2; // ~1.2s/request (network + compute)
-  const upsertSeconds = upsertRequests * 0.5;
+  const embedSeconds = batches * 1.2; // ~1.2s/embed request (network + compute)
+  const upsertSeconds = batches * 0.5;
   const totalMinutes = (tmdbSeconds + embedSeconds + upsertSeconds) / 60;
   const cost = (totalTokens / 1_000_000) * EMBED_PRICE_PER_MTOK;
 
@@ -260,12 +287,13 @@ async function dryRun() {
   console.log(`Embedding cost (${MODEL}) ${usd(cost)}  (@ ${usd(EMBED_PRICE_PER_MTOK)}/1M tokens)`);
   console.log(`Time estimate (real build)          ~${totalMinutes.toFixed(0)} min`);
   console.log(`  TMDB @ ${TMDB_RATE}/s                        ~${(tmdbSeconds / 60).toFixed(0)} min`);
-  console.log(`  OpenAI ${fmt(embedRequests)} batches               ~${(embedSeconds / 60).toFixed(1)} min`);
+  console.log(`  OpenAI ${fmt(batches)} batches               ~${(embedSeconds / 60).toFixed(1)} min`);
   console.log(line);
   console.log(`Dry-run TMDB calls made: ${fmt(countCalls)} (all free). No OpenAI or Supabase calls.`);
   if (overCap) {
-    console.log(`NOTE: ${overCap} year(s) exceed TMDB's 10k/500-page window; the real build`);
-    console.log(`      splits those by month. (Per-year totals are otherwise well under the cap.)`);
+    console.log(`NOTE: ${overCap} year(s) exceed TMDB's 10k/500-page window. The real build`);
+    console.log(`      STOPS with a clear message for such a year (month-splitting is not`);
+    console.log(`      implemented; no year is close today).`);
   }
   console.log(`\nAssumptions: ${CHARS_PER_TOKEN} chars/token (cl100k_base approx); TMDB ${TMDB_RATE} req/s sustained;`);
   console.log(`retention blended 30% head / 70% tail. Numbers are estimates for sign-off, not a quote.`);
@@ -296,18 +324,22 @@ async function realRun() {
     "content-type": "application/json",
   };
 
+  // OpenAI + Supabase helpers, both retry 429/5xx (fetchRetry). One embed request
+  // per batch (<= UPSERT_BATCH films, well under OpenAI's input cap).
   const embed = async (texts) => {
-    const out = [];
-    for (let i = 0; i < texts.length; i += EMBED_BATCH) {
-      const r = await fetch("https://api.openai.com/v1/embeddings", {
-        method: "POST",
-        headers: { "content-type": "application/json", Authorization: `Bearer ${OPENAI}` },
-        body: JSON.stringify({ model: MODEL, input: texts.slice(i, i + EMBED_BATCH) }),
-      });
-      if (!r.ok) throw new Error(`openai ${r.status} ${await r.text()}`);
-      for (const e of (await r.json()).data) out.push(e.embedding);
-    }
-    return out;
+    const r = await fetchRetry("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${OPENAI}` },
+      body: JSON.stringify({ model: MODEL, input: texts }),
+    }, "openai");
+    return (await r.json()).data.map((e) => e.embedding);
+  };
+  const upsert = async (rows) => {
+    await fetchRetry(`${rest}/movies?on_conflict=tmdb_id`, {
+      method: "POST",
+      headers: { ...sbHeaders, Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(rows),
+    }, "supabase upsert");
   };
 
   // 1. Enumerate the full catalogue (every page per year, floor + poster + overview).
@@ -315,14 +347,24 @@ async function realRun() {
   const films = new Map();
   for (let year = FIRST_YEAR; year <= THIS_YEAR; year++) {
     const first = await tmdb("/discover/movie", discoverParams(year, 1));
-    const pages = Math.min(first.total_pages ?? 0, 500);
-    if (!pages) continue;
+    const totalPages = first.total_pages ?? 0;
+    if (!totalPages) continue;
+    // TMDB caps discover at 10,000 results / 500 pages per query. Month-splitting
+    // is not implemented (no single year is close today: ~15k films across ALL
+    // years). If a year ever exceeds the window, stop with a clear message rather
+    // than silently dropping its tail.
+    if (totalPages > 500) {
+      throw new Error(
+        `Year ${year} has ${first.total_results} films above the floor, past TMDB's ` +
+        `10,000-result / 500-page window. Add month segmentation for this year before building.`
+      );
+    }
     const collect = (results) => {
       for (const m of results ?? []) if (passesFloor(m)) films.set(m.id, toFilm(m));
     };
     collect(first.results);
-    const rest2 = Array.from({ length: pages - 1 }, (_, i) => i + 2);
-    await mapLimit(rest2, TMDB_CONCURRENCY, async (p) => {
+    const pages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+    await mapLimit(pages, TMDB_CONCURRENCY, async (p) => {
       collect((await tmdb("/discover/movie", discoverParams(year, p))).results);
     });
     process.stdout.write(`  ${year}: ${films.size} films so far\r`);
@@ -332,10 +374,9 @@ async function realRun() {
   // 2. Load existing hashes for resumability (skip films whose text is unchanged).
   const existing = new Map();
   for (let from = 0; ; from += 1000) {
-    const r = await fetch(`${rest}/movies?select=tmdb_id,text_hash`, {
+    const r = await fetchRetry(`${rest}/movies?select=tmdb_id,text_hash`, {
       headers: { ...sbHeaders, Range: `${from}-${from + 999}` },
-    });
-    if (!r.ok) throw new Error(`supabase select ${r.status} ${await r.text()}`);
+    }, "supabase select");
     const rows = await r.json();
     for (const row of rows) existing.set(row.tmdb_id, row.text_hash);
     if (rows.length < 1000) break;
@@ -343,11 +384,15 @@ async function realRun() {
   console.log(`Already stored: ${existing.size} films.`);
 
   // 3. Enrich (keywords + collection id), compute text + hash, keep the changed.
+  //    Count enrichment failures — a catalogue full of keyword-less films is worse
+  //    than no build, so stop before paying if too many failed.
   const all = [...films.values()];
   let processed = 0;
+  let enrichFailures = 0;
   const changed = [];
   await mapLimit(all, TMDB_CONCURRENCY, async (f) => {
-    const { keywords, collection_id } = await enrich(f.tmdb_id);
+    const { ok, keywords, collection_id } = await enrich(f.tmdb_id);
+    if (!ok) enrichFailures++;
     const text = cheapText(f, keywords);
     const hash = textHash(text);
     if (existing.get(f.tmdb_id) !== hash) {
@@ -356,29 +401,36 @@ async function realRun() {
     if (++processed % 500 === 0) process.stdout.write(`  enriched ${processed}/${all.length}\r`);
   });
   console.log(`\nChanged (need embedding): ${changed.length} of ${all.length}.`);
+
+  // Stop before the paid step if enrichment was too lossy (> 1% failed): those films
+  // would be embedded with missing keywords. They self-heal on a healthy re-run
+  // (text changes -> hash changes -> re-embedded).
+  const failPct = all.length ? (enrichFailures / all.length) * 100 : 0;
+  if (enrichFailures) console.log(`Enrichment failures: ${enrichFailures}/${all.length} (${failPct.toFixed(2)}%).`);
+  if (failPct > 1) {
+    console.error(`Aborting before embedding: more than 1% of films failed enrichment. Re-run when TMDB is healthy.`);
+    process.exit(1);
+  }
   if (!changed.length) { console.log("Nothing to do. Catalogue is up to date."); return; }
 
-  // 4. Embed changed films, then upsert in batches.
-  console.log("Embedding…");
-  const vectors = await embed(changed.map((f) => f._text));
-  changed.forEach((f, i) => { f.embedding = `[${vectors[i].join(",")}]`; });
-
-  console.log("Upserting to Supabase…");
+  // 4. Embed + upsert BATCH BY BATCH, so a failure partway keeps every batch already
+  //    stored (resumable within a run, not only between runs).
+  console.log(`Embedding + upserting ${changed.length} films in batches of ${UPSERT_BATCH}…`);
+  let stored = 0;
   for (let i = 0; i < changed.length; i += UPSERT_BATCH) {
-    const rows = changed.slice(i, i + UPSERT_BATCH).map((f) => ({
+    const batch = changed.slice(i, i + UPSERT_BATCH);
+    const vectors = await embed(batch.map((f) => f._text));
+    const rows = batch.map((f, j) => ({
       tmdb_id: f.tmdb_id, title: f.title, year: f.year, overview: f.overview,
       keywords: f.keywords, genre_ids: f.genre_ids, collection_id: f.collection_id,
       vote_count: f.vote_count, vote_average: f.vote_average, popularity: f.popularity,
-      poster_path: f.poster_path, language: f.language, embedding: f.embedding,
+      poster_path: f.poster_path, language: f.language,
+      embedding: `[${vectors[j].join(",")}]`,
       model: MODEL, text_hash: f.text_hash, updated_at: new Date().toISOString(),
     }));
-    const r = await fetch(`${rest}/movies?on_conflict=tmdb_id`, {
-      method: "POST",
-      headers: { ...sbHeaders, Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(rows),
-    });
-    if (!r.ok) throw new Error(`supabase upsert ${r.status} ${await r.text()}`);
-    process.stdout.write(`  upserted ${Math.min(i + UPSERT_BATCH, changed.length)}/${changed.length}\r`);
+    await upsert(rows);
+    stored += batch.length;
+    process.stdout.write(`  embedded + stored ${stored}/${changed.length}\r`);
   }
   console.log(`\nDone. ${changed.length} films embedded and stored.`);
 }
