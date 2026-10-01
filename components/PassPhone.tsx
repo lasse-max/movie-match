@@ -1,44 +1,108 @@
-import { Phone, eyebrow as eyebrowClass, goldCta } from "./marquee";
+import type { ReactNode } from "react";
+import type { Player } from "@/lib/gameMachine";
+import { Bulbs, brassCta, display, label } from "./palace";
 
 /**
- * Shared pass-the-phone handoff gate (Marquee). Pulsing gold rings + a floating
- * phone, a serif "Pass the phone {lead} {player}" headline, and an "I'm ready" CTA.
- * Used for the round-BOUNDARY "back to Player 1" handoff on the loading screens
- * (the within-round P1→P2 gates stay inline in the round screens). Pure UI overlay —
- * the caller owns when it shows and what happens on ready.
+ * The one pass-the-phone gate, for every hand-off: within a round (to Player 2)
+ * and at the round boundaries (back to Player 1, with the AI already working
+ * behind it). Pure UI: the caller owns when it shows and what "I'm Player N" does.
+ * Built to docs/design/picture-palace/Pass2.dc.html and Pass1.dc.html.
  */
 export function PassPhone({
+  to,
+  back = false,
   kicker,
-  lead,
-  player,
-  subcopy,
+  working = false,
   onReady,
+  children,
 }: {
+  /** Who should hold the phone next. */
+  to: Player;
+  /** A round boundary: the phone goes back to Player 1. */
+  back?: boolean;
+  /** The brass line above the headline. */
   kicker: string;
-  lead: string; // "to" | "back to"
-  player: string; // "Player 1" | "Player 2"
-  subcopy: string;
+  /** The AI call is already running behind the gate. */
+  working?: boolean;
   onReady: () => void;
+  /** One line of copy. */
+  children: ReactNode;
 }) {
+  // Each part rises in on the entry curve, 50 ms apart.
+  const delay = (i: number) => ({ animationDelay: `${i * 50}ms` });
+
   return (
-    <div className="flex min-h-full flex-1 flex-col items-center justify-center px-2 text-center">
-      <div className="relative mb-7 flex h-[120px] w-[120px] items-center justify-center">
-        <span className="absolute inset-0 rounded-full border-[1.5px] border-gold/50 motion-safe:animate-[mmPulseRing_2.4s_ease-out_infinite]" />
-        <span className="absolute inset-0 rounded-full border-[1.5px] border-gold/50 motion-safe:animate-[mmPulseRing_2.4s_ease-out_infinite_1.2s]" />
-        <div className="flex h-[78px] w-[78px] items-center justify-center rounded-3xl border border-gold/40 bg-[linear-gradient(150deg,rgba(232,192,125,0.18),rgba(232,192,125,0.04))] text-gold motion-safe:animate-[mmFloat_3.5s_ease-in-out_infinite]">
-          <Phone size={34} />
+    <div className="flex min-h-full flex-1 flex-col">
+      <Bulbs count={20} />
+
+      <div className="flex flex-1 flex-col justify-center gap-[22px] py-6">
+        <span className={`pp-enter ${label} text-brass`} style={delay(0)}>
+          {kicker}
+        </span>
+        <h1 className={`pp-enter ${display} text-[76px] leading-[0.84]`} style={delay(1)}>
+          Pass
+          <br />
+          the phone
+          <br />
+          <span className="text-signal">
+            {back ? "back to" : "to"} Player {to}
+          </span>
+        </h1>
+        <div className="pp-enter" style={delay(2)}>
+          <SeatTicket player={to} />
         </div>
+        <p className="pp-enter max-w-[300px] text-[15px] leading-[1.5] text-cream/75" style={delay(3)}>
+          {children}
+        </p>
+        {working && (
+          // The leader's rings are box-shadows (no layout space), so leave them room.
+          <div className="pp-enter ml-3.5 flex items-center gap-[26px]" style={delay(4)}>
+            <WarmingLeader />
+            <span className={`${label} tracking-[0.2em] text-cream/65`}>Projector warming up</span>
+          </div>
+        )}
       </div>
-      <p className={`mb-2 ${eyebrowClass} tracking-[2px]`}>{kicker}</p>
-      <h2 className="mb-3 font-display text-[36px] leading-[1.05]">
-        Pass the phone
-        <br />
-        {lead} <span className="italic text-gold">{player}</span>
-      </h2>
-      <p className="mb-8 max-w-[260px] text-[14.5px] leading-[1.5] text-text/55">{subcopy}</p>
-      <button className={goldCta} onClick={onReady}>
-        I’m ready
+
+      <button type="button" className={brassCta} onClick={onReady}>
+        I’m Player {to}
       </button>
+    </div>
+  );
+}
+
+/** The cream seat ticket, tilted: ADMIT ONE · SEAT · PLAYER N. */
+function SeatTicket({ player }: { player: Player }) {
+  return (
+    <div
+      aria-hidden
+      className="flex h-[74px] w-[250px] -rotate-[4deg] items-stretch rounded-[6px] bg-cream text-projection shadow-[0_20px_40px_-18px_rgba(0,0,0,0.9)]"
+    >
+      <span
+        className={`${label} flex w-[70px] flex-none items-center justify-center border-r-2 border-dashed border-projection/35 text-center text-[10px] leading-[1.4] tracking-[0.2em]`}
+      >
+        Admit
+        <br />
+        one
+      </span>
+      <span className="flex flex-col justify-center gap-0.5 px-4">
+        <span className={`${label} text-[9px] tracking-[0.22em] text-[#6b5a50]`}>Seat</span>
+        <span className={`${display} text-[34px] leading-none text-velvet`}>Player {player}</span>
+      </span>
+    </div>
+  );
+}
+
+/** A small still leader: the projector is warming up while the AI works. */
+function WarmingLeader() {
+  return (
+    <div
+      aria-hidden
+      className="relative h-11 w-11 flex-none rounded-full bg-[#1a1411] shadow-[inset_0_0_0_2px_rgba(242,232,213,0.5),0_0_0_12px_#0e0a09,0_0_0_14px_rgba(242,232,213,0.22)]"
+    >
+      <span className="absolute inset-0 rounded-full bg-[conic-gradient(rgba(242,232,213,0.14)_0_130deg,rgba(242,232,213,0)_130deg)]" />
+      <span className="absolute inset-x-0 top-1/2 -mt-px h-0.5 bg-cream/40" />
+      <span className="absolute inset-y-0 left-1/2 -ml-px w-0.5 bg-cream/40" />
+      <span className="absolute inset-[16%] rounded-full shadow-[inset_0_0_0_2px_rgba(242,232,213,0.5)]" />
     </div>
   );
 }

@@ -62,9 +62,11 @@ body {
 }
 
 @layer components {
-  /* One entry curve for every screen. */
+  /* One entry curve for every screen. Fill "backwards" (not "both") hides an item
+     during its stagger delay, then hands opacity and transform back to the element,
+     so its own disabled dimming and 0.97 press scale still work afterwards. */
   .pp-enter {
-    animation: mmEnter 0.6s var(--ease-entry) both;
+    animation: mmEnter 0.6s var(--ease-entry) backwards;
   }
 
   /* Marquee bulbs: a three-step chase. */
@@ -115,6 +117,51 @@ body {
   .pp-ticket:disabled {
     filter: grayscale(0.85) brightness(0.55);
     cursor: not-allowed;
+  }
+
+  /* The renting switch: a native checkbox, velvet when on. */
+  .pp-switch {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    flex: none;
+    width: 52px;
+    height: 30px;
+    margin: 0;
+    border-radius: 999px;
+    background: #2a1d19;
+    cursor: pointer;
+    transition: background 0.3s var(--ease-entry);
+  }
+  .pp-switch::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--cream);
+    transition: transform 0.3s var(--ease-entry);
+  }
+  .pp-switch:checked {
+    background: var(--velvet);
+  }
+  .pp-switch:checked::before {
+    transform: translateX(22px);
+  }
+
+  /* Service logos stay muted (warm greyscale) until picked, then full colour. */
+  .pp-logo {
+    filter: grayscale(1) sepia(0.3) brightness(0.72) contrast(1.05);
+    opacity: 0.75;
+    transition:
+      filter 0.35s var(--ease-entry),
+      opacity 0.35s var(--ease-entry);
+  }
+  [aria-pressed="true"] .pp-logo {
+    filter: none;
+    opacity: 1;
   }
 
   /* Film grain over everything (about 8%), a desaturated noise tile that jitters. */

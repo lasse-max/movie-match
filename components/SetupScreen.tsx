@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useGame } from "./GameProvider";
 import { SUPPORTED_REGIONS } from "@/lib/constants";
-import { Check, Chevron, Clapperboard, goldCta } from "./marquee";
+import { Bulbs, Check, ChevronDown, Ticket, display, label } from "./palace";
 
 interface Provider {
   id: number;
@@ -11,8 +11,9 @@ interface Provider {
   logoUrl: string | null;
 }
 
-const label = "text-[12px] uppercase tracking-[1.5px] text-text/45";
-
+// Setup, built to docs/design/picture-palace/SetupA.dc.html: the marquee sign,
+// the plain-words line, region, every service in a two-column logo grid, renting,
+// and the ADMIT TWO ticket. Fits a 390 x 844 screen with ten services.
 export function SetupScreen() {
   const { state, dispatch } = useGame();
   const { region, services, willingToPay } = state.setup;
@@ -21,8 +22,8 @@ export function SetupScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Provider list — re-fetched whenever the region changes. Loading/error are
-  // set in the region-change handler (and via initial state) so the effect never
+  // Provider list, re-fetched whenever the region changes. Loading/error are set
+  // in the region-change handler (and via initial state) so the effect never
   // calls setState synchronously. Cancellation-safe via AbortController.
   useEffect(() => {
     const controller = new AbortController();
@@ -57,67 +58,79 @@ export function SetupScreen() {
   const canContinue = services.length > 0 || willingToPay;
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <div className="flex-1">
-        {/* brand */}
-        <div className="mb-7 flex items-center gap-2.5">
-          <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-[linear-gradient(150deg,#E8C07D,#C99B53)] shadow-[0_6px_18px_-6px_rgba(232,192,125,0.7)]">
-            <Clapperboard size={16} className="text-ink" />
-          </span>
-          <span className="text-[15px] font-semibold tracking-[0.4px]">Movie Match</span>
+    <div className="pp-enter flex min-h-full flex-1 flex-col gap-4">
+      {/* The marquee sign. */}
+      <div className="flex flex-none flex-col gap-3.5 rounded-2xl bg-aisle py-3.5">
+        <Bulbs />
+        <div className="flex flex-col gap-2 px-5 py-0.5">
+          <span className={`${label} text-brass`}>Tonight only</span>
+          <h1 className={`${display} text-[52px] leading-[0.86]`}>
+            One film.
+            <br />
+            <span className="text-signal">Two of you.</span>
+          </h1>
         </div>
+        <Bulbs />
+      </div>
 
-        {/* hero */}
-        <p className="mb-1.5 text-[13px] uppercase tracking-[2.5px] text-gold">Tonight, together</p>
-        <h1 className="mb-3 font-display text-[42px] leading-[1.04]">
-          One film you
-          <br />
-          <span className="italic text-gold">both</span> actually want.
-        </h1>
-        <p className="mb-7 text-[14.5px] leading-[1.5] text-text/55">
-          Tell us where you watch, so every pick is something you can stream right now.
-        </p>
+      <p className="text-[15px] leading-[1.5] text-cream/75">
+        A quick 2-minute game. We use AI to match your moods to a movie you can both watch
+        tonight.
+      </p>
 
-        {/* region */}
-        <p className={`mb-2.5 ${label}`}>Region</p>
-        <div className="relative mb-6">
+      {/* Region. */}
+      <div className="flex flex-none flex-col gap-1">
+        <label htmlFor="setup-region" className={`${label} text-cream/65`}>
+          Screening in
+        </label>
+        <div className="relative flex items-center shadow-[inset_0_-1px_0_rgba(214,162,74,0.5)]">
           <select
+            id="setup-region"
             value={region}
             onChange={(e) => {
-              // Set loading/clear error here (event handler) — not in the effect.
+              // Set loading/clear error here (event handler), not in the effect.
               setError(null);
               setLoading(true);
               dispatch({ type: "SET_REGION", region: e.target.value });
             }}
-            className="w-full appearance-none rounded-2xl border border-text/12 bg-text/[0.03] px-4 py-3 text-[14.5px] font-medium text-text"
+            className="min-h-11 w-full cursor-pointer appearance-none bg-transparent pb-1.5 pr-[34px] font-display text-[28px] font-extrabold uppercase text-cream"
           >
             {SUPPORTED_REGIONS.map((r) => (
-              <option key={r.code} value={r.code} className="bg-ink text-text">
+              <option key={r.code} value={r.code} className="text-[16px] text-projection">
                 {r.name}
               </option>
             ))}
           </select>
-          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
-            <Chevron size={14} className="text-gold" />
-          </span>
+          <ChevronDown size={20} className="pointer-events-none absolute right-1 top-2.5 text-brass" />
+        </div>
+      </div>
+
+      {/* Services. */}
+      <div className="flex flex-none flex-col gap-0.5">
+        <div className="flex items-baseline gap-2.5">
+          <span className={`${label} text-cream/65`}>Your services</span>
+          {services.length > 0 ? (
+            <span className={`${label} text-brass`}>{services.length} selected</span>
+          ) : (
+            !willingToPay && <span className={`${label} text-brass`}>Pick one, or rent</span>
+          )}
         </div>
 
-        {/* services */}
-        <p className={`mb-2.5 ${label}`}>
-          Your services{" "}
-          {services.length > 0 && (
-            <span className="tracking-normal text-gold">· {services.length} selected</span>
-          )}
-        </p>
-
         {loading ? (
-          <p className="py-6 text-center text-sm text-text/50">Loading services…</p>
+          <div aria-busy className="grid grid-cols-2 gap-2 pt-1.5">
+            {Array.from({ length: 8 }, (_, i) => (
+              <span key={i} className="h-[46px] rounded-xl bg-aisle" />
+            ))}
+            <span className="sr-only">Loading services</span>
+          </div>
         ) : error ? (
-          <p className="py-6 text-center text-sm text-rose">Couldn’t load services. {error}</p>
+          <p className="py-5 text-center text-[14px] text-cream/75">
+            Couldn’t load services. {error}
+          </p>
         ) : providers.length === 0 ? (
-          <p className="py-6 text-center text-sm text-text/50">No provider data for this region.</p>
+          <p className="py-5 text-center text-[14px] text-cream/75">No services listed for this region.</p>
         ) : (
-          <div className="mb-6 grid grid-cols-2 gap-[9px]">
+          <div className="grid grid-cols-2 gap-2 pt-1.5">
             {providers.map((p) => {
               const selected = services.includes(p.id);
               return (
@@ -127,80 +140,71 @@ export function SetupScreen() {
                   onClick={() => dispatch({ type: "TOGGLE_SERVICE", serviceId: p.id })}
                   aria-pressed={selected}
                   title={p.name}
-                  className={`flex items-center gap-2.5 rounded-2xl border p-3 transition active:scale-[0.98] ${
-                    selected ? "border-gold/70 bg-gold/10" : "border-text/10 bg-text/[0.03]"
+                  className={`flex h-[46px] items-center gap-2.5 rounded-xl pl-[9px] pr-3 text-left transition-[background-color,box-shadow,transform] duration-300 ease-entry active:scale-[0.97] ${
+                    selected
+                      ? "bg-[#241911] shadow-[inset_0_0_0_1.5px_rgba(214,162,74,0.75),0_10px_26px_-14px_rgba(214,162,74,0.55)]"
+                      : "bg-aisle"
                   }`}
                 >
-                  <span className="flex h-6 w-6 flex-none items-center justify-center overflow-hidden rounded-[7px] bg-text/10">
-                    {p.logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- small external TMDB logos
-                      <img
-                        src={p.logoUrl}
-                        alt={p.name}
-                        width={24}
-                        height={24}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-[9px] text-text/70">{p.name.slice(0, 2)}</span>
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-left text-[13px] font-medium text-text">
+                  {p.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- small external TMDB logos
+                    <img
+                      src={p.logoUrl}
+                      alt=""
+                      width={32}
+                      height={32}
+                      className="pp-logo h-8 w-8 flex-none rounded-lg bg-[#2a1d19] object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-[#2a1d19] text-[11px] font-semibold text-cream/75">
+                      {p.name.slice(0, 2)}
+                    </span>
+                  )}
+                  <span
+                    className={`min-w-0 flex-1 truncate text-[15px] font-semibold ${
+                      selected ? "text-cream" : "text-cream/80"
+                    }`}
+                  >
                     {p.name}
                   </span>
-                  {selected && <Check size={15} className="flex-none text-gold" />}
+                  <Check
+                    size={18}
+                    className={`flex-none text-brass transition-[opacity,transform] duration-300 ease-entry ${
+                      selected ? "scale-100 opacity-100" : "scale-[0.6] opacity-0"
+                    }`}
+                  />
                 </button>
               );
             })}
           </div>
         )}
-
-        {/* willing to pay */}
-        <button
-          type="button"
-          aria-pressed={willingToPay}
-          onClick={() => dispatch({ type: "SET_WILLING_TO_PAY", value: !willingToPay })}
-          className={`flex w-full items-center justify-between gap-3.5 rounded-2xl border p-4 text-left transition ${
-            willingToPay ? "border-gold/50 bg-gold/[0.07]" : "border-text/10 bg-text/[0.03]"
-          }`}
-        >
-          <span>
-            <span className="block text-[13.5px] font-semibold text-text">
-              Open to renting tonight?
-            </span>
-            <span className="block text-[12px] text-text/50">
-              Include paid titles, not just subscriptions.
-            </span>
-          </span>
-          <span
-            className={`relative h-[27px] w-[46px] flex-none rounded-full transition ${
-              willingToPay ? "bg-gold" : "bg-text/15"
-            }`}
-          >
-            <span
-              className={`absolute top-[3px] h-[21px] w-[21px] rounded-full transition-all ${
-                willingToPay ? "left-[22px] bg-ink" : "left-[3px] bg-text"
-              }`}
-            />
-          </span>
-        </button>
       </div>
 
-      {/* continue */}
-      <div className="mt-5">
-        <button
-          type="button"
+      {/* Renting. */}
+      <label
+        htmlFor="setup-rent"
+        className="flex flex-none cursor-pointer items-center justify-between gap-4 pt-3.5 shadow-[inset_0_1px_0_rgba(214,162,74,0.25)]"
+      >
+        <span className="flex flex-col gap-[3px]">
+          <span className="text-[15px] font-semibold">Open to renting tonight?</span>
+          <span className="text-[13px] text-cream/65">Adds paid titles. Never changes the ranking.</span>
+        </span>
+        <input
+          id="setup-rent"
+          type="checkbox"
+          className="pp-switch"
+          checked={willingToPay}
+          onChange={() => dispatch({ type: "SET_WILLING_TO_PAY", value: !willingToPay })}
+        />
+      </label>
+
+      <div className="mt-auto pt-1">
+        <Ticket
           disabled={!canContinue}
           onClick={() => dispatch({ type: "COMPLETE_TURN", player: state.currentPlayer })}
-          className={goldCta}
         >
-          Start the night
-        </button>
-        {!canContinue && (
-          <p className="mt-2.5 text-center text-[12px] text-text/45">
-            Pick at least one service, or turn on renting to continue.
-          </p>
-        )}
+          Take your seats
+        </Ticket>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useGame } from "./GameProvider";
+import { PassPhone } from "./PassPhone";
 import { selectSwipeSamples, type PoolMovie } from "@/lib/blendTypes";
 import { genreNames } from "@/lib/genres";
 import { blurb } from "@/lib/blurb";
@@ -10,10 +11,8 @@ import {
   Check,
   GOLD_SURFACE,
   Heart,
-  Phone,
   Question,
   XMark,
-  eyebrow,
   goldCta,
   pill,
   screenCol,
@@ -61,27 +60,9 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
   // Pass-the-phone handoff before Player 2.
   if (!ready) {
     return (
-      <div className="flex min-h-full flex-1 flex-col items-center justify-center px-2 text-center">
-        <div className="relative mb-7 flex h-[120px] w-[120px] items-center justify-center">
-          <span className="absolute inset-0 rounded-full border-[1.5px] border-gold/50 motion-safe:animate-[mmPulseRing_2.4s_ease-out_infinite]" />
-          <span className="absolute inset-0 rounded-full border-[1.5px] border-gold/50 motion-safe:animate-[mmPulseRing_2.4s_ease-out_infinite_1.2s]" />
-          <div className="flex h-[78px] w-[78px] items-center justify-center rounded-3xl border border-gold/40 bg-[linear-gradient(150deg,rgba(232,192,125,0.18),rgba(232,192,125,0.04))] text-gold motion-safe:animate-[mmFloat_3.5s_ease-in-out_infinite]">
-            <Phone size={34} />
-          </div>
-        </div>
-        <p className={`mb-2 ${eyebrow} tracking-[2px]`}>Picks locked · no peeking</p>
-        <h2 className="mb-3 font-display text-[36px] leading-[1.05]">
-          Pass the phone
-          <br />
-          to <span className="italic text-gold">Player 2</span>
-        </h2>
-        <p className="mb-8 max-w-[260px] text-[14.5px] leading-[1.5] text-text/55">
-          A new set of titles — swipe on the vibe, not whether you’ve seen them.
-        </p>
-        <button className={goldCta} onClick={() => setReady(true)}>
-          I’m ready
-        </button>
-      </div>
+      <PassPhone to={2} kicker="Swipes locked · no peeking" onReady={() => setReady(true)}>
+        Hand it over. Player 2 swipes their own films. Go by the vibe, seen it or not.
+      </PassPhone>
     );
   }
 

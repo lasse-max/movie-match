@@ -63,19 +63,25 @@ export function Bulbs({ count = 16 }: { count?: number }) {
   );
 }
 
-/** The ADMIT TWO ticket: the start button, with a stub and notched edges. */
+/** A velvet ticket button with a stub and notched edges: ADMIT TWO on setup,
+ * LOCK IT IN on Round 1. */
 export function Ticket({
   children,
+  stub = (
+    <>
+      Admit
+      <br />
+      two
+    </>
+  ),
   ...rest
-}: { children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
+}: { children: ReactNode; stub?: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button type="button" className="pp-ticket" {...rest}>
       <span
         className={`${label} flex w-[86px] flex-none items-center justify-center border-r-2 border-dashed border-cream/50 text-center text-[12px] leading-[1.35] tracking-[0.22em]`}
       >
-        Admit
-        <br />
-        two
+        {stub}
       </span>
       <span className={`${display} flex flex-1 items-center justify-between pl-[18px] pr-6 text-[28px] leading-none`}>
         {children}

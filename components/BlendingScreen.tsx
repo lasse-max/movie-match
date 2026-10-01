@@ -90,12 +90,14 @@ export function BlendingScreen() {
   if (!ready) {
     return (
       <PassPhone
-        kicker="Round 1 done · no peeking"
-        lead="back to"
-        player="Player 1"
-        subcopy="Round 2 starts with Player 1 — hand the phone back, then tap below."
+        to={1}
+        back
+        working
+        kicker="Both picked · blending now"
         onReady={() => setReady(true)}
-      />
+      >
+        Hand it back. We’re already working while you pass it, so Round 2 is ready when you are.
+      </PassPhone>
     );
   }
 

@@ -84,12 +84,14 @@ export function InferringScreen() {
   if (!ready) {
     return (
       <PassPhone
-        kicker="Round 2 done · no peeking"
-        lead="back to"
-        player="Player 1"
-        subcopy="Round 3 starts with Player 1 — hand the phone back, then tap below."
+        to={1}
+        back
+        working
+        kicker="Both swiped · reading the mood now"
         onReady={() => setReady(true)}
-      />
+      >
+        Hand it back. We’re already working while you pass it, so Round 3 is ready when you are.
+      </PassPhone>
     );
   }
 
