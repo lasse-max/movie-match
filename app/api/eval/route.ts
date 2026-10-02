@@ -10,6 +10,7 @@ import { isKidsFare } from "@/lib/genres";
 import { selectSwipeSamples, type BlendResult, type PoolMovie } from "@/lib/blendTypes";
 import { DEFAULT_REGION } from "@/lib/constants";
 import { embeddingsEnabled } from "@/lib/retrieve";
+import { getAnthropic } from "@/lib/anthropic";
 import type { MatchMovie, PlayerRec } from "@/lib/inferTypes";
 
 // EVAL-ONLY pipeline runner (dev only — 404 in production). Runs one couple's
@@ -93,6 +94,69 @@ const slim = (m: MatchMovie) => ({
   percent: m.matchPercent,
 });
 
+/** What one inferMoods call cost and did (E4 gate run, eval/e4-prereg.md). */
+interface InferMeasure {
+  ms: number;
+  claude: { calls: number; inputTokens: number; outputTokens: number; stopReasons: string[] };
+  /** The engine's own `embeddings.retrieval` log line (embeddings on only). */
+  retrieval: Record<string, unknown> | null;
+  /** The engine's `embeddings.fallback` warning, if it fell back. */
+  fallback: Record<string, unknown> | null;
+}
+
+/**
+ * Run inferMoods and measure it: the time it takes, the usage of its one Claude
+ * call, and the structured log lines the engine already writes. The shared Claude
+ * client and console.info/warn are wrapped only for the duration of the call and
+ * always restored. Eval only; the harness sends one request at a time.
+ */
+async function measured<T>(run: () => Promise<T>): Promise<{ value: T; measure: InferMeasure }> {
+  const measure: InferMeasure = {
+    ms: 0,
+    claude: { calls: 0, inputTokens: 0, outputTokens: 0, stopReasons: [] },
+    retrieval: null,
+    fallback: null,
+  };
+  type Reply = { stop_reason?: string | null; usage?: { input_tokens?: number; output_tokens?: number } };
+  const messages = getAnthropic().messages;
+  const create = messages.create;
+  messages.create = (async (...args: unknown[]) => {
+    const reply = (await (create as unknown as (...a: unknown[]) => Promise<Reply>).apply(messages, args)) as Reply;
+    measure.claude.calls++;
+    measure.claude.inputTokens += reply.usage?.input_tokens ?? 0;
+    measure.claude.outputTokens += reply.usage?.output_tokens ?? 0;
+    measure.claude.stopReasons.push(reply.stop_reason ?? "unknown");
+    return reply;
+  }) as unknown as typeof create;
+
+  const { info, warn } = console;
+  const capture =
+    (key: "retrieval" | "fallback", event: string, write: (...a: unknown[]) => void) =>
+    (...args: unknown[]) => {
+      if (typeof args[0] === "string" && args[0].includes(`"event":"${event}"`)) {
+        try {
+          measure[key] = JSON.parse(args[0]);
+        } catch {
+          // not a structured line; leave it to the log
+        }
+      }
+      write.apply(console, args);
+    };
+  console.info = capture("retrieval", "embeddings.retrieval", info);
+  console.warn = capture("fallback", "embeddings.fallback", warn);
+
+  const started = performance.now();
+  try {
+    const value = await run();
+    measure.ms = Math.round(performance.now() - started);
+    return { value, measure };
+  } finally {
+    messages.create = create;
+    console.info = info;
+    console.warn = warn;
+  }
+}
+
 export async function POST(request: Request) {
   if (process.env.NODE_ENV === "production") {
     return new NextResponse("eval is dev-only", { status: 404 });
@@ -129,9 +193,9 @@ export async function POST(request: Request) {
     // is dev-only, and the live /api/infer route never passes the override.
     const embeddings = typeof body?.embeddings === "boolean" ? body.embeddings : undefined;
 
-    const inf = await inferMoods(pool, swipes, categories, EVAL_REGION, services, willingToPay, {
-      embeddings,
-    });
+    const { value: inf, measure } = await measured(() =>
+      inferMoods(pool, swipes, categories, EVAL_REGION, services, willingToPay, { embeddings })
+    );
     const isEligible = (r: PlayerRec) =>
       evaluateAvailability(r.availability, services, willingToPay).eligible;
 
@@ -156,6 +220,7 @@ export async function POST(request: Request) {
 
     let reason: string;
     let winner: ReturnType<typeof slim> | null = null;
+    let winnerMovie: MatchMovie | null = null;
     let runnerUps: ReturnType<typeof slim>[] = [];
 
     const overlap = pickMatch(inf[1].recs, inf[2].recs, picks1, picks2, {
@@ -166,6 +231,7 @@ export async function POST(request: Request) {
     });
     if (overlap) {
       reason = "overlap";
+      winnerMovie = overlap.movie;
       winner = slim(overlap.movie);
       runnerUps = overlap.alternatives.map(slim);
     } else {
@@ -175,6 +241,7 @@ export async function POST(request: Request) {
       );
       reason = `bridge:${outcome.kind}`;
       if (outcome.kind === "match") {
+        winnerMovie = outcome.movie;
         winner = slim(outcome.movie);
         runnerUps = outcome.alternatives.map(slim);
       }
@@ -190,6 +257,23 @@ export async function POST(request: Request) {
       picks: inf[p].recs.filter((r) => picks.includes(r.id)).map(titleYear),
       shortlist: inf[p].recs.map((r) => ({ title: r.title, year: r.year, eligible: isEligible(r) })),
     });
+
+    // E4: each player's final 8 (the first 8 eligible titles in ranked order, as the
+    // Round 3 screen shows them), with where each film came from.
+    const poolIds = new Set(pool.map((m) => m.id));
+    const final8 = (p: 1 | 2) => {
+      const other = p === 1 ? 2 : 1;
+      return inf[p].recs
+        .filter(isEligible)
+        .slice(0, TARGET)
+        .map((r) => ({
+          id: r.id,
+          title: r.title,
+          source: r.source,
+          offPool: !poolIds.has(r.id),
+          liked: swipes[p].yes.includes(r.id) ? "own" : swipes[other].yes.includes(r.id) ? "other" : null,
+        }));
+    };
 
     return NextResponse.json({
       p1,
@@ -210,6 +294,17 @@ export async function POST(request: Request) {
         round2: { 1: round2(1), 2: round2(2) },
         round3: { 1: round3(1, picks1), 2: round3(2, picks2) },
         resolution: reason,
+      },
+      // E4 gate run (eval/e4-prereg.md): what inferMoods cost and took, and the
+      // origin of every film in each player's final 8.
+      e4: {
+        inferMs: measure.ms,
+        claude: measure.claude,
+        retrieval: measure.retrieval,
+        fallback: measure.fallback,
+        winnerId: winnerMovie?.id ?? null,
+        winnerOffPool: winnerMovie ? !poolIds.has(winnerMovie.id) : null,
+        final8: { 1: final8(1), 2: final8(2) },
       },
       // Only when freshly blended — the harness captures this to freeze the snapshot.
       blend: usingFrozen ? null : blend,
