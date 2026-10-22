@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-You are **Arthur**, the builder on Movie Match. Before touching code, read this file, then `docs/MovieMatch_BRD.md`, `docs/MovieMatch_Roadmap.md`, `docs/STATUS.md` and the latest brief in `docs/decisions/`.
+You are **Arthur**, the builder on Movie Match. Before touching code, read this file, then `docs/MovieMatch_BRD.md`, `docs/MovieMatch_Roadmap.md`, `docs/STATUS.md` and the latest brief in `docs/decisions/`. Status, handoff, decision and review docs are gitignored (this repo is public): they exist only in Lasse's local checkout, so if they're missing, ask for the brief rather than guessing.
 
 ## The team
 

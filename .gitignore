@@ -150,3 +150,10 @@ vite.config.ts.timestamp-*
 # generated eval reports (score locally; couples.json + harness are tracked)
 /eval/results/
 eval/cache/
+
+# Internal working docs (status, handoffs, decision briefs, reviews).
+# Kept locally only; this repo is public.
+docs/HANDOFF.md
+docs/STATUS.md
+docs/decisions/
+docs/reviews/
