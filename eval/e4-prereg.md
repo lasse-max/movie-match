@@ -41,6 +41,13 @@ Committed before any E4 measurement exists, so the bars and definitions can't mo
 
 The plumbing check on the excluded couple #11 (unmeasured) showed the catalogue falling back on this Mac twice in a row. A direct timing from here: about 0.4 s per round trip to the database, `match_movies` about 0.7 s when warm, and 3.1 s for the first call after a quiet spell. The engine gives each database call 1.5 s, then quietly serves today's path, so some "on" runs here would silently measure today's path. From Vercel the database is about 10 ms away. So, added to the infrastructure failures above: **on the "on" arm, a catalogue fallback with reason `timeout`, `error` or `config` (the engine's `embeddings.fallback` line) is retried the same way.** A fallback the engine takes by design (no usable likes for a player, or nothing eligible: reason `empty`) is kept as the result. The warm-up couple runs until its catalogue call succeeds, so the database is warm before couple 1. The bars and definitions are unchanged. The "on" arm's timing here includes those round trips, so it overstates production latency more than the "off" arm's does.
 
+### Amendment, 2 Nov, before the rerun (F4, after Cato's 2.0 review)
+
+Cato found that the 2 Oct run did not describe the real game, so E4 is rerun with the same bars, couples, frozen pools, judge and definitions. Two things changed before this rerun:
+
+1. **The display fix (F2).** In the taste lane each player is now shown exactly what the Round 3 screen shows: the first 8 eligible films in ranked order (`selectWatchable`, as `Round3Screen` does), not every eligible film. Picks, declines, the judge's context and the final-8 numbers all come from that one view, and the eval route refuses a run where a pick wasn't on screen. "Final 8" above now means exactly this view. The harness keeps every attempt of every arm and judge call, discarded ones included, with the reason.
+2. **The 3 s deadline (F3).** The engine now gives the whole catalogue step 3 s, availability checks included; past it both players get today's path with an `embeddings.fallback` line, reason `deadline`. From this Mac the database round trips alone take about 1.6 s of the 3 s (about 10 ms from Vercel), and the smoke check on the excluded couple took 2.7 s once warm. So **`deadline` joins `timeout`, `error` and `config` as an infrastructure fallback on the "on" arm, retried the same way (up to 3 attempts).** `empty` is still kept as the result. The report counts every discarded attempt by reason. Latency stays indicative here; the binding read is the live speed check.
+
 ## Not in this run
 
 The thin lane, human pairwise, live latency (Otto, Vercel logs) and replay variety.

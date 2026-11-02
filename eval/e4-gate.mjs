@@ -31,8 +31,9 @@ const post = async (path, body) => (await fetch(BASE + path, {
 })).json();
 
 // Catalogue fallbacks caused by the database round trip from this machine, not by
-// the engine's design (prereg amendment). "empty" is by design and is kept.
-const INFRA_FALLBACK = new Set(["timeout", "error", "config"]);
+// the engine's design (prereg amendments of 2 Oct and 2 Nov). "empty" is by design
+// and is kept.
+const INFRA_FALLBACK = new Set(["timeout", "deadline", "error", "config"]);
 
 /** One arm of one couple. Retried only for infrastructure failures (prereg).
  * Every attempt is kept in `attemptLog`, discarded ones included, with why. */
