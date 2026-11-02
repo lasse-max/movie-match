@@ -3,7 +3,7 @@ import { blendTastes } from "@/lib/blend";
 import { inferMoods, type Categories, type Swipes } from "@/lib/infer";
 import { bridge } from "@/lib/bridge";
 import { pickMatch, declinedFrom } from "@/lib/overlap";
-import { evaluateAvailability } from "@/lib/filter";
+import { evaluateAvailability, selectWatchable } from "@/lib/filter";
 import { matchPercent } from "@/lib/matchInsight";
 import { categoryGenreId, normalizeCategoryPicks } from "@/lib/categories";
 import { isKidsFare } from "@/lib/genres";
@@ -199,21 +199,31 @@ export async function POST(request: Request) {
     const isEligible = (r: PlayerRec) =>
       evaluateAvailability(r.availability, services, willingToPay).eligible;
 
-    // What each player is SHOWN and PICKS. Taste: every eligible title, pick all.
-    // Thin: the top-TARGET eligible (as the UI displays), pick those whose
-    // position-fit % clears the bar (naturally ~1-3) — the rest count as declined.
-    const shownOf = (recs: PlayerRec[]) =>
-      threshold ? recs.filter(isEligible).slice(0, TARGET) : recs.filter(isEligible);
-    const pickOf = (recs: PlayerRec[]) => {
-      const shown = shownOf(recs);
-      if (!threshold) return shown.map((r) => r.id);
-      const n = Math.max(shown.length, 1);
-      return shown.filter((_, i) => matchPercent(1 - i / n) >= PICK_THRESHOLD).map((r) => r.id);
+    // What each player is SHOWN: exactly what the Round 3 screen shows, the first
+    // TARGET eligible titles in ranked order (selectWatchable, as Round3Screen
+    // does), in both lanes (Cato 2.0 finding 2). Picks, declines, the judge's
+    // context and the final-8 numbers all come from this view. Taste: pick every
+    // shown title. Thin: pick those whose position-fit % clears the bar (naturally
+    // ~1-3); the rest count as declined.
+    const shownOf = (recs: PlayerRec[]): PlayerRec[] => {
+      const view = selectWatchable(recs, services, willingToPay, TARGET);
+      return view.kind === "watchable" ? view.rows.map((r) => r.item) : [];
     };
-    const picks1 = pickOf(inf[1].recs);
-    const picks2 = pickOf(inf[2].recs);
+    const shown = { 1: shownOf(inf[1].recs), 2: shownOf(inf[2].recs) };
+    const pickOf = (list: PlayerRec[]) => {
+      if (!threshold) return list.map((r) => r.id);
+      const n = Math.max(list.length, 1);
+      return list.filter((_, i) => matchPercent(1 - i / n) >= PICK_THRESHOLD).map((r) => r.id);
+    };
+    const picks1 = pickOf(shown[1]);
+    const picks2 = pickOf(shown[2]);
+    // A simulated player can only pick what was on their screen.
+    for (const [p, picks] of [[1, picks1], [2, picks2]] as const) {
+      const onScreen = new Set(shown[p].map((r) => r.id));
+      if (picks.some((id) => !onScreen.has(id))) throw new Error(`eval: Player ${p} picked a film that was not shown`);
+    }
     const declined = declinedFrom(
-      { 1: shownOf(inf[1].recs).map((r) => r.id), 2: shownOf(inf[2].recs).map((r) => r.id) },
+      { 1: shown[1].map((r) => r.id), 2: shown[2].map((r) => r.id) },
       { 1: picks1, 2: picks2 }
     );
     const moodAxes = [...new Set([...inf[1].moodRead.axes, ...inf[2].moodRead.axes])];
@@ -254,25 +264,27 @@ export async function POST(request: Request) {
     const round2 = (p: 1 | 2) =>
       samples[p].map((c) => ({ title: c.title, year: c.year, swipe: swipes[p].yes.includes(c.id) ? "yes" : "no" }));
     const round3 = (p: 1 | 2, picks: number[]) => ({
-      picks: inf[p].recs.filter((r) => picks.includes(r.id)).map(titleYear),
-      shortlist: inf[p].recs.map((r) => ({ title: r.title, year: r.year, eligible: isEligible(r) })),
+      picks: shown[p].filter((r) => picks.includes(r.id)).map(titleYear),
+      shortlist: inf[p].recs.map((r) => ({
+        title: r.title,
+        year: r.year,
+        eligible: isEligible(r),
+        shown: shown[p].includes(r),
+      })),
     });
 
-    // E4: each player's final 8 (the first 8 eligible titles in ranked order, as the
-    // Round 3 screen shows them), with where each film came from.
+    // E4: each player's final 8 (what the Round 3 screen shows them, as above),
+    // with where each film came from.
     const poolIds = new Set(pool.map((m) => m.id));
     const final8 = (p: 1 | 2) => {
       const other = p === 1 ? 2 : 1;
-      return inf[p].recs
-        .filter(isEligible)
-        .slice(0, TARGET)
-        .map((r) => ({
-          id: r.id,
-          title: r.title,
-          source: r.source,
-          offPool: !poolIds.has(r.id),
-          liked: swipes[p].yes.includes(r.id) ? "own" : swipes[other].yes.includes(r.id) ? "other" : null,
-        }));
+      return shown[p].map((r) => ({
+        id: r.id,
+        title: r.title,
+        source: r.source,
+        offPool: !poolIds.has(r.id),
+        liked: swipes[p].yes.includes(r.id) ? "own" : swipes[other].yes.includes(r.id) ? "other" : null,
+      }));
     };
 
     return NextResponse.json({

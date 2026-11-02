@@ -127,7 +127,7 @@ const post = (body: unknown) =>
     })
   );
 
-type Film = { id: number; source: string; offPool: boolean; liked: "own" | "other" | null };
+type Film = { id: number; title: string; source: string; offPool: boolean; liked: "own" | "other" | null };
 type E4 = {
   inferMs: number;
   claude: { calls: number; inputTokens: number; outputTokens: number; stopReasons: string[] };
@@ -209,6 +209,22 @@ describe("POST /api/eval reports what E4 measures", () => {
     const fresh = e4.final8[1].filter((f) => f.offPool);
     expect(fresh.length).toBeGreaterThan(0);
     for (const f of fresh) expect([701, 702]).toContain(f.id); // TMDB recommendations
+  });
+
+  // F2 (Cato 2.0 finding 2): the taste lane used to pick every eligible film (often
+  // 9 or 10) while the screen shows 8, so E4 could judge a winner nobody saw.
+  it("taste lane: picks, and the judge's context, come only from the 8 films on screen", async () => {
+    const { body, e4 } = await game(true);
+    type Row = { title: string; year: string | null; eligible: boolean; shown: boolean };
+    for (const p of ["1", "2"] as const) {
+      const shortlist = body.trace.round3[p].shortlist as Row[];
+      expect(shortlist.filter((r) => r.eligible).length).toBeGreaterThan(8); // more than fit on screen
+      const picks = body.trace.round3[p].picks as string[]; // what the judge reads
+      expect(picks).toHaveLength(8); // the 8 on screen, not every eligible film
+      const onScreen = shortlist.filter((r) => r.shown);
+      expect(picks).toEqual(onScreen.map((r) => `${r.title}${r.year ? ` (${r.year})` : ""}`));
+      expect(onScreen.map((r) => r.title)).toEqual(e4.final8[p].map((f) => f.title)); // one view
+    }
   });
 
   it("makes a failed Claude call visible (the engine itself quietly falls back)", async () => {

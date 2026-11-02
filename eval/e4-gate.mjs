@@ -34,9 +34,11 @@ const post = async (path, body) => (await fetch(BASE + path, {
 // the engine's design (prereg amendment). "empty" is by design and is kept.
 const INFRA_FALLBACK = new Set(["timeout", "error", "config"]);
 
-/** One arm of one couple. Retried only for infrastructure failures (prereg). */
+/** One arm of one couple. Retried only for infrastructure failures (prereg).
+ * Every attempt is kept in `attemptLog`, discarded ones included, with why. */
 async function runArm(c, embeddings, attempts = ATTEMPTS) {
   let last = null;
+  const attemptLog = [];
   for (let attempt = 1; attempt <= attempts; attempt++) {
     let r;
     try {
@@ -55,11 +57,23 @@ async function runArm(c, embeddings, attempts = ATTEMPTS) {
           : embeddings && INFRA_FALLBACK.has(reason)
             ? `catalogue fallback: ${reason}`
             : null;
-    if (!problem) return { ...r, attempts: attempt };
+    attemptLog.push({
+      attempt,
+      outcome: problem ? "discarded" : "used",
+      problem,
+      httpError: r.error ?? null,
+      arm: r.embeddings ?? null,
+      claude: claude ?? null,
+      retrieval: r?.e4?.retrieval ?? null, // the engine's own log line, reason included
+      fallback: r?.e4?.fallback ?? null,
+      inferMs: r?.e4?.inferMs ?? null,
+      winner: r.winner?.title ?? null,
+    });
+    if (!problem) return { ...r, attempts: attempt, attemptLog };
     last = problem;
     console.log(`    retry (${embeddings ? "on" : "off"}, attempt ${attempt}): ${problem}`);
   }
-  return { error: last, attempts };
+  return { error: last, attempts, attemptLog };
 }
 
 // The judge's game-path context, built exactly as eval/judge-runs.mjs does.
@@ -77,19 +91,24 @@ const contextOf = (c, r) => {
 };
 
 async function judge(c, r) {
-  if (!r.winner) return { rating: null, rationale: "no winner", attempts: 0 };
+  if (!r.winner) return { rating: null, rationale: "no winner", attempts: 0, attemptLog: [] };
   let last = null;
+  const attemptLog = [];
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     try {
       const j = await post("/api/eval/judge", { context: contextOf(c, r), pick: r.winner });
-      if (!j.error && Number.isFinite(j.rating)) return { rating: j.rating, rationale: j.rationale, attempts: attempt };
+      if (!j.error && Number.isFinite(j.rating)) {
+        attemptLog.push({ attempt, outcome: "used", problem: null });
+        return { rating: j.rating, rationale: j.rationale, attempts: attempt, attemptLog };
+      }
       last = j.error ?? "no rating";
     } catch (e) {
       last = String(e);
     }
+    attemptLog.push({ attempt, outcome: "discarded", problem: last });
     console.log(`    judge retry (attempt ${attempt}): ${last}`);
   }
-  return { rating: null, rationale: `judge failed: ${last}`, attempts: ATTEMPTS, error: true };
+  return { rating: null, rationale: `judge failed: ${last}`, attempts: ATTEMPTS, error: true, attemptLog };
 }
 
 // ---- metrics (definitions: eval/e4-prereg.md) -------------------------------
@@ -209,6 +228,25 @@ const tooClose = rows.filter((x) => x.gap != null && x.gap < 0 && -x.gap >= FLOO
 const bar1 = incomplete ? "INCOMPLETE" : regressions.length === 0 ? "PASS" : "FAIL";
 const bar2 = incomplete ? "INCOMPLETE" : on.fitsBoth === valid.length ? "PASS" : "FAIL";
 const gain = off.offPoolTotal > 0 ? on.offPoolTotal / off.offPoolTotal : NaN;
+// Every discarded attempt, with why (the JSON keeps each one in full).
+const discarded = rows.flatMap((x) =>
+  ["off", "on"].flatMap((arm) =>
+    (x[arm]?.attemptLog ?? [])
+      .filter((a) => a.outcome === "discarded")
+      .map((a) => `${x.name} (${arm}), attempt ${a.attempt}: ${a.problem}`)
+  )
+);
+// Each simulated pick was on that player's screen (the route also refuses otherwise).
+const picksOnScreen = rows.every((x) =>
+  ["off", "on"].every((arm) =>
+    x[arm]?.error ||
+    [1, 2].every((p) => {
+      const picks = x[arm].trace?.round3?.[p]?.picks ?? [];
+      const shown = (x[arm].trace?.round3?.[p]?.shortlist ?? []).filter((r) => r.shown);
+      return picks.length <= 8 && picks.length === shown.length;
+    })
+  )
+);
 
 const L = [
   `# E4 gate run · embeddings off vs on`,
@@ -243,8 +281,13 @@ const L = [
   `| Players served by today's path instead of the catalogue | n/a | ${on.servedByToday} of ${2 * on.runs} |`,
   `| Couples with a shared seed | n/a | ${on.sharedSeeds} of ${on.runs} |`,
   `| Retries (infrastructure) | ${off.retries} | ${on.retries} |`,
+  `| Every simulated pick was on screen (8 at most) | ${picksOnScreen ? "yes" : "NO"} | ${picksOnScreen ? "yes" : "NO"} |`,
   ``,
   `Variety gain after availability (films from outside the pool, on ÷ off): **${Number.isFinite(gain) ? `${gain.toFixed(2)}×` : "n/a"}** (${off.offPoolTotal} → ${on.offPoolTotal} across ${valid.length} couples). inferMoods median difference (on − off): ${secs(on.inferMedian - off.inferMedian)}, measured on the dev server on this Mac (indicative; the live read is Otto's). The blend call, the game's other Claude call, is the same in both arms and not counted.`,
+  ``,
+  `## Discarded attempts`,
+  ``,
+  ...(discarded.length ? discarded.map((d) => `- ${d}`) : ["- none"]),
   ``,
   `## Per couple`,
   ``,
