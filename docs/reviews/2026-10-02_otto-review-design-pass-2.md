@@ -29,7 +29,6 @@
 
 ## For the polish round (D6), after Lasse plays it
 
-- The match card and Watch button (point 1).
 - Long service names truncate in the setup grid ("Amazon ...", "Paramo..."). Show short display names (Prime Video, Paramount+) in the component.
 - Round 2 cards: the poster's own title art shows through behind our title and the controls (Shawshank, Ariel). A slightly stronger bottom scrim would calm it.
 - Anything Lasse finds on his phone.

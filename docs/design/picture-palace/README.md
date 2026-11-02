@@ -23,5 +23,8 @@ They run on `docs/design/support.js`. From `docs/design/`, start a static server
 | `MatchClosed.dc.html`, `MatchOpen.dc.html` | The match: curtain closed, then open |
 | `ShareCard.dc.html` | The match as a poster card, 9:16 (sharing comes in Track C) |
 | `Error.dc.html` | AI or network error with retry |
+| `D6Swipe.dc.html` | D6: stamp timing, then the Round 2 wrap (tap through) |
+| `D6Wrap.dc.html` | D6: Round 2 wrap, replaces "That's the read" |
+| `D6Load.dc.html` | D6: loader with the quote moved up |
 
 Text in square brackets (for example `[TMDB poster]`, `[Date]`) is a placeholder for real data. The films on the boards are fictional.
