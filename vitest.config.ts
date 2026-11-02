@@ -10,9 +10,9 @@ export default defineConfig({
     },
   },
   test: {
-    // Pure-function unit tests only (filter + Round 3 overlap/tiebreak).
-    // UI components and API routes are covered by manual smoke-testing for the MVP.
-    include: ["tests/**/*.test.ts"],
+    // Node by default (lib/ and route tests). A screen test opts into a DOM with a
+    // `// @vitest-environment happy-dom` line at its top (tests/*.test.tsx).
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     environment: "node",
   },
 });

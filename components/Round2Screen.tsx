@@ -5,6 +5,7 @@ import {
   AnimatePresence,
   animate,
   motion,
+  useIsPresent,
   useMotionValue,
   useReducedMotion,
   useTransform,
@@ -26,6 +27,11 @@ const THRESHOLD = 0.35;
 const FLICK = 600;
 /** Tilt at a full card width of drag; it keeps growing as the card flies off. */
 const TILT = 12;
+/** A decision only counts on a card the player has seen: the last decided card
+ * must have finished leaving, and its successor must have been up this long.
+ * With reduce-motion on the flight is instant, so this floor is what stops a
+ * double tap from deciding a card nobody saw. */
+const MIN_ON_SCREEN_MS = 300;
 
 export function Round2Screen() {
   const { state } = useGame();
@@ -61,6 +67,10 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
   const [submitted, setSubmitted] = useState(false);
   const submittedRef = useRef(false); // blocks a synchronous double-tap
   const indexRef = useRef(0);
+  // One guard for buttons and drags alike, set synchronously, so a second tap or
+  // a drag on the same card can never decide the card underneath.
+  const leavingRef = useRef(false); // a decided card hasn't finished leaving
+  const decidedAtRef = useRef(Number.NEGATIVE_INFINITY);
   // A callback ref, so measuring starts whenever the deck mounts (Player 2's turn
   // opens on the gate, with no deck yet).
   const [deck, setDeck] = useState<HTMLDivElement | null>(null);
@@ -91,11 +101,16 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
 
   // One decision for the card on top, recorded exactly as before: This vibe → yes,
   // Not it → no, Not sure → neutral (no data, never a false "away"; see
-  // lib/gameMachine.ts turn completion and lib/infer.ts degrade).
-  const decide = (dir: Dir) => {
+  // lib/gameMachine.ts turn completion and lib/infer.ts degrade). Returns whether
+  // it counted: only once the next card is on top and on screen (see the guard).
+  const decide = (dir: Dir, cardId?: number): boolean => {
     const movie = samples[indexRef.current];
-    if (!movie || !size) return;
-    indexRef.current += 1; // a second decision in the same tick lands on the next card
+    if (!movie || !size) return false;
+    if (cardId !== undefined && cardId !== movie.id) return false; // that card already left
+    if (leavingRef.current || performance.now() - decidedAtRef.current < MIN_ON_SCREEN_MS) return false;
+    leavingRef.current = true;
+    decidedAtRef.current = performance.now();
+    indexRef.current += 1;
     setExit({ dir, w: size.w, h: size.h });
     setFlying(true);
     setLast(dir);
@@ -103,6 +118,7 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
     else if (dir === "left") setNo((v) => [...v, movie.id]);
     else setNeutral((v) => [...v, movie.id]);
     setIndex((i) => i + 1);
+    return true;
   };
 
   const done = index >= samples.length;
@@ -155,9 +171,20 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
               </div>
             ))}
 
-            <AnimatePresence custom={exit} onExitComplete={() => setFlying(false)}>
+            <AnimatePresence
+              custom={exit}
+              onExitComplete={() => {
+                leavingRef.current = false; // the next card is on top
+                setFlying(false);
+              }}
+            >
               {!done && (
-                <TopCard key={visible[0].id} movie={visible[0]} width={size.w} onDecide={decide} />
+                <TopCard
+                  key={visible[0].id}
+                  movie={visible[0]}
+                  width={size.w}
+                  onDecide={(dir) => decide(dir, visible[0].id)}
+                />
               )}
             </AnimatePresence>
 
@@ -214,9 +241,11 @@ function TopCard({
 }: {
   movie: PoolMovie;
   width: number;
-  onDecide: (dir: Dir) => void;
+  /** Returns whether the decision counted. */
+  onDecide: (dir: Dir) => boolean;
 }) {
   const reduced = !!useReducedMotion();
+  const present = useIsPresent(); // false once this card is leaving
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const decided = useRef(false);
@@ -236,11 +265,13 @@ function TopCard({
   return (
     <motion.article
       className="absolute inset-0 cursor-grab touch-none overflow-hidden rounded-[22px] shadow-[0_30px_60px_-24px_rgba(0,0,0,0.9)] active:cursor-grabbing"
-      style={{ x, y, rotate, zIndex: 3, pointerEvents: gone ? "none" : undefined }}
+      style={{ x, y, rotate, zIndex: 3, pointerEvents: gone || !present ? "none" : undefined }}
       drag
       dragMomentum={false}
       onDragEnd={(_, info) => {
-        if (decided.current) return;
+        // Already decided, or leaving after a button decided it: never decide again,
+        // and never pull a leaving card back.
+        if (decided.current || !present) return;
         const px = x.get();
         const py = y.get();
         const v = info.velocity;
@@ -250,12 +281,11 @@ function TopCard({
           else if (px < -t || (v.x < -FLICK && Math.abs(v.x) > Math.abs(v.y))) dir = "left";
         }
         if (!dir && (py > t || (v.y > FLICK && v.y > Math.abs(v.x)))) dir = "down";
-        if (dir) {
+        if (dir && onDecide(dir)) {
           decided.current = true;
           setGone(true);
-          onDecide(dir);
         } else {
-          // Not far enough: spring back.
+          // Not far enough, or too soon after the last card: spring back.
           const back = reduced ? { duration: 0 } : { type: "spring" as const, stiffness: 500, damping: 34 };
           animate(x, 0, back);
           animate(y, 0, back);
