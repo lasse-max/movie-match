@@ -5,6 +5,9 @@ import { useGame } from "./GameProvider";
 import { SUPPORTED_REGIONS } from "@/lib/constants";
 import { Bulbs, Check, ChevronDown, Ticket, display, label } from "./palace";
 
+// The sign powers on once per page load; after Play again its lights are already on.
+let signPoweredOn = false;
+
 interface Provider {
   id: number;
   name: string;
@@ -17,6 +20,11 @@ interface Provider {
 export function SetupScreen() {
   const { state, dispatch } = useGame();
   const { region, services, willingToPay } = state.setup;
+
+  const [powerOn] = useState(() => !signPoweredOn);
+  useEffect(() => {
+    signPoweredOn = true;
+  }, []);
 
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +69,7 @@ export function SetupScreen() {
     <div className="pp-enter flex min-h-full flex-1 flex-col gap-4">
       {/* The marquee sign. */}
       <div className="flex flex-none flex-col gap-3.5 rounded-2xl bg-aisle py-3.5">
-        <Bulbs />
+        <Bulbs powerOn={powerOn} />
         <div className="flex flex-col gap-2 px-5 py-0.5">
           <span className={`${label} text-brass`}>Tonight only</span>
           <h1 className={`${display} text-[52px] leading-[0.86]`}>
@@ -70,7 +78,7 @@ export function SetupScreen() {
             <span className="text-signal">Two of you.</span>
           </h1>
         </div>
-        <Bulbs />
+        <Bulbs powerOn={powerOn} />
       </div>
 
       <p className="text-[15px] leading-[1.5] text-cream/75">
@@ -119,19 +127,19 @@ export function SetupScreen() {
         {loading ? (
           <div aria-busy className="grid grid-cols-2 gap-2 pt-1.5">
             {Array.from({ length: 8 }, (_, i) => (
-              <span key={i} className="h-[46px] rounded-xl bg-aisle" />
+              <span key={i} className="pp-skeleton h-[46px] rounded-xl bg-aisle" />
             ))}
             <span className="sr-only">Loading services</span>
           </div>
         ) : error ? (
-          <p className="py-5 text-center text-[14px] text-cream/75">
+          <p className="pp-enter py-5 text-center text-[14px] text-cream/75">
             Couldn’t load services. {error}
           </p>
         ) : providers.length === 0 ? (
-          <p className="py-5 text-center text-[14px] text-cream/75">No services listed for this region.</p>
+          <p className="pp-enter py-5 text-center text-[14px] text-cream/75">No services listed for this region.</p>
         ) : (
           <div className="grid grid-cols-2 gap-2 pt-1.5">
-            {providers.map((p) => {
+            {providers.map((p, i) => {
               const selected = services.includes(p.id);
               return (
                 <button
@@ -140,7 +148,8 @@ export function SetupScreen() {
                   onClick={() => dispatch({ type: "TOGGLE_SERVICE", serviceId: p.id })}
                   aria-pressed={selected}
                   title={p.name}
-                  className={`flex h-[46px] items-center gap-2.5 rounded-xl pl-[9px] pr-3 text-left transition-[background-color,box-shadow,transform] duration-300 ease-entry active:scale-[0.97] ${
+                  style={{ animationDelay: `${Math.floor(i / 2) * 50}ms` }}
+                  className={`pp-fade flex h-[46px] items-center gap-2.5 rounded-xl pl-[9px] pr-3 text-left [transition:background-color_300ms_var(--ease-entry),box-shadow_300ms_var(--ease-entry),transform_160ms_var(--ease-entry)] active:scale-[0.97] ${
                     selected
                       ? "bg-[#241911] shadow-[inset_0_0_0_1.5px_rgba(214,162,74,0.75),0_10px_26px_-14px_rgba(214,162,74,0.55)]"
                       : "bg-aisle"

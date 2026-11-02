@@ -79,6 +79,34 @@ body {
   .pp-bulb:nth-child(3n) {
     animation-delay: 0.8s;
   }
+  /* The homepage sign switches on: each bulb lights left to right (--i is its
+     index), the row is lit by 0.66 s, then the chase takes over with the same
+     three-step offsets, so it starts from a lit bulb with no jump. The 0.7 s
+     chase start holds for up to 17 bulbs; only the 16-bulb homepage sign uses
+     powerOn. A longer row would need the start derived from its length. */
+  .pp-bulbs-power .pp-bulb {
+    animation:
+      mmPowerOn 160ms var(--ease-entry) calc(120ms + var(--i) * 25ms) backwards,
+      mmChase 1.2s ease-in-out 0.7s infinite;
+  }
+  .pp-bulbs-power .pp-bulb:nth-child(3n + 2) {
+    animation-delay: calc(120ms + var(--i) * 25ms), 1.1s;
+  }
+  .pp-bulbs-power .pp-bulb:nth-child(3n) {
+    animation-delay: calc(120ms + var(--i) * 25ms), 1.5s;
+  }
+
+  /* The service tiles fade in where their placeholders stood: opacity only, so
+     the tile press keeps its transform while the fade runs. */
+  .pp-fade {
+    animation: mmFade 300ms var(--ease-entry) backwards;
+  }
+
+  /* Loading placeholders breathe in sync. They start at full opacity, so a quick
+     load is over before the dip shows. */
+  .pp-skeleton {
+    animation: mmBreathe 1.4s ease-in-out infinite;
+  }
 
   /* The ADMIT TWO ticket: velvet, a dashed stub, notched edges. */
   .pp-ticket {
@@ -336,7 +364,28 @@ body {
   }
   50% {
     opacity: 0.25;
-    box-shadow: 0 0 0 0 rgba(255, 200, 110, 0);
+  }
+}
+@keyframes mmPowerOn {
+  from {
+    opacity: 0.15;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mmFade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes mmBreathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
   }
 }
 /* The sweep animates an angle, so it is a registered custom property. */
