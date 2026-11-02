@@ -11,7 +11,8 @@
 // bridge logic still picks the winner (no maximin or midpoint winner selector).
 // Every fresh film passes the same checks as today before it takes a slot, and any
 // database error, empty result or timeout falls back to today's path with one
-// structured warning. This module never throws.
+// structured warning, as does the whole step running past its 3 s deadline.
+// This module never throws.
 import "server-only";
 import { attachAvailability } from "./availability";
 import { evaluateAvailability } from "./filter";
@@ -34,6 +35,10 @@ export const RETRIEVE_K = 40;
 export const MAX_AVAIL_CHECKS = 12;
 /** Per database call; past this the game falls back to today's path. */
 export const RETRIEVE_TIMEOUT_MS = 1500;
+/** The whole catalogue step, availability checks included. Past it, both players
+ * get today's path and anything still running is cancelled (Cato 2.0 finding 3).
+ * Keeps the slowest game near 15 s, well inside the browser's 25 s limit. */
+export const RETRIEVE_DEADLINE_MS = 3000;
 /** Of each player's availability budget, how much the shared list may spend
  * (shared films are checked once and serve both players). */
 const SHARED_CHECKS = 6;
@@ -169,7 +174,8 @@ export interface EligibilityCheck {
 export function availabilityCheck(
   region: string,
   services: number[],
-  willingToPay: boolean
+  willingToPay: boolean,
+  signal?: AbortSignal
 ): EligibilityCheck & { calls(): number } {
   const memo = new Map<number, Promise<boolean>>();
   return {
@@ -177,7 +183,7 @@ export function availabilityCheck(
     isEligible: (id) => {
       let result = memo.get(id);
       if (!result) {
-        result = attachAvailability([{ id }], region).then(
+        result = attachAvailability([{ id }], region, signal).then(
           ([m]) => evaluateAvailability(m.availability, services, willingToPay).eligible
         );
         memo.set(id, result);
@@ -243,7 +249,7 @@ export async function pickEligible(
 
 // ---- Supabase (plain fetch to the REST / RPC endpoints, server-only) -------
 
-type Reason = "config" | "timeout" | "error" | "empty";
+type Reason = "config" | "timeout" | "deadline" | "error" | "empty";
 
 class RetrievalError extends Error {
   readonly reason: Reason;
@@ -274,15 +280,17 @@ function supabase(): Db | null {
   };
 }
 
-async function dbJson(url: string, init: RequestInit): Promise<unknown> {
+async function dbJson(url: string, init: RequestInit, deadline?: AbortSignal): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), RETRIEVE_TIMEOUT_MS);
+  const signal = deadline ? AbortSignal.any([controller.signal, deadline]) : controller.signal;
   try {
-    const res = await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });
+    const res = await fetch(url, { ...init, signal, cache: "no-store" });
     if (!res.ok) throw new RetrievalError("error", `supabase ${res.status}`);
     return await res.json();
   } catch (e) {
     if (e instanceof RetrievalError) throw e;
+    if (deadline?.aborted) throw new RetrievalError("deadline", "catalogue deadline");
     if (controller.signal.aborted) throw new RetrievalError("timeout", "supabase timeout");
     throw new RetrievalError("error", e instanceof Error ? e.message : "supabase error");
   } finally {
@@ -307,13 +315,14 @@ function parseVector(raw: unknown): number[] | null {
 }
 
 /** Stored vectors for the given films; films missing from the catalogue are absent. */
-async function loadVectors(db: Db, ids: number[]): Promise<Map<number, number[]>> {
+async function loadVectors(db: Db, ids: number[], signal?: AbortSignal): Promise<Map<number, number[]>> {
   const out = new Map<number, number[]>();
   const safe = ids.filter((id) => Number.isInteger(id));
   if (safe.length === 0) return out;
   const rows = await dbJson(
     `${db.rest}/movies?select=tmdb_id,embedding&tmdb_id=in.(${safe.join(",")})`,
-    { headers: db.headers }
+    { headers: db.headers },
+    signal
   );
   if (!Array.isArray(rows)) throw new RetrievalError("error", "bad vector payload");
   for (const r of rows as { tmdb_id?: unknown; embedding?: unknown }[]) {
@@ -328,13 +337,18 @@ async function matchMovies(
   db: Db,
   query: number[],
   k: number,
-  excludeIds: number[]
+  excludeIds: number[],
+  signal?: AbortSignal
 ): Promise<CatalogueFilm[]> {
-  const rows = await dbJson(`${db.rest}/rpc/match_movies`, {
-    method: "POST",
-    headers: db.headers,
-    body: JSON.stringify({ query: `[${query.join(",")}]`, k, exclude_ids: excludeIds }),
-  });
+  const rows = await dbJson(
+    `${db.rest}/rpc/match_movies`,
+    {
+      method: "POST",
+      headers: db.headers,
+      body: JSON.stringify({ query: `[${query.join(",")}]`, k, exclude_ids: excludeIds }),
+    },
+    signal
+  );
   if (!Array.isArray(rows)) throw new RetrievalError("error", "bad match payload");
   return rows.filter(isCatalogueFilm);
 }
@@ -407,21 +421,23 @@ export interface RetrieveOutcome {
   stats: RetrievalStats;
 }
 
+const emptyStats = (): RetrievalStats => ({
+  outcome: "fallback",
+  reason: null,
+  fingerprints: { 1: false, 2: false },
+  sharedSimilarity: null,
+  sharedSeed: false,
+  retrieved: { 1: 0, 2: 0 },
+  eligible: { 1: 0, 2: 0 },
+  selected: { 1: 0, 2: 0 },
+  availabilityChecks: 0,
+  ms: 0,
+});
+
 /** Fresh candidates for both players from the catalogue. Never throws. */
 export async function retrieveFresh(input: RetrieveInput): Promise<RetrieveOutcome> {
   const started = Date.now();
-  const stats: RetrievalStats = {
-    outcome: "fallback",
-    reason: null,
-    fingerprints: { 1: false, 2: false },
-    sharedSimilarity: null,
-    sharedSeed: false,
-    retrieved: { 1: 0, 2: 0 },
-    eligible: { 1: 0, 2: 0 },
-    selected: { 1: 0, 2: 0 },
-    availabilityChecks: 0,
-    ms: 0,
-  };
+  const stats = emptyStats();
   const done = (fresh: PerPlayer<FreshFilm[] | null>): RetrieveOutcome => {
     stats.ms = Date.now() - started;
     stats.outcome = fresh[1] || fresh[2] ? "embeddings" : "fallback";
@@ -444,84 +460,119 @@ export async function retrieveFresh(input: RetrieveInput): Promise<RetrieveOutco
     return done(todaysPath);
   }
 
+  // One deadline for the whole step, availability checks included. Past it, both
+  // players get today's path and whatever is still running is cancelled. The work
+  // fills its own stats, so nothing it does after the deadline reaches the log.
+  const controller = new AbortController();
+  const work = emptyStats();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<"deadline">((resolve) => {
+    timer = setTimeout(() => resolve("deadline"), RETRIEVE_DEADLINE_MS);
+  });
+  const gathered = gather(input, db, work, controller.signal);
   try {
-    // 1. Fingerprints: the average stored vector of each player's likes.
-    const vectors = await loadVectors(db, [...new Set([...input.likes[1], ...input.likes[2]])]);
-    const likedVecs = (p: Player) =>
-      input.likes[p].map((id) => vectors.get(id)).filter((v): v is number[] => !!v);
-    const vecs = { 1: likedVecs(1), 2: likedVecs(2) };
-    const fingerprint = { 1: meanVector(vecs[1]), 2: meanVector(vecs[2]) };
-    stats.fingerprints = { 1: !!fingerprint[1], 2: !!fingerprint[2] };
-    // No usable likes is expected (all skipped, or none in the catalogue): that
-    // player simply gets today's path, with no warning.
-    if (!fingerprint[1] && !fingerprint[2]) return done(todaysPath);
-
-    // 2. Shared seed from the closest cross-player pair of likes.
-    const shared =
-      fingerprint[1] && fingerprint[2] ? sharedSeed(vecs[1], vecs[2]) : { seed: null, similarity: null };
-    stats.sharedSimilarity = shared.similarity;
-    stats.sharedSeed = !!shared.seed;
-
-    // 3. Nearest catalogue films, all queries in parallel.
-    const exclude = [...new Set([...input.pool.map((m) => m.id), ...input.swiped])];
-    const [sharedRows, own1, own2] = await Promise.all([
-      shared.seed ? matchMovies(db, shared.seed, RETRIEVE_K, exclude) : Promise.resolve([]),
-      fingerprint[1] ? matchMovies(db, fingerprint[1], RETRIEVE_K, exclude) : Promise.resolve([]),
-      fingerprint[2] ? matchMovies(db, fingerprint[2], RETRIEVE_K, exclude) : Promise.resolve([]),
-    ]);
-    const ownRows = { 1: own1, 2: own2 };
-    stats.retrieved = { 1: sharedRows.length + own1.length, 2: sharedRows.length + own2.length };
-    if (sharedRows.length + own1.length + own2.length === 0) {
-      stats.reason = "empty";
+    const fresh = await Promise.race([gathered, deadline]);
+    if (fresh === "deadline") {
+      controller.abort();
+      gathered.catch(() => {}); // it settles once cancelled; nothing waits for it
+      Object.assign(stats, structuredClone(work), { reason: "deadline" }); // as far as it got
       return done(todaysPath);
     }
-
-    // 4. The checks, then availability within budget. Shared films first (checked
-    //    once, they go to both lists), then each player's own films fill the rest.
-    const screen: ScreenContext = {
-      excludeIds: new Set(exclude),
-      allowKidsFare: input.allowKidsFare,
-      blockedCollections: input.likedCollections,
-    };
-    const screened = (rows: CatalogueFilm[]) => rows.filter((f) => passesScreen(f, screen));
-    const check = availabilityCheck(input.region, input.services, input.willingToPay);
-
-    const sharedTaken: Taken = { ids: new Set(), collections: new Set() };
-    const sharedPick = shared.seed
-      ? await pickEligible(screened(sharedRows), SHARED_SLOTS, SHARED_CHECKS, check, sharedTaken)
-      : { picked: [], eligible: 0, checksUsed: 0 };
-
-    const ownPick = (p: Player) =>
-      fingerprint[p]
-        ? pickEligible(
-            screened(ownRows[p]),
-            FRESH_SLOTS - sharedPick.picked.length,
-            MAX_AVAIL_CHECKS - sharedPick.checksUsed,
-            check,
-            { ids: new Set(sharedTaken.ids), collections: new Set(sharedTaken.collections) }
-          )
-        : Promise.resolve(null);
-    const [mine1, mine2] = await Promise.all([ownPick(1), ownPick(2)]);
-    stats.availabilityChecks = check.calls();
-
-    const forPlayer = (p: Player, mine: Awaited<ReturnType<typeof ownPick>>) => {
-      if (!fingerprint[p] || !mine) return null;
-      const films = [
-        ...sharedPick.picked.map((f) => toFresh(f, true)),
-        ...mine.picked.map((f) => toFresh(f, false)),
-      ];
-      stats.eligible[p] = sharedPick.eligible + mine.eligible;
-      stats.selected[p] = films.length;
-      return films.length > 0 ? films : null;
-    };
-    const fresh = { 1: forPlayer(1, mine1), 2: forPlayer(2, mine2) };
-    // A player with a fingerprint but nothing eligible is an empty result.
-    if (([1, 2] as const).some((p) => fingerprint[p] && !fresh[p])) stats.reason = "empty";
+    Object.assign(stats, work);
     return done(fresh);
   } catch (e) {
+    Object.assign(stats, work);
     stats.reason = e instanceof RetrievalError ? e.reason : "error";
     return done(todaysPath);
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+/** The catalogue step itself: fingerprints, the nearest films, the checks and
+ * availability. Fills `stats` as it goes; throws a RetrievalError on a database
+ * problem; stops early once `signal` is aborted (its lookups are cancelled). */
+async function gather(
+  input: RetrieveInput,
+  db: Db,
+  stats: RetrievalStats,
+  signal: AbortSignal
+): Promise<PerPlayer<FreshFilm[] | null>> {
+  const todaysPath = { 1: null, 2: null };
+
+  // 1. Fingerprints: the average stored vector of each player's likes.
+  const vectors = await loadVectors(db, [...new Set([...input.likes[1], ...input.likes[2]])], signal);
+  const likedVecs = (p: Player) =>
+    input.likes[p].map((id) => vectors.get(id)).filter((v): v is number[] => !!v);
+  const vecs = { 1: likedVecs(1), 2: likedVecs(2) };
+  const fingerprint = { 1: meanVector(vecs[1]), 2: meanVector(vecs[2]) };
+  stats.fingerprints = { 1: !!fingerprint[1], 2: !!fingerprint[2] };
+  // No usable likes is expected (all skipped, or none in the catalogue): that
+  // player simply gets today's path, with no warning.
+  if (!fingerprint[1] && !fingerprint[2]) return todaysPath;
+
+  // 2. Shared seed from the closest cross-player pair of likes.
+  const shared =
+    fingerprint[1] && fingerprint[2] ? sharedSeed(vecs[1], vecs[2]) : { seed: null, similarity: null };
+  stats.sharedSimilarity = shared.similarity;
+  stats.sharedSeed = !!shared.seed;
+
+  // 3. Nearest catalogue films, all queries in parallel.
+  const exclude = [...new Set([...input.pool.map((m) => m.id), ...input.swiped])];
+  const [sharedRows, own1, own2] = await Promise.all([
+    shared.seed ? matchMovies(db, shared.seed, RETRIEVE_K, exclude, signal) : Promise.resolve([]),
+    fingerprint[1] ? matchMovies(db, fingerprint[1], RETRIEVE_K, exclude, signal) : Promise.resolve([]),
+    fingerprint[2] ? matchMovies(db, fingerprint[2], RETRIEVE_K, exclude, signal) : Promise.resolve([]),
+  ]);
+  const ownRows = { 1: own1, 2: own2 };
+  stats.retrieved = { 1: sharedRows.length + own1.length, 2: sharedRows.length + own2.length };
+  if (sharedRows.length + own1.length + own2.length === 0) {
+    stats.reason = "empty";
+    return todaysPath;
+  }
+
+  // 4. The checks, then availability within budget. Shared films first (checked
+  //    once, they go to both lists), then each player's own films fill the rest.
+  const screen: ScreenContext = {
+    excludeIds: new Set(exclude),
+    allowKidsFare: input.allowKidsFare,
+    blockedCollections: input.likedCollections,
+  };
+  const screened = (rows: CatalogueFilm[]) => rows.filter((f) => passesScreen(f, screen));
+  const check = availabilityCheck(input.region, input.services, input.willingToPay, signal);
+
+  const sharedTaken: Taken = { ids: new Set(), collections: new Set() };
+  const sharedPick = shared.seed
+    ? await pickEligible(screened(sharedRows), SHARED_SLOTS, SHARED_CHECKS, check, sharedTaken)
+    : { picked: [], eligible: 0, checksUsed: 0 };
+
+  const ownPick = (p: Player) =>
+    fingerprint[p]
+      ? pickEligible(
+          screened(ownRows[p]),
+          FRESH_SLOTS - sharedPick.picked.length,
+          MAX_AVAIL_CHECKS - sharedPick.checksUsed,
+          check,
+          { ids: new Set(sharedTaken.ids), collections: new Set(sharedTaken.collections) }
+        )
+      : Promise.resolve(null);
+  const [mine1, mine2] = await Promise.all([ownPick(1), ownPick(2)]);
+  stats.availabilityChecks = check.calls();
+
+  const forPlayer = (p: Player, mine: Awaited<ReturnType<typeof ownPick>>) => {
+    if (!fingerprint[p] || !mine) return null;
+    const films = [
+      ...sharedPick.picked.map((f) => toFresh(f, true)),
+      ...mine.picked.map((f) => toFresh(f, false)),
+    ];
+    stats.eligible[p] = sharedPick.eligible + mine.eligible;
+    stats.selected[p] = films.length;
+    return films.length > 0 ? films : null;
+  };
+  const fresh = { 1: forPlayer(1, mine1), 2: forPlayer(2, mine2) };
+  // A player with a fingerprint but nothing eligible is an empty result.
+  if (([1, 2] as const).some((p) => fingerprint[p] && !fresh[p])) stats.reason = "empty";
+  return fresh;
 }
 
 /** One structured line per game (server only, no personal data). */

@@ -10,10 +10,11 @@ const toProviders = (list?: TmdbProvider[]): Provider[] =>
 
 export async function fetchAvailability(
   movieId: number,
-  region: string
+  region: string,
+  signal?: AbortSignal
 ): Promise<MovieAvailability> {
   try {
-    const r = await getWatchProvidersForRegion(movieId, region);
+    const r = await getWatchProvidersForRegion(movieId, region, signal);
     if (!r) return NO_AVAILABILITY;
     return {
       flatrate: toProviders(r.flatrate),
@@ -26,12 +27,14 @@ export async function fetchAvailability(
   }
 }
 
-/** Attach availability to a set of movies in parallel. */
+/** Attach availability to a set of movies in parallel. An aborted `signal` cancels
+ * the lookups still running (they come back as no availability). */
 export async function attachAvailability<T extends { id: number }>(
   movies: T[],
-  region: string
+  region: string,
+  signal?: AbortSignal
 ): Promise<(T & { availability: MovieAvailability })[]> {
   return Promise.all(
-    movies.map(async (m) => ({ ...m, availability: await fetchAvailability(m.id, region) }))
+    movies.map(async (m) => ({ ...m, availability: await fetchAvailability(m.id, region, signal) }))
   );
 }

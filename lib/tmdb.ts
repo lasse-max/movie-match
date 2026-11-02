@@ -24,7 +24,8 @@ function authHeaders(): Record<string, string> {
 /** Low-level GET against the TMDB v3 REST API. Throws on a non-OK response. */
 export async function tmdbGet<T>(
   path: string,
-  params: Record<string, string> = {}
+  params: Record<string, string> = {},
+  signal?: AbortSignal
 ): Promise<T> {
   const url = new URL(`${TMDB_BASE}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -33,6 +34,7 @@ export async function tmdbGet<T>(
     headers: { accept: "application/json", ...authHeaders() },
     // Availability data refreshes daily; cache for an hour to stay snappy.
     next: { revalidate: 3600 },
+    signal,
   });
 
   if (!res.ok) {
@@ -64,16 +66,17 @@ export interface TmdbWatchProvidersResponse {
 }
 
 /** Raw watch/providers payload (all regions) for a movie. */
-export function getWatchProviders(movieId: number) {
-  return tmdbGet<TmdbWatchProvidersResponse>(`/movie/${movieId}/watch/providers`);
+export function getWatchProviders(movieId: number, signal?: AbortSignal) {
+  return tmdbGet<TmdbWatchProvidersResponse>(`/movie/${movieId}/watch/providers`, {}, signal);
 }
 
 /** Watch providers for a single region (e.g. "US"), or null if none listed. */
 export async function getWatchProvidersForRegion(
   movieId: number,
-  region: string = DEFAULT_REGION
+  region: string = DEFAULT_REGION,
+  signal?: AbortSignal
 ): Promise<TmdbRegionProviders | null> {
-  const data = await getWatchProviders(movieId);
+  const data = await getWatchProviders(movieId, signal);
   return data.results[region] ?? null;
 }
 

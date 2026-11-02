@@ -143,6 +143,47 @@ describe("POST /api/infer with embeddings on (real path, database stubbed at fet
     expect(warn).toHaveBeenCalledTimes(1); // one structured warning
   });
 
+  // F3 (Cato 2.0 finding 3): the 1.5 s limit covered the database only, so a hung
+  // availability lookup held the whole game. Now one 3 s deadline covers the step.
+  it("gives the whole catalogue step 3 s: a hung availability lookup falls back to today's path", async () => {
+    fetchMock.mockImplementation(fakeSupabase(catalogue)); // the database works
+    // Availability for catalogue films never answers until cancelled; the pool's
+    // own films and today's fresh pick answer as usual.
+    const cancelled: number[] = [];
+    providersMock.mockImplementation((id: number, _region: string, signal?: AbortSignal) =>
+      id > 400
+        ? new Promise((_, reject) =>
+            signal?.addEventListener("abort", () => {
+              cancelled.push(id);
+              reject(new DOMException("aborted", "AbortError"));
+            })
+          )
+        : Promise.resolve(onNetflix)
+    );
+    recMock.mockResolvedValue([
+      { id: 99, title: "Rec 99", release_date: "2015-01-01", overview: "", poster_path: "/r.jpg", genre_ids: [878], vote_average: 7.6, vote_count: 900, popularity: 10 },
+    ]);
+
+    const started = Date.now();
+    const res = await post(requestBody);
+    const elapsed = Date.now() - started;
+
+    expect(res.status).toBe(200);
+    expect(elapsed).toBeGreaterThanOrEqual(2900); // it waited out the deadline…
+    expect(elapsed).toBeLessThan(4500); // …and no longer
+    const body = (await res.json()) as Body;
+    for (const p of ["1", "2"] as const) {
+      expect(body[p].recs.some((r) => r.id > 400)).toBe(false); // no catalogue film: today's path
+    }
+    expect(body["1"].recs.find((r) => r.id === 99)?.source).toBe("fresh"); // today's TMDB fresh pick
+    const fallbacks = warn.mock.calls
+      .map((call: unknown[]) => String(call[0]))
+      .filter((line: string) => line.includes("embeddings.fallback"));
+    expect(fallbacks).toHaveLength(1);
+    expect(JSON.parse(fallbacks[0])).toMatchObject({ reason: "deadline", players: [1, 2] });
+    expect(cancelled.length).toBeGreaterThan(0); // the hung lookups were cancelled
+  }, 15000);
+
   it("ignores any client attempt to switch embeddings (the override is eval-only)", async () => {
     fetchMock.mockImplementation(fakeSupabase(catalogue));
     vi.stubEnv("EMBEDDINGS_ENABLED", "false");
