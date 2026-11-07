@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { blendTastes } from "@/lib/blend";
 import { normalizeCategoryPicks } from "@/lib/categories";
 import { DEFAULT_REGION } from "@/lib/constants";
+import { embeddingsEnabled, warmCatalogue } from "@/lib/retrieve";
 import { isSupportedRegion } from "@/lib/validate";
 
 // AI call #1: blend both players' Round 1 vibes into themes + a real TMDB
@@ -21,6 +22,10 @@ export async function POST(request: Request) {
     }
 
     const region = isSupportedRegion(body?.region) ? body.region : DEFAULT_REGION;
+    // W1: Round 1 is locked in, so wake the catalogue for Round 3. after() runs it
+    // once this response is sent, so it can't delay or break the blend. Flag off,
+    // nothing is scheduled.
+    if (embeddingsEnabled()) after(warmCatalogue);
     const result = await blendTastes(p1, p2, region);
     return NextResponse.json(result);
   } catch (err) {

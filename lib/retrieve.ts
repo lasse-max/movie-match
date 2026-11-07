@@ -12,7 +12,8 @@
 // Every fresh film passes the same checks as today before it takes a slot, and any
 // database error, empty result or timeout falls back to today's path with one
 // structured warning, as does the whole step running past its 3 s deadline.
-// This module never throws.
+// W1: warmCatalogue() runs one search at game start, so the database is awake by
+// Round 3. This module never throws.
 import "server-only";
 import { attachAvailability } from "./availability";
 import { evaluateAvailability } from "./filter";
@@ -280,9 +281,14 @@ function supabase(): Db | null {
   };
 }
 
-async function dbJson(url: string, init: RequestInit, deadline?: AbortSignal): Promise<unknown> {
+async function dbJson(
+  url: string,
+  init: RequestInit,
+  deadline?: AbortSignal,
+  timeoutMs = RETRIEVE_TIMEOUT_MS
+): Promise<unknown> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), RETRIEVE_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const signal = deadline ? AbortSignal.any([controller.signal, deadline]) : controller.signal;
   try {
     const res = await fetch(url, { ...init, signal, cache: "no-store" });
@@ -338,7 +344,8 @@ async function matchMovies(
   query: number[],
   k: number,
   excludeIds: number[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  timeoutMs?: number
 ): Promise<CatalogueFilm[]> {
   const rows = await dbJson(
     `${db.rest}/rpc/match_movies`,
@@ -347,7 +354,8 @@ async function matchMovies(
       headers: db.headers,
       body: JSON.stringify({ query: `[${query.join(",")}]`, k, exclude_ids: excludeIds }),
     },
-    signal
+    signal,
+    timeoutMs
   );
   if (!Array.isArray(rows)) throw new RetrievalError("error", "bad match payload");
   return rows.filter(isCatalogueFilm);
@@ -582,4 +590,35 @@ export function logRetrieval(
   servedBy: PerPlayer<"embeddings" | "today">
 ): void {
   console.info(JSON.stringify({ event: "embeddings.retrieval", ...stats, used, servedBy }));
+}
+
+// ---- W1: warm the catalogue at game start ----------------------------------
+
+/** The warm-up's own cap. The first search after a quiet spell took about 3 s
+ * from the Mac (2 Oct, 7 Nov) and ran past the game's 1.5 s per call live (Otto's
+ * speed check, 7 Nov), so the warm-up gets longer to wake the database. */
+export const WARMUP_TIMEOUT_MS = 5000;
+
+/** Any non-zero vector will do (cosine needs one): every search walks the same
+ * HNSW index, and match_movies fixes the size of that walk (ef_search 200)
+ * whatever k asks for, so k = 1 costs the database the same walk for one row. */
+const WARMUP_QUERY = new Array<number>(EMBEDDING_DIM).fill(1);
+
+/**
+ * One search on the game's own path, match_movies on the HNSW index, with k = 1
+ * and a fixed vector: no other query first, and one row back. The blend route runs
+ * it once its response is sent, when EMBEDDINGS_ENABLED is on, so the database is
+ * warm by Round 3. Logs one line; never throws.
+ */
+export async function warmCatalogue(): Promise<void> {
+  const started = Date.now();
+  let outcome: "ok" | Reason = "ok";
+  try {
+    const db = supabase();
+    if (!db) outcome = "config";
+    else await matchMovies(db, WARMUP_QUERY, 1, [], undefined, WARMUP_TIMEOUT_MS);
+  } catch (e) {
+    outcome = e instanceof RetrievalError ? e.reason : "error";
+  }
+  console.info(JSON.stringify({ event: "embeddings.warmup", outcome, ms: Date.now() - started }));
 }
