@@ -134,6 +134,17 @@ function leavingStamp(text: string) {
   return Number(stamp?.style.opacity);
 }
 
+/** The wrap's ticket button (its stub reads "Lock it in"). */
+const lockButton = () =>
+  [...host.querySelectorAll("button")].find((b) => b.textContent?.includes("Lock my picks"));
+type Swipes = { yes: number[]; no: number[]; neutral: number[] };
+/** Lock the turn on the wrap and return what it recorded. */
+async function lock() {
+  await settle();
+  await act(async () => lockButton()!.click());
+  return dispatch.mock.calls.find(([a]) => a.type === "SET_SWIPES")?.[0] as Swipes;
+}
+
 /** Decide every remaining card "Not it", one at a time, then finish the turn. */
 async function finishWithNotIt() {
   while (button("Not it")) {
@@ -141,10 +152,16 @@ async function finishWithNotIt() {
     await tap("Not it");
     if (!button("Not it")) break;
   }
+  return lock();
+}
+
+/** Decide the whole deck, one card at a time. */
+async function decideAll(choices: string[]) {
+  for (const choice of choices) {
+    await settle();
+    await tap(choice);
+  }
   await settle();
-  await tap("Done, pass the phone");
-  const call = dispatch.mock.calls.find(([a]) => a.type === "SET_SWIPES");
-  return call?.[0] as { yes: number[]; no: number[]; neutral: number[] };
 }
 
 describe("Round 2: one decision per visible card", () => {
@@ -230,4 +247,55 @@ describe("Round 2: one decision per visible card", () => {
     await sleep(200); // the stamp has landed; the card hasn't flown yet
     expect(leavingStamp(choice)).toBe(1);
   });
+});
+
+// D6 §3: "That's a wrap."
+describe("Round 2: the wrap", () => {
+  const fanTitles = () => [...host.querySelectorAll(".pp-fan-card")].map((c) => c.textContent);
+  const tally = () =>
+    [...host.querySelectorAll('[aria-label="Your swipes"] > div')].map((cell) => ({
+      text: cell.textContent,
+      velvet: cell.querySelector("span")!.className.includes("text-velvet"),
+    }));
+
+  it("deals the last three likes, newest in front, and locks the turn without moving the header", async () => {
+    const header = host.querySelector("header");
+    await decideAll(["This vibe", "This vibe", "Not sure", "This vibe"]);
+
+    expect(host.querySelector("h1")?.textContent).toBe("That’sa wrap."); // a line break between
+    expect(host.querySelector("header")).toBe(header); // the same row, never re-entered
+    // Oldest first in the DOM, so the newest like sits on top, front and centre.
+    expect(fanTitles()).toEqual([`Film ${cards[0]}`, `Film ${cards[1]}`, `Film ${cards[3]}`]);
+    // In the order of the buttons; only a count of likes above zero is velvet.
+    expect(tally()).toEqual([
+      { text: "0Not it", velvet: false },
+      { text: "1Not sure", velvet: false },
+      { text: "3This vibe", velvet: true },
+    ]);
+    expect(host.textContent).not.toContain("Nothing grabbed you");
+
+    const swipes = await lock(); // the same "Lock my picks" ticket for both players
+    expect(swipes).toMatchObject({ yes: [cards[0], cards[1], cards[3]], no: [], neutral: [cards[2]] });
+  }, 20000);
+
+  it("with no likes but a Not it: no fan, no red zero, and the steering line", async () => {
+    await decideAll(["Not it", "Not sure", "Not it", "Not sure"]);
+
+    expect(fanTitles()).toEqual([]);
+    expect(tally().map((c) => c.velvet)).toEqual([false, false, false]);
+    expect(host.querySelector(".pp-deal-ticket")).not.toBeNull(); // the ticket takes the fan's moment
+    expect(host.textContent).toContain(
+      "Nothing grabbed you. That still steers your shortlist.Your picks stay hidden until the match."
+    );
+  }, 20000);
+
+  it("with every card Not sure: the Round 1 moods line", async () => {
+    await decideAll(["Not sure", "Not sure", "Not sure", "Not sure"]);
+
+    expect(fanTitles()).toEqual([]);
+    expect(host.textContent).toContain(
+      "No strong calls. Your Round 1 moods lead from here.Your picks stay hidden until the match."
+    );
+    expect((await lock()).neutral).toEqual(cards);
+  }, 20000);
 });

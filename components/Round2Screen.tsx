@@ -17,7 +17,7 @@ import { PassPhone } from "./PassPhone";
 import { selectSwipeSamples, type PoolMovie } from "@/lib/blendTypes";
 import { genreNames } from "@/lib/genres";
 import type { Player } from "@/lib/gameMachine";
-import { Cross, ENTRY_EASE, Heart, Question, brassCta, display, label } from "./palace";
+import { Cross, ENTRY_EASE, Heart, Question, Ticket, display, label, mono } from "./palace";
 import { PROJECTION_S, THRESHOLD, releaseDirection, type Dir } from "./swipe";
 
 // Round 2 motion (D6 §1). Every number is the same for all three choices.
@@ -155,102 +155,94 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
   };
 
   const done = index >= samples.length;
-
-  // Every card decided (and the last one has landed): lock in this player's read.
-  if (done && !flying) {
-    return (
-      <div className="pp-enter flex min-h-full flex-1 flex-col">
-        <Header player={player} at={samples.length} of={samples.length} />
-        <div className="flex flex-1 flex-col justify-center gap-3">
-          <h1 className={`${display} text-[56px] leading-[0.86]`}>
-            That’s
-            <br />
-            <span className="text-signal">the read.</span>
-          </h1>
-          <p className="text-[15px] leading-[1.5] text-cream/75">
-            {yes.length} {yes.length === 1 ? "film" : "films"} you’re into · {no.length} passed
-            {neutral.length > 0 ? ` · ${neutral.length} not sure` : ""}
-          </p>
-        </div>
-        <button type="button" className={brassCta} disabled={submitted} onClick={finishTurn}>
-          {player === 1 ? "Done, pass the phone" : "See where you land"}
-        </button>
-      </div>
-    );
-  }
-
   const visible = samples.slice(index, index + 3);
 
+  // The header is rendered once, above both views, so it stays put when the deck
+  // turns into the wrap.
   return (
     <div className="pp-enter flex min-h-full flex-1 flex-col gap-3.5">
       <Header player={player} at={Math.min(index + 1, samples.length)} of={samples.length} />
 
-      <div ref={setDeck} className="relative flex min-h-[420px] flex-1 items-center justify-center">
-        {size && (
-          <div className="relative" style={{ width: size.w, height: size.h }}>
-            {/* The two cards waiting behind, stepped back and dimmed with a black
-                overlay (never a filter: cheaper frames on a phone). */}
-            {visible.slice(1).map((m, i) => (
-              <div
-                key={m.id}
-                aria-hidden
-                className="absolute inset-0 overflow-hidden rounded-[22px] transition-transform duration-[400ms] ease-entry"
-                style={{
-                  zIndex: 2 - i,
-                  transform: i === 0 ? "translateY(14px) scale(0.95)" : "translateY(26px) scale(0.9)",
-                }}
-              >
-                <Poster movie={m} />
-                <div
-                  className="absolute inset-0 bg-black transition-opacity duration-[400ms] ease-entry"
-                  style={{ opacity: i === 0 ? 0.4 : 0.6 }}
-                />
-              </div>
-            ))}
+      {done && !flying ? (
+        // Every card decided (and the last one has landed): lock in this player's turn.
+        <Wrap
+          player={player}
+          liked={yes.map((id) => samples.find((m) => m.id === id)).filter((m) => !!m)}
+          notIt={no.length}
+          notSure={neutral.length}
+          submitted={submitted}
+          onLock={finishTurn}
+        />
+      ) : (
+        <>
+          <div ref={setDeck} className="relative flex min-h-[420px] flex-1 items-center justify-center">
+            {size && (
+              <div className="relative" style={{ width: size.w, height: size.h }}>
+                {/* The two cards waiting behind, stepped back and dimmed with a black
+                    overlay (never a filter: cheaper frames on a phone). */}
+                {visible.slice(1).map((m, i) => (
+                  <div
+                    key={m.id}
+                    aria-hidden
+                    className="absolute inset-0 overflow-hidden rounded-[22px] transition-transform duration-[400ms] ease-entry"
+                    style={{
+                      zIndex: 2 - i,
+                      transform: i === 0 ? "translateY(14px) scale(0.95)" : "translateY(26px) scale(0.9)",
+                    }}
+                  >
+                    <Poster movie={m} />
+                    <div
+                      className="absolute inset-0 bg-black transition-opacity duration-[400ms] ease-entry"
+                      style={{ opacity: i === 0 ? 0.4 : 0.6 }}
+                    />
+                  </div>
+                ))}
 
-            <AnimatePresence
-              custom={exit}
-              onExitComplete={() => {
-                leavingRef.current = false; // the next card is on top
-                if (reduced) openAtRef.current = performance.now() + MIN_ON_SCREEN_MS;
-                setFlying(false);
-              }}
-            >
-              {!done && (
-                <TopCard
-                  key={visible[0].id}
-                  movie={visible[0]}
-                  size={size}
-                  stepUpDelay={exit?.by === "tap" ? FLY_AT_S : 0}
-                  onDecide={(dir) => decide(dir, "drag", visible[0].id)}
-                />
-              )}
-            </AnimatePresence>
+                <AnimatePresence
+                  custom={exit}
+                  onExitComplete={() => {
+                    leavingRef.current = false; // the next card is on top
+                    if (reduced) openAtRef.current = performance.now() + MIN_ON_SCREEN_MS;
+                    setFlying(false);
+                  }}
+                >
+                  {!done && (
+                    <TopCard
+                      key={visible[0].id}
+                      movie={visible[0]}
+                      size={size}
+                      stepUpDelay={exit?.by === "tap" ? FLY_AT_S : 0}
+                      onDecide={(dir) => decide(dir, "drag", visible[0].id)}
+                    />
+                  )}
+                </AnimatePresence>
 
-            {/* Three equal choices over the poster: same size, same weight. The row
-                lets presses through, so a drag can start anywhere but the discs. */}
-            {!done && (
-              <div className="pointer-events-none absolute inset-x-0 bottom-[18px] z-10 flex justify-center gap-7">
-                <Control label="Not it" onClick={() => decide("left", "tap")}>
-                  <Cross size={24} />
-                </Control>
-                <Control label="Not sure" onClick={() => decide("down", "tap")}>
-                  <Question size={24} />
-                </Control>
-                <Control label="This vibe" brass onClick={() => decide("right", "tap")}>
-                  <Heart size={24} filled />
-                </Control>
+                {/* Three equal choices over the poster: same size, same weight. The row
+                    lets presses through, so a drag can start anywhere but the discs. */}
+                {!done && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-[18px] z-10 flex justify-center gap-7">
+                    <Control label="Not it" onClick={() => decide("left", "tap")}>
+                      <Cross size={24} />
+                    </Control>
+                    <Control label="Not sure" onClick={() => decide("down", "tap")}>
+                      <Question size={24} />
+                    </Control>
+                    <Control label="This vibe" brass onClick={() => decide("right", "tap")}>
+                      <Heart size={24} filled />
+                    </Control>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
-      </div>
 
-      <p aria-live="polite" className="flex-none text-center text-[14px] text-cream/70">
-        {last === "down"
-          ? "Skipped. Not sure counts for nothing either way."
-          : "Swipe on the vibe, not on whether you’ve seen it."}
-      </p>
+          <p aria-live="polite" className="flex-none text-center text-[14px] text-cream/70">
+            {last === "down"
+              ? "Skipped. Not sure counts for nothing either way."
+              : "Swipe on the vibe, not on whether you’ve seen it."}
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -263,6 +255,193 @@ function Header({ player, at, of }: { player: Player; at: number; of: number }) 
         Player {player} · {at}/{of}
       </span>
     </header>
+  );
+}
+
+// ---- the wrap (D6 §3, board D6Wrap) --------------------------------------------
+
+/** The fan deals one card every 70 ms; its stamp starts once the front card has
+ * almost settled, then lands like the deck's, and the front card thuds at impact. */
+const DEAL_STAGGER_MS = 70;
+const STAMP_AFTER_LAST_DEAL_MS = 380;
+/** Where each card in the fan rests, from the fan's centre, oldest to newest. */
+const FAN_POSES: Record<number, { x: number; y: number; r: number }[]> = {
+  1: [{ x: 0, y: 0, r: -2 }],
+  2: [
+    { x: -34, y: 8, r: -6 },
+    { x: 30, y: 0, r: 4 },
+  ],
+  3: [
+    { x: -72, y: 14, r: -9 },
+    { x: 72, y: 10, r: 7 },
+    { x: 0, y: 0, r: -2 },
+  ],
+};
+
+/**
+ * After the last card: the last three films this player liked, dealt back in from
+ * the right (where they flew), the stamp once more, and the tally in the order of
+ * the buttons. The header and the button stay still. "Lock my picks" ends the turn
+ * before the phone changes hands, so the partner never sees the fan (the gate that
+ * follows says "Pass the phone").
+ */
+function Wrap({
+  player,
+  liked,
+  notIt,
+  notSure,
+  submitted,
+  onLock,
+}: {
+  player: Player;
+  /** The films this player liked, in the order they decided them. */
+  liked: PoolMovie[];
+  notIt: number;
+  notSure: number;
+  submitted: boolean;
+  onLock: () => void;
+}) {
+  const fan = liked.slice(-3); // the newest last, so front and centre
+  const n = fan.length;
+  const stampAt = (n - 1) * DEAL_STAGGER_MS + STAMP_AFTER_LAST_DEAL_MS;
+  // With likes the text follows the deal; without, the tally ticket deals in instead.
+  const at = n > 0 ? { kicker: 100, title: 150, tally: 200, line: 250 } : { kicker: 0, title: 50, tally: 120, line: 170 };
+  const delay = (ms: number) => ({ animationDelay: `${ms}ms` });
+
+  return (
+    <>
+      <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
+        {n > 0 && (
+          <div aria-hidden className="relative h-[190px] w-[250px] flex-none">
+            {fan.map((m, i) => {
+              const { x, y, r } = FAN_POSES[n][i];
+              const front = i === n - 1;
+              return (
+                <div
+                  key={m.id}
+                  className="pp-fan-card absolute left-1/2 top-1/2 -ml-[52px] -mt-[78px] h-[156px] w-[104px]"
+                  style={
+                    { "--x": `${x}px`, "--y": `${y}px`, "--r": `${r}deg`, ...delay(i * DEAL_STAGGER_MS) } as React.CSSProperties
+                  }
+                >
+                  <div
+                    className={`h-full w-full overflow-hidden rounded-[6px] shadow-[0_18px_34px_-14px_rgba(0,0,0,0.95)] ${front ? "pp-fan-thud" : ""}`}
+                    style={front ? delay(stampAt + STAMP_LAND_S * 1000) : undefined}
+                  >
+                    <MiniPoster movie={m} />
+                  </div>
+                </div>
+              );
+            })}
+            <span
+              className="pp-fan-stamp absolute bottom-[18px] left-1/2 z-[5] whitespace-nowrap rounded-[6px] border-[3px] border-current bg-[rgba(14,10,9,0.6)] px-3 pb-[3px] pt-[5px] font-display text-[22px] font-black uppercase leading-none tracking-[0.05em] text-brass-light"
+              style={delay(stampAt)}
+            >
+              This vibe
+            </span>
+          </div>
+        )}
+        <span className={`pp-enter ${label} text-brass`} style={delay(at.kicker)}>
+          Player {player} · swipes locked
+        </span>
+        <h1 className={`pp-enter ${display} text-[66px] leading-[0.84]`} style={delay(at.title)}>
+          That’s
+          <br />
+          <span className="text-signal">a wrap.</span>
+        </h1>
+        <Tally
+          notIt={notIt}
+          notSure={notSure}
+          vibe={liked.length}
+          className={n > 0 ? "pp-enter" : "pp-deal-ticket"}
+          style={delay(at.tally)}
+        />
+        <p className="pp-enter text-[14px] leading-[1.5] text-cream/70" style={delay(at.line)}>
+          {n === 0 && (
+            <>
+              {notIt > 0
+                ? "Nothing grabbed you. That still steers your shortlist."
+                : "No strong calls. Your Round 1 moods lead from here."}
+              <br />
+            </>
+          )}
+          Your picks stay hidden until the match.
+        </p>
+      </div>
+      <Ticket
+        stub={
+          <>
+            Lock
+            <br />
+            it in
+          </>
+        }
+        disabled={submitted}
+        onClick={onLock}
+      >
+        Lock my picks
+      </Ticket>
+    </>
+  );
+}
+
+/** The tally ticket: three equal cells in the order of the buttons. Only a count of
+ * likes above zero prints in velvet (a red zero would read as an alarm). */
+function Tally({
+  notIt,
+  notSure,
+  vibe,
+  className,
+  style,
+}: {
+  notIt: number;
+  notSure: number;
+  vibe: number;
+  className: string;
+  style: React.CSSProperties;
+}) {
+  const cells = [
+    { name: "Not it", count: notIt },
+    { name: "Not sure", count: notSure },
+    { name: "This vibe", count: vibe },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="Your swipes"
+      className={`flex h-[78px] w-[300px] flex-none items-stretch rounded-[6px] bg-cream text-projection shadow-[0_20px_40px_-18px_rgba(0,0,0,0.9)] ${className}`}
+      style={style}
+    >
+      {cells.map(({ name, count }, i) => (
+        <div
+          key={name}
+          className={`flex flex-1 basis-0 flex-col items-center justify-center gap-1 ${i > 0 ? "border-l-2 border-dashed border-projection/30" : ""}`}
+        >
+          <span className={`${display} text-[36px] leading-[0.9] ${name === "This vibe" && count > 0 ? "text-velvet" : ""}`}>
+            {count}
+          </span>
+          <span className={`${mono} text-[9.5px] tracking-[0.18em] text-[#6b5a50]`}>{name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A liked film in the fan: its poster (already cached from the deck), or a cream
+ * card with its title, never a dark block that reads as a hole. */
+function MiniPoster({ movie }: { movie: PoolMovie }) {
+  if (!movie.posterUrl) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-cream p-2.5 text-center">
+        <span className={`${display} -mt-[0.16em] line-clamp-3 pt-[0.16em] text-[18px] leading-[0.95] text-velvet`}>
+          {movie.title}
+        </span>
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- external TMDB poster
+    <img src={movie.posterUrl} alt="" draggable={false} className="h-full w-full select-none object-cover" />
   );
 }
 

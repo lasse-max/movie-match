@@ -244,6 +244,30 @@ body {
     transform: none;
   }
 
+  /* Round 2's wrap (D6 §3): the last likes deal back in from the right, where they
+     flew, each from 48 px right of its own resting place (--x, --y, --r). Then the
+     stamp lands as on the deck (opacity in 50 ms; 1.4 to 1 in 120 ms, ease-in, no
+     overshoot) and the front card thuds at impact. The deal and the thud sit on
+     separate elements so the two transforms never fight. Delays are set inline. */
+  .pp-fan-card {
+    transform: translate(var(--x), var(--y)) rotate(var(--r));
+    animation: mmDeal 520ms var(--ease-entry) backwards;
+  }
+  .pp-fan-thud {
+    animation: mmThud 200ms backwards;
+  }
+  .pp-fan-stamp {
+    transform: translateX(-50%) rotate(-12deg);
+    animation:
+      mmStampIn 50ms linear backwards,
+      mmStampLand 120ms cubic-bezier(0.32, 0, 0.67, 0) backwards;
+  }
+  /* No likes: no fan; the tally ticket deals in instead, a tilted piece of paper. */
+  .pp-deal-ticket {
+    transform: rotate(-3deg);
+    animation: mmDealTicket 520ms var(--ease-entry) backwards;
+  }
+
   /* Popcorn: seven kernels burst up and fall as the curtain opens. */
   .pp-kernel {
     position: absolute;
@@ -327,6 +351,43 @@ body {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+@keyframes mmDeal {
+  from {
+    opacity: 0;
+    transform: translate(calc(var(--x) + 48px), calc(var(--y) + 18px)) rotate(calc(var(--r) + 14deg))
+      scale(0.92);
+  }
+}
+@keyframes mmDealTicket {
+  from {
+    opacity: 0;
+    transform: translate(32px, 14px) rotate(3deg) scale(0.96);
+  }
+}
+@keyframes mmStampIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes mmStampLand {
+  from {
+    transform: translateX(-50%) rotate(-12deg) scale(1.4);
+  }
+}
+/* The deck's thud: ease out into the dip, the entry curve back. */
+@keyframes mmThud {
+  0% {
+    transform: scale(1);
+    animation-timing-function: ease-out;
+  }
+  30% {
+    transform: scale(0.965);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  100% {
+    transform: scale(1);
   }
 }
 @keyframes mmChase {
