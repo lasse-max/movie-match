@@ -4,7 +4,7 @@
 // Brass is light, red is fabric, cream is paper; no colour does another's job.
 // Presentation only, no game logic. Values come from docs/design/picture-palace.
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import { useReducedMotion, type Transition } from "motion/react";
 
 // ---- type ---------------------------------------------------------------------
@@ -57,12 +57,13 @@ export function useEntry(delay = 0): Transition {
 
 // ---- parts ------------------------------------------------------------------------
 
-/** A row of chasing marquee bulbs (static with reduce-motion on). */
-export function Bulbs({ count = 16 }: { count?: number }) {
+/** A row of chasing marquee bulbs (static with reduce-motion on). `powerOn` lights
+ * them left to right before the chase starts: the homepage sign only, once per visit. */
+export function Bulbs({ count = 16, powerOn = false }: { count?: number; powerOn?: boolean }) {
   return (
-    <div aria-hidden className="pp-bulbs">
+    <div aria-hidden className={powerOn ? "pp-bulbs pp-bulbs-power" : "pp-bulbs"}>
       {Array.from({ length: count }, (_, i) => (
-        <span key={i} className="pp-bulb" />
+        <span key={i} className="pp-bulb" style={powerOn ? ({ "--i": i } as CSSProperties) : undefined} />
       ))}
     </div>
   );
