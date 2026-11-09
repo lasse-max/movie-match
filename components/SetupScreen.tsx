@@ -14,6 +14,16 @@ interface Provider {
   logoUrl: string | null;
 }
 
+/** The name a service goes by, short enough for its tile ("Amazon Prime Video"
+ * is cut off at phone width). The full name stays in the tile's tooltip. */
+const SHORT_NAMES: [RegExp, string][] = [
+  [/^Amazon Prime Video$/i, "Prime Video"],
+  [/^Paramount(\+| Plus)( .*)?$/i, "Paramount+"],
+  [/^Disney Plus$/i, "Disney+"],
+  [/^Apple TV Plus$/i, "Apple TV+"],
+];
+const shortName = (name: string) => SHORT_NAMES.find(([long]) => long.test(name))?.[1] ?? name;
+
 // Setup, built to docs/design/picture-palace/SetupA.dc.html: the marquee sign,
 // the plain-words line, region, every service in a two-column logo grid, renting,
 // and the ADMIT TWO ticket. Fits a 390 x 844 screen with ten services.
@@ -174,7 +184,7 @@ export function SetupScreen() {
                       selected ? "text-cream" : "text-cream/80"
                     }`}
                   >
-                    {p.name}
+                    {shortName(p.name)}
                   </span>
                   <Check
                     size={18}
