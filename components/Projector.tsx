@@ -36,21 +36,21 @@ export function ProjectorLoader({
           outside the entering container, whose transform would pin them to it). */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-[5] bg-[radial-gradient(ellipse_90%_60%_at_50%_32%,#22140f_0%,#0e0a09_70%)]"
+        className="pointer-events-none fixed inset-0 -z-[5] bg-[radial-gradient(ellipse_90%_60%_at_50%_38%,#22140f_0%,#0e0a09_70%)]"
       />
       <span aria-hidden className="pp-scratch -z-[4]" style={{ left: "23%" }} />
       <span aria-hidden className="pp-scratch pp-scratch-b -z-[4]" style={{ left: "78%" }} />
 
-      <div className="pp-enter flex min-h-full flex-1 flex-col">
-        <div className="flex flex-col items-center gap-[22px] pt-[34px]">
+      {/* One centred stack, slightly above the middle (D6Load): leader, status, the
+          "Up next" line, a short brass rule, then the quote. */}
+      <div className="pp-enter flex min-h-full flex-1 flex-col justify-center pb-10">
+        <div className="flex flex-col items-center gap-5 text-center">
           <Leader n={reduced ? null : n} tick={tick} />
-          <div role="status" className="flex flex-col items-center gap-2 text-center">
+          <div role="status" className="flex flex-col items-center gap-2">
             <span className={`${label} text-brass`}>{title}</span>
-            <span className="max-w-[300px] text-[14px] leading-[1.5] text-cream/75">{children}</span>
+            <span className="max-w-[290px] text-[14px] leading-[1.5] text-cream/75">{children}</span>
           </div>
-        </div>
-
-        <div className="mt-auto pt-8">
+          <span aria-hidden className="mb-1 mt-2.5 h-px w-11 bg-brass/50" />
           <LoadingQuote />
         </div>
       </div>
@@ -64,7 +64,7 @@ function Leader({ n, tick }: { n: number | null; tick: number }) {
   return (
     <div
       aria-hidden
-      className="relative h-[150px] w-[150px] flex-none overflow-hidden rounded-full bg-[#1a1411] shadow-[inset_0_0_0_2px_rgba(242,232,213,0.5),0_0_0_12px_#0e0a09,0_0_0_14px_rgba(242,232,213,0.22)]"
+      className="relative h-[124px] w-[124px] flex-none overflow-hidden rounded-full bg-[#1a1411] shadow-[inset_0_0_0_2px_rgba(242,232,213,0.5),0_0_0_12px_#0e0a09,0_0_0_14px_rgba(242,232,213,0.22)]"
     >
       {n == null ? (
         <span className="absolute inset-0 rounded-full bg-[conic-gradient(rgba(242,232,213,0.14)_0_130deg,rgba(242,232,213,0)_130deg)]" />
@@ -79,7 +79,7 @@ function Leader({ n, tick }: { n: number | null; tick: number }) {
         // Keyed by tick so each number pops in fresh.
         <span
           key={tick}
-          className="pp-num absolute inset-0 flex items-center justify-center font-display text-[87px] font-black leading-none text-cream"
+          className="pp-num absolute inset-0 flex items-center justify-center font-display text-[71px] font-black leading-none text-cream"
         >
           {n}
         </span>

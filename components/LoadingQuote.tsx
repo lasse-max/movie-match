@@ -7,6 +7,10 @@ import { ENTRY_EASE, display, mono } from "./palace";
 
 /** If one wait passes about this long, fade to a second quote. */
 const SECOND_QUOTE_MS = 8000;
+/** The swap: out fast (200 ms), in on the entry curve (400 ms), a 2 px blur on the
+ * seam (polish critique B7). */
+const QUOTE_OUT = { duration: 0.2, ease: [0.23, 1, 0.32, 1] as const };
+const QUOTE_IN = { duration: 0.4, ease: ENTRY_EASE };
 
 /** A different quote from the one showing (the curated list is short). */
 function anotherQuote(current: MovieQuote): MovieQuote {
@@ -18,10 +22,10 @@ function anotherQuote(current: MovieQuote): MovieQuote {
 }
 
 /**
- * The hero of every AI wait, Total War style (Load1 / Load2 boards): one iconic
- * line from the curated, hand-checked list in lib/quotes.ts, big, under a brass
- * opening quotation mark, with the film in Courier caps. Past about 8 s it fades
- * to a second quote.
+ * The hero of every AI wait, Total War style (Load1 / Load2 boards, centred per
+ * D6Load): one iconic line from the curated, hand-checked list in lib/quotes.ts,
+ * big, under a brass opening quotation mark, with the film in Courier caps. Past
+ * about 8 s it fades to a second quote.
  */
 export function LoadingQuote() {
   const [q, setQ] = useState(randomQuote);
@@ -36,16 +40,17 @@ export function LoadingQuote() {
     <AnimatePresence mode="wait" initial={false}>
       <motion.figure
         key={q.quote}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={reduced ? { duration: 0 } : { duration: 0.5, ease: ENTRY_EASE }}
-        className="flex flex-col gap-3.5 px-1 pb-2.5"
+        initial={{ opacity: 0, filter: "blur(2px)" }}
+        animate={{ opacity: 1, filter: "blur(0px)", transition: reduced ? { duration: 0 } : QUOTE_IN }}
+        exit={{ opacity: 0, filter: "blur(2px)", transition: reduced ? { duration: 0 } : QUOTE_OUT }}
+        className="flex flex-col items-center gap-3"
       >
-        <span aria-hidden className={`${display} h-11 text-[96px] leading-[0.6] text-brass`}>
+        <span aria-hidden className={`${display} h-[38px] text-[84px] leading-[0.6] text-brass`}>
           “
         </span>
-        <blockquote className="font-display text-[40px] font-extrabold leading-[0.98] tracking-[-0.005em] text-cream">
+        {/* A fixed height, quote at the top (the curated quotes run one to three
+            lines here), so the centred stack never moves when the second one arrives. */}
+        <blockquote className="min-h-[118px] max-w-[320px] font-display text-[38px] font-extrabold leading-[0.98] tracking-[-0.005em] text-cream [text-wrap:balance]">
           {q.quote}
         </blockquote>
         <figcaption className={`${mono} text-[11px] tracking-[0.22em] text-cream/65`}>{q.film}</figcaption>
