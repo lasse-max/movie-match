@@ -694,13 +694,14 @@ function Control({
     <button
       type="button"
       onClick={onClick}
-      className="group pointer-events-auto flex min-w-16 flex-col items-center gap-[7px] text-[12px] font-semibold text-cream"
+      className="group pointer-events-auto flex min-w-16 flex-col items-center gap-[7px] text-[12px] font-semibold text-cream focus-visible:outline-none"
     >
+      {/* The focus ring follows the disc you press, not the box around it. */}
       <span
         className={`flex h-[62px] w-[62px] items-center justify-center rounded-full transition-transform duration-[180ms] ease-entry group-active:scale-[0.92] ${
           brass
-            ? "bg-brass text-projection shadow-[0_12px_30px_-10px_rgba(214,162,74,0.8)]"
-            : "bg-[rgba(14,10,9,0.72)] shadow-[inset_0_0_0_1px_rgba(242,232,213,0.24)]"
+            ? "bg-brass text-projection shadow-[0_12px_30px_-10px_rgba(214,162,74,0.8)] group-focus-visible:shadow-[0_12px_30px_-10px_rgba(214,162,74,0.8),0_0_0_2px_#0e0a09,0_0_0_4px_var(--brass-light)]"
+            : "bg-[rgba(14,10,9,0.72)] shadow-[inset_0_0_0_1px_rgba(242,232,213,0.24)] group-focus-visible:shadow-[inset_0_0_0_1px_rgba(242,232,213,0.24),0_0_0_2px_#0e0a09,0_0_0_4px_var(--brass-light)]"
         }`}
       >
         {children}

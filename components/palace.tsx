@@ -83,17 +83,20 @@ export function Ticket({
   ...rest
 }: { children: ReactNode; stub?: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button type="button" className="pp-ticket" {...rest}>
-      <span
-        className={`${mono} flex w-[86px] flex-none items-center justify-center border-r-2 border-dashed border-cream/50 text-center text-[12px] leading-[1.35] tracking-[0.22em]`}
-      >
-        {stub}
-      </span>
-      <span className={`${display} flex flex-1 items-center justify-between pl-[18px] pr-6 text-[28px] leading-none`}>
-        {children}
-        <ArrowRight size={22} />
-      </span>
-    </button>
+    // The focus ring sits on this wrapper: the notch mask clips the button's own outline.
+    <span className="pp-ticket-ring">
+      <button type="button" className="pp-ticket" {...rest}>
+        <span
+          className={`${mono} flex w-[86px] flex-none items-center justify-center border-r-2 border-dashed border-cream/50 text-center text-[12px] leading-[1.35] tracking-[0.22em]`}
+        >
+          {stub}
+        </span>
+        <span className={`${display} flex flex-1 items-center justify-between pl-[18px] pr-6 text-[28px] leading-none`}>
+          {children}
+          <ArrowRight size={22} />
+        </span>
+      </button>
+    </span>
   );
 }
 

@@ -136,6 +136,16 @@ body {
     filter: grayscale(0.85) brightness(0.55);
     cursor: not-allowed;
   }
+  /* The ticket's focus ring sits on a wrapper: the notch mask clips anything drawn
+     outside the ticket, its own outline included. */
+  .pp-ticket-ring {
+    display: block;
+    border-radius: 10px;
+  }
+  .pp-ticket-ring:has(> .pp-ticket:focus-visible) {
+    outline: 2px solid var(--brass-light);
+    outline-offset: 3px;
+  }
 
   /* The renting switch: a native checkbox, velvet when on. */
   .pp-switch {
