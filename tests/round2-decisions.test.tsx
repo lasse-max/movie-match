@@ -42,16 +42,26 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let root: Root;
 let host: HTMLDivElement;
 let reduceMotion = false;
+// Motion reads the reduce-motion setting once and then listens for changes, so a
+// test that switches it must tell those listeners (otherwise it silently keeps
+// whatever the first test saw).
+const mediaListeners = new Set<() => void>();
+const setReduceMotion = (on: boolean) => {
+  reduceMotion = on;
+  mediaListeners.forEach((listener) => listener());
+};
 
 beforeEach(async () => {
   dispatch.mockClear();
   game.state = { blend: { pool }, currentPlayer: 1 };
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query.includes("prefers-reduced-motion") && reduceMotion,
+    get matches() {
+      return query.includes("prefers-reduced-motion") && reduceMotion;
+    },
     media: query,
     onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: (_: string, listener: () => void) => mediaListeners.add(listener),
+    removeEventListener: (_: string, listener: () => void) => mediaListeners.delete(listener),
     addListener: () => {},
     removeListener: () => {},
     dispatchEvent: () => false,
@@ -65,9 +75,18 @@ beforeEach(async () => {
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
+  setReduceMotion(false);
   vi.unstubAllGlobals();
-  reduceMotion = false;
 });
+
+/** Start the turn again with the phone's reduce-motion setting on. */
+async function remountReduced() {
+  await act(async () => root.unmount());
+  setReduceMotion(true);
+  host.innerHTML = "";
+  root = createRoot(host);
+  await act(async () => root.render(<Round2Screen />));
+}
 
 const counter = () => Number(/Player 1 · (\d+)\/\d+/.exec(host.textContent ?? "")?.[1]);
 const button = (text: string) =>
@@ -95,8 +114,25 @@ async function dragRight() {
   });
 }
 
-/** Wait for the deck to settle (the card flown off, the next one up long enough). */
-const settle = () => sleep(reduceMotion ? 350 : 650);
+/** Wait for the deck to settle (the card gone, the next one in view long enough):
+ * about 0.54 s after a tap, or 0.75 s with reduce-motion (hold, fade, then the floor). */
+const settle = () => sleep(reduceMotion ? 900 : 700);
+
+/** Cards on the table: the one on top, plus the one still leaving, if any. */
+const topCards = () => host.querySelectorAll("article").length;
+/** Wait until the decided card has finished leaving (the next one is revealed). */
+async function untilRevealed() {
+  for (let waited = 0; topCards() > 1 && waited < 2000; waited += 5) await sleep(5);
+  expect(topCards()).toBe(1);
+}
+/** A stamp's opacity on the card that's leaving (it sits above the next one). */
+function leavingStamp(text: string) {
+  const card = [...host.querySelectorAll("article")].find(
+    (a) => (a.parentElement as HTMLElement).style.zIndex === "4"
+  );
+  const stamp = [...(card?.querySelectorAll("span") ?? [])].find((s) => s.textContent === text);
+  return Number(stamp?.style.opacity);
+}
 
 /** Decide every remaining card "Not it", one at a time, then finish the turn. */
 async function finishWithNotIt() {
@@ -151,20 +187,47 @@ describe("Round 2: one decision per visible card", () => {
     expect(swipes.no).toEqual(cards.slice(1));
   }, 20000);
 
-  it("with reduce-motion on (no flight to wait for), a double tap still records one decision", async () => {
-    await act(async () => root.unmount());
-    reduceMotion = true;
-    host.innerHTML = "";
-    root = createRoot(host);
-    await act(async () => root.render(<Round2Screen />));
+  it("with reduce-motion on, a double tap during the stamp's hold records one decision", async () => {
+    await remountReduced();
 
     await tap("This vibe");
-    await sleep(30);
-    await tap("This vibe");
+    await sleep(40);
+    // Reduce-motion really is on: the stamp is at full at once, on a card that holds still.
+    expect(leavingStamp("This vibe")).toBe(1);
+    await sleep(310);
+    await tap("This vibe"); // past 300 ms from the first tap, but the card is still leaving
     expect(counter()).toBe(2);
 
     const swipes = await finishWithNotIt();
     expect(swipes.yes).toEqual([cards[0]]);
     expect(swipes.no).toEqual(cards.slice(1));
   }, 20000);
+
+  // D6 §1.8: with the hold, the old card leaves 0.45 s after the tap. Counted from
+  // the tap, the 300 ms floor would already be over, and a tap the moment the next
+  // card appears would decide a film nobody saw. It counts from the reveal instead.
+  it("with reduce-motion on, the next card counts only once it has been in view for 300 ms", async () => {
+    await remountReduced();
+
+    await tap("Not sure");
+    await untilRevealed();
+    await tap("This vibe"); // the next card has only just appeared
+    expect(counter()).toBe(2);
+    await sleep(350);
+    await tap("This vibe"); // in view long enough now
+    expect(counter()).toBe(3);
+
+    const swipes = await finishWithNotIt();
+    expect(swipes.neutral).toEqual([cards[0]]);
+    expect(swipes.yes).toEqual([cards[1]]);
+    expect(swipes.no).toEqual(cards.slice(2));
+  }, 20000);
+
+  // D6 §1.1: on a tap all three stamps show the same way (Not sure used to peak at
+  // about 40%, fading with its card).
+  it.each(["This vibe", "Not it", "Not sure"])("a tap on %s lands its stamp at full", async (choice) => {
+    await tap(choice);
+    await sleep(200); // the stamp has landed; the card hasn't flown yet
+    expect(leavingStamp(choice)).toBe(1);
+  });
 });
