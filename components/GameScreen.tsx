@@ -19,9 +19,9 @@ export function GameScreen() {
       {/* The room: projection black, fixed to the viewport. */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-projection" />
 
-      {/* Content flows normally (no page-level clipping), so content-heavy phases
+      {/* Content flows normally (no vertical clipping), so content-heavy phases
           (all Round 3 rows, the CTA, the expanded match tail) scroll into reach. */}
-      <main className="flex min-h-dvh flex-col px-5 py-6">
+      <main className="pp-room flex flex-col">
         <section className="mx-auto flex w-full max-w-sm flex-1 flex-col">
           <PhaseView phase={state.phase} />
         </section>

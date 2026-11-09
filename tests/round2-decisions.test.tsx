@@ -138,9 +138,11 @@ function leavingStamp(text: string) {
 const lockButton = () =>
   [...host.querySelectorAll("button")].find((b) => b.textContent?.includes("Lock my picks"));
 type Swipes = { yes: number[]; no: number[]; neutral: number[] };
-/** Lock the turn on the wrap and return what it recorded. */
+/** Lock the turn on the wrap and return what it recorded (the button ignores taps
+ * for 450 ms after the wrap appears, so a double tap can't lock the turn unseen). */
 async function lock() {
-  await settle();
+  for (let waited = 0; !lockButton() && waited < 3000; waited += 10) await sleep(10);
+  await sleep(500);
   await act(async () => lockButton()!.click());
   return dispatch.mock.calls.find(([a]) => a.type === "SET_SWIPES")?.[0] as Swipes;
 }
@@ -288,6 +290,32 @@ describe("Round 2: the wrap", () => {
       "Nothing grabbed you. That still steers your shortlist.Your picks stay hidden until the match."
     );
   }, 20000);
+
+  // D6 §6 (mobile audit item 2): the last card's buttons sit near the ticket.
+  it("ignores a tap on Lock my picks the moment the wrap appears, then locks", async () => {
+    await decideAll(["This vibe", "Not it", "Not it", "Not it"]);
+    for (let waited = 0; !lockButton() && waited < 3000; waited += 10) await sleep(10);
+    await act(async () => lockButton()!.click()); // the second tap of a double tap
+    expect(dispatch.mock.calls.some(([a]) => a.type === "SET_SWIPES")).toBe(false);
+
+    await sleep(500);
+    await act(async () => lockButton()!.click());
+    expect(dispatch.mock.calls.some(([a]) => a.type === "SET_SWIPES")).toBe(true);
+  }, 20000);
+
+  it("Player 2's gate ignores a tap the moment it appears, so the turn can't open in the wrong hands", async () => {
+    await act(async () => root.unmount());
+    game.state = { blend: { pool }, currentPlayer: 2 };
+    host.innerHTML = "";
+    root = createRoot(host);
+    await act(async () => root.render(<Round2Screen />));
+
+    await tap("I’m Player 2");
+    expect(host.querySelector("article")).toBeNull(); // still on the gate
+    await sleep(500);
+    await tap("I’m Player 2");
+    expect(host.querySelector("article")).not.toBeNull(); // Player 2's deck
+  });
 
   it("with every card Not sure: the Round 1 moods line", async () => {
     await decideAll(["Not sure", "Not sure", "Not sure", "Not sure"]);

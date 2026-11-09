@@ -17,7 +17,7 @@ import { PassPhone } from "./PassPhone";
 import { selectSwipeSamples, type PoolMovie } from "@/lib/blendTypes";
 import { genreNames } from "@/lib/genres";
 import type { Player } from "@/lib/gameMachine";
-import { Cross, ENTRY_EASE, Heart, Question, Ticket, display, label, mono } from "./palace";
+import { Cross, ENTRY_EASE, Heart, Question, Ticket, display, label, mono, useArmed } from "./palace";
 import { PROJECTION_S, THRESHOLD, releaseDirection, type Dir } from "./swipe";
 
 // Round 2 motion (D6 §1). Every number is the same for all three choices.
@@ -160,7 +160,7 @@ function PlayerSwipe({ player, samples }: { player: Player; samples: PoolMovie[]
   // The header is rendered once, above both views, so it stays put when the deck
   // turns into the wrap.
   return (
-    <div className="pp-enter flex min-h-full flex-1 flex-col gap-3.5">
+    <div className="pp-enter flex min-h-full flex-1 select-none flex-col gap-3.5">
       <Header player={player} at={Math.min(index + 1, samples.length)} of={samples.length} />
 
       {done && !flying ? (
@@ -307,6 +307,9 @@ function Wrap({
   // With likes the text follows the deal; without, the tally ticket deals in instead.
   const at = n > 0 ? { kicker: 100, title: 150, tally: 200, line: 250 } : { kicker: 0, title: 50, tally: 120, line: 170 };
   const delay = (ms: number) => ({ animationDelay: `${ms}ms` });
+  // The last card's buttons sat near this ticket: a double tap there must not lock
+  // the turn unseen.
+  const armed = useArmed();
 
   return (
     <>
@@ -377,7 +380,7 @@ function Wrap({
           </>
         }
         disabled={submitted}
-        onClick={onLock}
+        onClick={() => armed && onLock()}
       >
         Lock my picks
       </Ticket>

@@ -4,7 +4,7 @@
 // Brass is light, red is fabric, cream is paper; no colour does another's job.
 // Presentation only, no game logic. Values come from docs/design/picture-palace.
 
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
+import { useEffect, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from "react";
 import { useReducedMotion, type Transition } from "motion/react";
 
 // ---- type ---------------------------------------------------------------------
@@ -38,8 +38,26 @@ export const brassCta =
   "disabled:cursor-not-allowed disabled:bg-aisle disabled:text-cream/40 disabled:shadow-none disabled:active:scale-100";
 /** The secondary, outlined in cream. */
 export const outlineCta = `flex h-[52px] w-full items-center justify-center gap-2.5 rounded-[14px] text-[15px] font-semibold text-cream shadow-[inset_0_0_0_1.5px_rgba(242,232,213,0.4)] ${press} hover:text-bulb`;
-/** A quiet text button (play again, skip), still a 44 px target. */
-export const textButton = "min-h-11 px-4 text-[15px] text-cream/65 transition-colors hover:text-bulb";
+/** A quiet text button (play again, skip), still a 44 px target. It answers a press
+ * on touch too, where hover never shows. */
+export const textButton =
+  "min-h-11 px-4 text-[15px] text-cream/65 transition-colors hover:text-bulb active:text-bulb";
+
+const UNARMED = Symbol("unarmed");
+/**
+ * False for a moment after a screen appears, or after `key` changes, so the second
+ * tap of a double tap on the previous screen's button can't land on this one (the
+ * pass-the-phone gates and the lock buttons share one spot at the bottom). The
+ * button looks normal; it just ignores taps until then.
+ */
+export function useArmed(key: unknown = true, ms = 450): boolean {
+  const [armedFor, setArmedFor] = useState<unknown>(UNARMED);
+  useEffect(() => {
+    const t = setTimeout(() => setArmedFor(key), ms);
+    return () => clearTimeout(t);
+  }, [key, ms]);
+  return Object.is(armedFor, key);
+}
 
 // ---- motion ---------------------------------------------------------------------
 

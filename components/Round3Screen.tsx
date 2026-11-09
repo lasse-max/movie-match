@@ -8,7 +8,7 @@ import { selectWatchable, labelText, type AvailabilityLabel } from "@/lib/filter
 import { genreNames } from "@/lib/genres";
 import type { Player } from "@/lib/gameMachine";
 import type { PlayerRec } from "@/lib/inferTypes";
-import { Check, Ticket, brassCta, display, label, mono, textButton } from "./palace";
+import { Check, Ticket, brassCta, display, label, mono, textButton, useArmed } from "./palace";
 
 const TARGET = 8;
 
@@ -37,6 +37,9 @@ function PlayerPicks({ player }: { player: Player }) {
   // Resolve to a SINGLE watchable view: eligible titles, the rentals expand, or
   // the honest end-state. We never render ineligible titles as selectable picks.
   const view = selectWatchable(finalists, services, willingToPay, TARGET);
+  // The gate's button (or the rentals offer's) sat where this ticket is: a double tap
+  // there must not lock a turn, at 0 picks, that the player never saw.
+  const armed = useArmed(`${ready}:${view.kind}`);
 
   if (!ready) {
     return (
@@ -108,7 +111,7 @@ function PlayerPicks({ player }: { player: Player }) {
   };
 
   return (
-    <div className="pp-enter flex min-h-full flex-1 flex-col gap-3.5">
+    <div className="pp-enter flex min-h-full flex-1 select-none flex-col gap-3.5">
       <header className="flex flex-none items-center justify-between">
         <span className={`${label} text-brass`}>Round 3 · Shortlist</span>
         <span className={`${label} text-cream/65`}>Player {player}</span>
@@ -150,7 +153,7 @@ function PlayerPicks({ player }: { player: Player }) {
             </span>
           }
           disabled={submitted}
-          onClick={lockIn}
+          onClick={() => armed && lockIn()}
         >
           Lock my picks
         </Ticket>

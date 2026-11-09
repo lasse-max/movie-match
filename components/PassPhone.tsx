@@ -1,6 +1,8 @@
+"use client";
+
 import type { ReactNode } from "react";
 import type { Player } from "@/lib/gameMachine";
-import { Bulbs, brassCta, display, label, mono } from "./palace";
+import { Bulbs, brassCta, display, label, mono, useArmed } from "./palace";
 
 /**
  * The one pass-the-phone gate, for every hand-off: within a round (to Player 2)
@@ -30,9 +32,12 @@ export function PassPhone({
 }) {
   // Each part rises in on the entry curve, 50 ms apart.
   const delay = (i: number) => ({ animationDelay: `${i * 50}ms` });
+  // The previous screen's button sat in this same spot: a double tap there must not
+  // hand the turn over in the wrong hands.
+  const armed = useArmed();
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
+    <div className="flex min-h-full flex-1 select-none flex-col">
       <Bulbs count={20} />
 
       <div className="flex flex-1 flex-col justify-center gap-[22px] py-6">
@@ -63,7 +68,7 @@ export function PassPhone({
         )}
       </div>
 
-      <button type="button" className={brassCta} onClick={onReady}>
+      <button type="button" className={brassCta} onClick={() => armed && onReady()}>
         I’m Player {to}
       </button>
     </div>

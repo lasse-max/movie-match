@@ -90,7 +90,7 @@ function PlayerTurn({ player }: { player: Player }) {
   };
 
   return (
-    <div className="pp-enter flex min-h-full flex-1 flex-col gap-[18px]">
+    <div className="pp-enter flex min-h-full flex-1 select-none flex-col gap-[18px]">
       <header className="flex flex-none items-center justify-between">
         <span className={`${label} text-brass`}>Round 1 · The mood</span>
         <span className={`${label} text-cream/65`}>Player {player}</span>

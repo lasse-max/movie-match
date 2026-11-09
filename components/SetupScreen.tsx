@@ -114,7 +114,7 @@ export function SetupScreen() {
             className="min-h-11 w-full cursor-pointer appearance-none bg-transparent pb-1.5 pr-[34px] font-display text-[28px] font-extrabold uppercase text-cream"
           >
             {SUPPORTED_REGIONS.map((r) => (
-              <option key={r.code} value={r.code} className="text-[16px] text-projection">
+              <option key={r.code} value={r.code} className="bg-aisle text-[16px] text-cream">
                 {r.name}
               </option>
             ))}

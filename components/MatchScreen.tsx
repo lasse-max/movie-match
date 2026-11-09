@@ -111,7 +111,7 @@ export function MatchScreen() {
               <button
                 type="button"
                 onClick={() => setShowAll(true)}
-                className={`${mono} min-h-11 self-start text-[11px] tracking-[0.2em] text-brass-light transition-colors hover:text-bulb`}
+                className={`${mono} min-h-11 self-start text-[11px] tracking-[0.2em] text-brass-light transition-colors hover:text-bulb active:text-bulb`}
               >
                 See {hiddenCount} other match{hiddenCount === 1 ? "" : "es"}
               </button>
@@ -123,7 +123,7 @@ export function MatchScreen() {
           <button
             type="button"
             onClick={() => dispatch({ type: "RESET" })}
-            className={`${mono} min-h-11 px-4 text-[11px] tracking-[0.24em] text-cream/65 transition-colors hover:text-bulb`}
+            className={`${mono} min-h-11 px-4 text-[11px] tracking-[0.24em] text-cream/65 transition-colors hover:text-bulb active:text-bulb`}
           >
             Play again
           </button>
@@ -160,7 +160,7 @@ export function MatchScreen() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed inset-0 z-30 flex flex-col items-center justify-end gap-2 pb-[34px]"
+          className="fixed inset-0 z-30 flex flex-col items-center justify-end gap-2 pb-[calc(34px_+_env(safe-area-inset-bottom))]"
         >
           <span className={`${label} text-bulb [text-shadow:0_0_12px_rgba(0,0,0,0.9)]`}>We have a match</span>
           {/* Full cream with a dark halo: the board's 80% cream drops to about 3.5:1 on the brightest fold. */}

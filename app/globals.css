@@ -51,7 +51,36 @@ body {
   outline-offset: 3px;
 }
 
+/* Phone robustness (mobile audit, D6 §6). Layered, so a utility can opt back in. */
+@layer base {
+  html {
+    touch-action: manipulation; /* pan and pinch stay; double-tap zoom and its delay go */
+  }
+  html,
+  body {
+    overscroll-behavior: none; /* no pull-to-refresh mid-game: a reload loses the game */
+  }
+  /* Controls are not text: no selection, link previews or image menus on long-press. */
+  :where(button, a, label, select, [role="button"]) {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
 @layer components {
+  /* The room: the smallest viewport, so nothing moves when Safari's toolbar
+     collapses or returns, padded clear of the notch and the home indicator. It
+     clips sideways only, so a card flying off never widens the page. */
+  .pp-room {
+    min-height: 100svh;
+    padding-top: calc(1.5rem + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+    overflow-x: clip;
+  }
+
   /* One entry curve for every screen. Fill "backwards" (not "both") hides an item
      during its stagger delay, then hands opacity and transform back to the element,
      so its own disabled dimming and 0.97 press scale still work afterwards. */

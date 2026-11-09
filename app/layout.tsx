@@ -51,9 +51,13 @@ export const metadata: Metadata = {
   description: "Two people, one phone, three rounds. A film you both want to watch tonight.",
 };
 
-// The browser chrome takes the colour of the room.
+// The browser chrome takes the colour of the room. The page reaches the screen's
+// edges (the room pads itself clear of the notch and home indicator), and the
+// browser draws its own parts dark.
 export const viewport: Viewport = {
   themeColor: "#0e0a09",
+  colorScheme: "dark",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
