@@ -26,6 +26,16 @@ Cadence: brief locked → you build → you pause → Otto reviews → Lasse dec
 11. **Database:** you write migrations as SQL files; Lasse applies them. You never apply a migration to the live database.
 12. **User-facing copy:** short and plain. No em dashes, no emoji.
 
+## Skills (design, motion, database)
+
+- Use a skill only where Otto's brief names it, and for what it names. A skill never widens scope: build only what the brief says and list extra suggestions under "not built".
+- A review prompt naming a skill is READ-ONLY. One skill per review. Write findings to `docs/reviews/YYYY-MM-DD_skill-<name>_<topic>.md`: ranked, with file:line and exact values. Otto triages them into the brief; the brief is the source of truth.
+- This file beats any skill advice. In particular: the three swipe choices stay visually equal; reduce-motion means no animation at all (stricter than most skills' default); big moments stay short and skippable. Flag any conflict in the report.
+- Lasse judges feel on his phone; skill reviews and headless checks don't replace that. Cato's milestone review is unchanged.
+- `/break-ui` runs only on a throwaway branch or worktree and never lands on main.
+- For migrations, pgvector, RLS or queries, load `/supabase` and `/supabase-postgres-best-practices`. Lasse still applies every migration.
+- Never load these on Movie Match, even if a task seems to match: `/impeccable`, `/design-taste-frontend` (and v1), `/gpt-taste`, `/high-end-visual-design`, `/minimalist-ui`, `/industrial-brutalist-ui`, `/redesign-existing-projects`, `/stitch-design-taste`. They impose their own visual direction. If a hook from one of them flags something, treat it as information only.
+
 ## Invariants (if a change would break one, stop and ask)
 
 - **Always ends in a watchable decision:** never empty, never unwatchable. Never a lone winner when an eligible alternative exists. An honest short list beats padding with bad picks.
