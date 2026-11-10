@@ -46,9 +46,9 @@ The recording (`public/game.mp4`, about 90 MB) is not committed, so record it fi
 
 `Narrated-Landscape` and `Narrated-Portrait` use the same scenes, paced for a voiceover. The lines and when each one starts are in `voiceover-config.json` (ElevenLabs, voice Matilda). Every line describes what is on screen at that moment.
 
-1. Set `ELEVENLABS_API_KEY` in your shell. Never put it in this repo.
-2. Generate the voice with the promo-video skill's `generate-voiceover.ts --config voiceover-config.json`. It writes `public/voiceover-normalized.mp3` and warns if one line runs into the next. If one does, shorten that line and run it again.
-3. Mix in a quiet music bed (fade in 2 s, fade out over the last 3 s) and pad to 30 s:
+1. Make `ELEVENLABS_API_KEY` available: set it in your shell, or keep it in a git-ignored env file outside this repo and run the script with `node --env-file=<that file>`. Never put it in this repo.
+2. Generate the voice with the promo-video skill's `generate-voiceover.ts --config voiceover-config.json`. It writes `public/voiceover-normalized.mp3` and warns if one line runs into the next. If one does, shorten that line or move its start, and run it again. Then transcribe the result (Whisper, or ElevenLabs speech-to-text) to check the words and that each line starts in its scene.
+3. Mix in a quiet music bed (fade in 2 s, fade out over the last 3 s) and pad to 30 s. The committed MP4s use the promo-video skill's "Inspired Ambient" track from Pixabay, about 20 dB under the voice:
 
    ```bash
    ffmpeg -y -i public/voiceover-normalized.mp3 -i music.mp3 -filter_complex "[0:a]apad=whole_dur=30[v];[1:a]atrim=0:30,volume='0.08*min(1,t/2)*min(1,(30-t)/3)':eval=frame[m];[v][m]amix=inputs=2:duration=first:normalize=0" -c:a libmp3lame -b:a 192k public/voiceover-with-music.mp3
@@ -60,5 +60,7 @@ The recording (`public/game.mp4`, about 90 MB) is not committed, so record it fi
    npx remotion render Narrated-Landscape out/narrated-landscape.mp4 --image-format png --crf 1 --props='{"audio":"voiceover-with-music.mp3"}'
    ffmpeg -y -i out/narrated-landscape.mp4 -c:v libx264 -crf 20 -preset slow -pix_fmt yuv420p -c:a aac -b:a 160k -movflags +faststart ../movie-match-narrated.mp4
    ```
+
+   Do the same with `Narrated-Portrait` for `../movie-match-narrated-portrait.mp4`.
 
 Remotion is free for individuals and small teams; some companies need a licence ([terms](https://www.remotion.dev/license)).
