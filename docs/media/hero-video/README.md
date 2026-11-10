@@ -1,6 +1,6 @@
 # Hero video source
 
-The Remotion project that cut the README hero (`docs/media/movie-match-full-game.*`) from one recorded demo game. It is not part of the app: it has its own `package.json`, and the app's lint, type-check and build skip this folder.
+The Remotion project that made the README hero videos from one recorded demo game: the GIF (`docs/media/movie-match-full-game.gif`) and the 2.0 video it opens (`docs/media/movie-match-behind-the-scenes*.mp4`). It is not part of the app: it has its own `package.json`, and the app's lint, type-check and build skip this folder.
 
 - `src/Hero.tsx`: the clips, captions and phone frame. `SEGS` lists which seconds of the recording are shown and how fast.
 - `src/Root.tsx`: the compositions. `Promo-Landscape` (1920x1080) and `Promo-Portrait` (1080x1920) are the 20 s silent cut. `Narrated-Landscape` and `Narrated-Portrait` are the 30 s cut for a voiceover. `Upgrade-Landscape` and `Upgrade-Portrait` are the 57 s 2.0 video. All run at 30 fps.
@@ -33,11 +33,9 @@ The recording (`public/game.mp4`, about 90 MB) is not committed, so record it fi
    npm run render
    ```
 
-5. Make the README files from the renders:
+5. Make the README GIF from the landscape render:
 
    ```bash
-   ffmpeg -y -i out/promo-landscape.mp4 -an -c:v libx264 -crf 20 -preset slow -pix_fmt yuv420p -movflags +faststart ../movie-match-full-game.mp4
-   ffmpeg -y -i out/promo-portrait.mp4 -an -c:v libx264 -crf 20 -preset slow -pix_fmt yuv420p -movflags +faststart ../movie-match-full-game-portrait.mp4
    ffmpeg -y -i out/promo-landscape.mp4 -r 10 -vf "scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" ../movie-match-full-game.gif
    ```
 
@@ -45,24 +43,22 @@ The recording (`public/game.mp4`, about 90 MB) is not committed, so record it fi
 
 ## The 30 s narrated cut
 
-`Narrated-Landscape` and `Narrated-Portrait` use the same scenes, paced for a voiceover. The lines and when each one starts are in `voiceover-config.json` (ElevenLabs, voice Matilda). Every line describes what is on screen at that moment.
+`Narrated-Landscape` and `Narrated-Portrait` use the same scenes, paced for a voiceover. The 2.0 video replaced it in the README, so the repo no longer keeps its MP4s; the source stays for a short cut. The lines and when each one starts are in `voiceover-config.json` (ElevenLabs, voice Matilda). Every line describes what is on screen at that moment.
 
 1. Make `ELEVENLABS_API_KEY` available: set it in your shell, or keep it in a git-ignored env file outside this repo and run the script with `node --env-file=<that file>`. Never put it in this repo.
 2. Generate the voice with the promo-video skill's `generate-voiceover.ts --config voiceover-config.json`. It writes `public/voiceover-normalized.mp3` and warns if one line runs into the next. If one does, shorten that line or move its start, and run it again. Then transcribe the result (Whisper, or ElevenLabs speech-to-text) to check the words and that each line starts in its scene.
-3. Mix in a quiet music bed (fade in 2 s, fade out over the last 3 s) and pad to 30 s. The committed MP4s use the promo-video skill's "Inspired Ambient" track from Pixabay, about 20 dB under the voice:
+3. Mix in a quiet music bed (fade in 2 s, fade out over the last 3 s) and pad to 30 s. The repo's videos use the promo-video skill's "Inspired Ambient" track from Pixabay, about 20 dB under the voice:
 
    ```bash
    ffmpeg -y -i public/voiceover-normalized.mp3 -i music.mp3 -filter_complex "[0:a]apad=whole_dur=30[v];[1:a]atrim=0:30,volume='0.08*min(1,t/2)*min(1,(30-t)/3)':eval=frame[m];[v][m]amix=inputs=2:duration=first:normalize=0" -c:a libmp3lame -b:a 192k public/voiceover-with-music.mp3
    ```
 
-4. Render with the audio and compress for the repo:
+4. Render with the audio, then compress (the same `ffmpeg` settings work for any of the videos):
 
    ```bash
    npx remotion render Narrated-Landscape out/narrated-landscape.mp4 --image-format png --crf 1 --props='{"audio":"voiceover-with-music.mp3"}'
-   ffmpeg -y -i out/narrated-landscape.mp4 -c:v libx264 -crf 20 -preset slow -pix_fmt yuv420p -c:a aac -b:a 160k -movflags +faststart ../movie-match-narrated.mp4
+   ffmpeg -y -i out/narrated-landscape.mp4 -c:v libx264 -crf 20 -preset slow -pix_fmt yuv420p -c:a aac -b:a 160k -movflags +faststart out/narrated-landscape-small.mp4
    ```
-
-   Do the same with `Narrated-Portrait` for `../movie-match-narrated-portrait.mp4`.
 
 ## The 57 s 2.0 video
 
