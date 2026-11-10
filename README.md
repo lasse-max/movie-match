@@ -48,7 +48,10 @@ Only the eval harness is kept repeatable. In the game, playing again can land on
 
 ## How it was built
 
-I run a small AI team with separate roles: Otto (Claude) writes the briefs, Arthur (Claude Code) writes the code, Cato (Codex) reviews independently, and I decide what gets built and when it's good enough. The AI writes the code; I direct and review. More in [HOW_I_BUILD.md](https://github.com/lasse-max/lasse-max/blob/main/HOW_I_BUILD.md).
+I run a small AI team with separate roles: Otto (Claude) writes the briefs, Arthur (Claude Code) writes the code, Cato (Codex) reviews independently, and I decide what gets built and when it's good enough. The AI writes the code; I direct and review.
+
+<!-- Hidden until the profile repo is ready: More in [HOW_I_BUILD.md](https://github.com/lasse-max/lasse-max/blob/main/HOW_I_BUILD.md). -->
+
 
 ## Status and stack
 
