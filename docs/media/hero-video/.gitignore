@@ -1,0 +1,5 @@
+node_modules/
+out/
+capture/
+# The recorded game is about 90 MB, so it is rebuilt locally (see README.md).
+public/game.mp4
