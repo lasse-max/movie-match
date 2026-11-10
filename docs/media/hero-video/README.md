@@ -3,7 +3,8 @@
 The Remotion project that cut the README hero (`docs/media/movie-match-full-game.*`) from one recorded demo game. It is not part of the app: it has its own `package.json`, and the app's lint, type-check and build skip this folder.
 
 - `src/Hero.tsx`: the clips, captions and phone frame. `SEGS` lists which seconds of the recording are shown and how fast.
-- `src/Root.tsx`: the compositions. `Promo-Landscape` (1920x1080) and `Promo-Portrait` (1080x1920) are the 20 s silent cut. `Narrated-Landscape` and `Narrated-Portrait` are the 30 s cut for a voiceover. All run at 30 fps.
+- `src/Root.tsx`: the compositions. `Promo-Landscape` (1920x1080) and `Promo-Portrait` (1080x1920) are the 20 s silent cut. `Narrated-Landscape` and `Narrated-Portrait` are the 30 s cut for a voiceover. `Upgrade-Landscape` and `Upgrade-Portrait` are the 57 s 2.0 video. All run at 30 fps.
+- `src/Upgrade.tsx`: the 2.0 video. A drawn opening (the problem), the game, and two behind-the-scenes scenes.
 
 ## Rebuild it
 
@@ -62,5 +63,14 @@ The recording (`public/game.mp4`, about 90 MB) is not committed, so record it fi
    ```
 
    Do the same with `Narrated-Portrait` for `../movie-match-narrated-portrait.mp4`.
+
+## The 57 s 2.0 video
+
+`Upgrade-Landscape` and `Upgrade-Portrait` add a drawn opening (a couple scrolling, then a film that isn't on their service) and two behind-the-scenes scenes between the phone clips:
+
+- **The catalogue map.** The counts and methods on screen come from the code: 15,162 films embedded with OpenAI `text-embedding-3-small` (1,536 numbers each, `scripts/build-catalog.mjs`), each player's taste fingerprint as the average of their liked films, the 40 nearest films by cosine similarity in pgvector, and Claude ranking each list (`lib/retrieve.ts`, `lib/infer.ts`). The dot positions are illustrative, and the scene says so.
+- **Only what you can stream.** The seven kept films and their services are from the demo game's real Round 3 screen; the faded tiles are blank on purpose.
+
+The lines and start times are in `upgrade-voiceover.json`. Make the voice and mix it the same way as the 30 s cut, with `whole_dur=57` and `public/upgrade-with-music.mp3` as the output, then render with `--props='{"audio":"upgrade-with-music.mp3"}'` and compress to `../movie-match-behind-the-scenes.mp4` and `../movie-match-behind-the-scenes-portrait.mp4`.
 
 Remotion is free for individuals and small teams; some companies need a licence ([terms](https://www.remotion.dev/license)).

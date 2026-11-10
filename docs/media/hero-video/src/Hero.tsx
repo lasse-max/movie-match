@@ -17,10 +17,10 @@ import { loadFont as loadMono } from "@remotion/google-fonts/CourierPrime";
 import { loadFont as loadSans } from "@remotion/google-fonts/LibreFranklin";
 
 // The app's own type and colours (app/layout.tsx, app/globals.css).
-const display = loadDisplay("normal", { weights: ["800", "900"] }).fontFamily;
-const mono = loadMono("normal", { weights: ["700"] }).fontFamily;
-const sans = loadSans("normal", { weights: ["500", "600"] }).fontFamily;
-const C = {
+export const display = loadDisplay("normal", { weights: ["800", "900"] }).fontFamily;
+export const mono = loadMono("normal", { weights: ["700"] }).fontFamily;
+export const sans = loadSans("normal", { weights: ["500", "600"] }).fontFamily;
+export const C = {
   projection: "#0e0a09",
   aisle: "#17100e",
   cream: "#f2e8d5",
@@ -32,8 +32,8 @@ const C = {
 
 // ---- the cut list: one full game recorded on the live beta (390 px, 2x) ------------
 // Times are seconds in public/game.mp4. The two AI waits are cut; some parts run faster.
-type Seg = { from: number; to: number; rate: number; cap: number; hold?: number };
-type Cap = { kicker: string; title: string[]; accent?: number; note?: string; url?: string };
+export type Seg = { from: number; to: number; rate: number; cap: number; hold?: number };
+export type Cap = { kicker: string; title: string[]; accent?: number; note?: string; url?: string };
 
 export const CAPS: Cap[] = [
   { kicker: "Movie Match", title: ["One phone.", "Two of you.", "One film."], accent: 2 },
@@ -43,6 +43,15 @@ export const CAPS: Cap[] = [
   { kicker: "Round 3 · Shortlist", title: ["Pick every film", "you'd watch"], accent: 1, note: "Only films on your services" },
   { kicker: "The match", title: ["You both", "picked it"], accent: 1, note: "And where to watch it tonight" },
   { kicker: "Live beta", title: ["Try it with", "someone tonight"], accent: 1, url: "movie-match-rho.vercel.app" },
+  // 7 onwards: the 2.0 video (Upgrade.tsx).
+  { kicker: "Movie night", title: ["Endless", "scrolling"], accent: 1 },
+  { kicker: "Movie night", title: ["Not on your", "service"], accent: 1 },
+  { kicker: "Movie night", title: ["About to", "give up?"], accent: 1 },
+  { kicker: "Setup", title: ["Tick what", "you pay for"], accent: 1 },
+  { kicker: "Round 2 · The vibe", title: ["It learns", "your taste"], accent: 1, note: "No watch history needed" },
+  { kicker: "Behind the scenes", title: ["Every film,", "mapped"], accent: 1, note: "Searched for films close to what you both liked" },
+  { kicker: "Behind the scenes", title: ["AI ranks", "your list"], accent: 1, note: "Tonight's mood and your movie taste" },
+  { kicker: "Behind the scenes", title: ["Only what you", "can stream"], accent: 1, note: "Your services, in your region" },
 ];
 
 const CUTS = {
@@ -76,7 +85,7 @@ const CUTS = {
 export type Cut = keyof typeof CUTS;
 const XF = 5; // crossfade between clips, frames
 
-const segFrames = (s: Seg, fps: number) =>
+export const segFrames = (s: Seg, fps: number) =>
   Math.round((s.hold ?? (s.to - s.from) / s.rate) * fps);
 
 export const totalFrames = (fps: number, cut: Cut) =>
@@ -84,8 +93,8 @@ export const totalFrames = (fps: number, cut: Cut) =>
 
 // ---- layout ---------------------------------------------------------------------
 type Layout = { width: number; height: number; portrait: boolean; segs: Seg[] };
-const LayoutCtx = createContext<Layout>({ width: 1920, height: 1080, portrait: false, segs: CUTS.short });
-const useLayout = () => useContext(LayoutCtx);
+export const LayoutCtx = createContext<Layout>({ width: 1920, height: 1080, portrait: false, segs: CUTS.short });
+export const useLayout = () => useContext(LayoutCtx);
 
 // `audio` is a file in public/, for example the mixed voiceover; leave it out for silent.
 export const Hero: React.FC<{ portrait?: boolean; cut?: Cut; audio?: string }> = ({
@@ -108,7 +117,7 @@ export const Hero: React.FC<{ portrait?: boolean; cut?: Cut; audio?: string }> =
 };
 
 // A warm spotlight in a dark room, as on the match screen.
-const Room: React.FC = () => {
+export const Room: React.FC = () => {
   const { portrait } = useLayout();
   return (
     <AbsoluteFill
@@ -122,7 +131,7 @@ const Room: React.FC = () => {
 };
 
 // The marquee bulb row from the app, breathing slowly (smooth, no flicker).
-const Bulbs: React.FC = () => {
+export const Bulbs: React.FC = () => {
   const frame = useCurrentFrame();
   const { width, portrait } = useLayout();
   const count = portrait ? 18 : 30;
@@ -156,9 +165,10 @@ const Bulbs: React.FC = () => {
 const SRC_W = 780;
 const SRC_H = 1688;
 
-const Phone: React.FC = () => {
+// `tail` keeps the last clip on screen a little longer (for a crossfade out of the scene).
+export const Phone: React.FC<{ tail?: number }> = ({ tail = 0 }) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps } = useVideoConfig();
   const { width, height, portrait, segs: SEGS } = useLayout();
 
   const screenH = portrait ? 1250 : 900;
@@ -170,12 +180,13 @@ const Phone: React.FC = () => {
   const cy = portrait ? height - 96 - phoneH / 2 : height / 2 + 18;
 
   const enter = spring({ frame, fps, config: { damping: 200, mass: 0.9 }, durationInFrames: 28 });
+  const durationInFrames = SEGS.reduce((n, s) => n + segFrames(s, fps), 0) + tail;
 
   let start = 0;
   const clips = SEGS.map((s, i) => {
     const dur = segFrames(s, fps);
     const el = (
-      <Sequence key={i} from={start} durationInFrames={dur + (i < SEGS.length - 1 ? XF : 0)} premountFor={fps}>
+      <Sequence key={i} from={start} durationInFrames={dur + (i < SEGS.length - 1 ? XF : tail)} premountFor={fps}>
         <Clip seg={s} first={i === 0} w={screenW} h={screenH} />
       </Sequence>
     );
@@ -254,7 +265,11 @@ const Clip: React.FC<{ seg: Seg; first: boolean; w: number; h: number }> = ({ se
 };
 
 // ---- captions -----------------------------------------------------------------------
-const Captions: React.FC = () => {
+export const Captions: React.FC<{ instantFirst?: boolean; holdLast?: boolean; tail?: number }> = ({
+  instantFirst = true,
+  holdLast = true,
+  tail = 0,
+}) => {
   const { fps } = useVideoConfig();
   const { segs: SEGS } = useLayout();
   // Merge consecutive clips that share a caption into one caption block.
@@ -269,18 +284,19 @@ const Captions: React.FC = () => {
     } else blocks.push({ cap: s.cap, from: t, dur: d, fast: s.rate >= 1.2 });
     t += d;
   }
+  if (blocks.length) blocks[blocks.length - 1].dur += tail;
   return (
     <>
       {blocks.map((b, i) => (
         <Sequence key={i} from={b.from} durationInFrames={b.dur} premountFor={fps}>
-          <Caption cap={CAPS[b.cap]} dur={b.dur} fast={b.fast} last={i === blocks.length - 1} instant={i === 0} />
+          <Caption cap={CAPS[b.cap]} dur={b.dur} fast={b.fast} last={holdLast && i === blocks.length - 1} instant={instantFirst && i === 0} />
         </Sequence>
       ))}
     </>
   );
 };
 
-const Caption: React.FC<{ cap: Cap; dur: number; fast: boolean; last: boolean; instant: boolean }> = ({
+export const Caption: React.FC<{ cap: Cap; dur: number; fast: boolean; last: boolean; instant: boolean }> = ({
   cap,
   dur,
   fast,
@@ -357,5 +373,16 @@ const Caption: React.FC<{ cap: Cap; dur: number; fast: boolean; last: boolean; i
         </div>
       )}
     </div>
+  );
+};
+
+// The phone with its clips and captions, for use as one scene of a longer video.
+export const PhoneScene: React.FC<{ segs: Seg[]; tail?: number; holdLast?: boolean }> = ({ segs, tail = 0, holdLast = false }) => {
+  const layout = useLayout();
+  return (
+    <LayoutCtx.Provider value={{ ...layout, segs }}>
+      <Phone tail={tail} />
+      <Captions instantFirst={false} holdLast={holdLast} tail={tail} />
+    </LayoutCtx.Provider>
   );
 };
