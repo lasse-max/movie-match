@@ -347,7 +347,7 @@ const MapScene: React.FC = () => {
           {counter.toLocaleString("en-US")} <span style={{ color: C.cream, fontSize: 52 }}>FILMS</span>
         </div>
         <Label x={62} y={118} opacity={interpolate(t, [0.5, 1.0], [0, 1], clamp)}>
-          Each film = 1,536 numbers · OpenAI text-embedding-3-small
+          Each film = an embedding of 1,536 numbers
         </Label>
 
         <svg width={1000} height={1000} viewBox="0 0 1000 1000" style={{ position: "absolute", inset: 0, opacity: 1 - 0.82 * toRank }}>

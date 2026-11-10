@@ -109,7 +109,7 @@ npm run build
 
 ## Watch the 2.0 video
 
-https://github.com/user-attachments/assets/2f0a2710-3e80-4398-8917-0559a1a69a93
+https://github.com/user-attachments/assets/be84b714-1a61-46d8-9c54-121669633c9f
 
 <p align="center"><sub>61 s with sound: one full game on the live beta with two demo players, and what happens behind the scenes. The AI waits are cut and some parts are sped up.</sub></p>
 
