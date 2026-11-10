@@ -3,6 +3,7 @@ import {
   AbsoluteFill,
   Easing,
   Freeze,
+  Html5Audio,
   OffthreadVideo,
   Sequence,
   interpolate,
@@ -44,39 +45,63 @@ export const CAPS: Cap[] = [
   { kicker: "Live beta", title: ["Try it with", "someone tonight"], accent: 1, url: "movie-match-rho.vercel.app" },
 ];
 
-const SEGS: Seg[] = [
-  { from: 4.3, to: 5.8, rate: 1, cap: 0 },
-  { from: 6.0, to: 8.3, rate: 1, cap: 1 },
-  { from: 8.45, to: 9.95, rate: 1, cap: 2 },
-  { from: 21.9, to: 31.0, rate: 2.5, cap: 3 },
-  { from: 33.0, to: 35.0, rate: 1.25, cap: 3 },
-  { from: 59.8, to: 63.1, rate: 1.4, cap: 4 },
-  // Real speed for the payoff. Ends before 73.2 s, where the capture script's
-  // full-page screenshot briefly resized the page.
-  { from: 67.6, to: 72.9, rate: 1, cap: 5 },
-  { from: 72.9, to: 72.9, rate: 1, cap: 6, hold: 1.8 },
-];
+const CUTS = {
+  // 20 s, silent: the README GIF.
+  short: [
+    { from: 4.3, to: 5.8, rate: 1, cap: 0 },
+    { from: 6.0, to: 8.3, rate: 1, cap: 1 },
+    { from: 8.45, to: 9.95, rate: 1, cap: 2 },
+    { from: 21.9, to: 31.0, rate: 2.5, cap: 3 },
+    { from: 33.0, to: 35.0, rate: 1.25, cap: 3 },
+    { from: 59.8, to: 63.1, rate: 1.4, cap: 4 },
+    // Real speed for the payoff. Ends before 73.2 s, where the capture script's
+    // full-page screenshot briefly resized the page.
+    { from: 67.6, to: 72.9, rate: 1, cap: 5 },
+    { from: 72.9, to: 72.9, rate: 1, cap: 6, hold: 1.8 },
+  ],
+  // 30 s, paced for the voiceover in voiceover-config.json (scene starts in comments).
+  narrated: [
+    { from: 2.2, to: 5.8, rate: 1, cap: 0 }, // 0.0 s
+    { from: 6.0, to: 8.3, rate: 1, cap: 1 }, // 3.6 s
+    { from: 8.45, to: 9.95, rate: 1, cap: 2 }, // 5.9 s
+    { from: 9.95, to: 9.95, rate: 1, cap: 2, hold: 1.0 },
+    { from: 21.9, to: 31.0, rate: 1.6, cap: 3 }, // 8.4 s
+    { from: 33.0, to: 35.0, rate: 1, cap: 3 },
+    { from: 59.8, to: 63.1, rate: 1, cap: 4 }, // 16.1 s
+    { from: 65.9, to: 67.3, rate: 1, cap: 4 },
+    { from: 67.6, to: 72.9, rate: 1, cap: 5 }, // 20.8 s
+    { from: 72.9, to: 72.9, rate: 1, cap: 6, hold: 3.9 }, // 26.1 s
+  ],
+} satisfies Record<string, Seg[]>;
+export type Cut = keyof typeof CUTS;
 const XF = 5; // crossfade between clips, frames
 
 const segFrames = (s: Seg, fps: number) =>
   Math.round((s.hold ?? (s.to - s.from) / s.rate) * fps);
 
-export const totalFrames = (fps: number) => SEGS.reduce((n, s) => n + segFrames(s, fps), 0);
+export const totalFrames = (fps: number, cut: Cut) =>
+  CUTS[cut].reduce((n: number, s: Seg) => n + segFrames(s, fps), 0);
 
 // ---- layout ---------------------------------------------------------------------
-type Layout = { width: number; height: number; portrait: boolean };
-const LayoutCtx = createContext<Layout>({ width: 1920, height: 1080, portrait: false });
+type Layout = { width: number; height: number; portrait: boolean; segs: Seg[] };
+const LayoutCtx = createContext<Layout>({ width: 1920, height: 1080, portrait: false, segs: CUTS.short });
 const useLayout = () => useContext(LayoutCtx);
 
-export const Hero: React.FC<{ portrait?: boolean }> = ({ portrait = false }) => {
+// `audio` is a file in public/, for example the mixed voiceover; leave it out for silent.
+export const Hero: React.FC<{ portrait?: boolean; cut?: Cut; audio?: string }> = ({
+  portrait = false,
+  cut = "short",
+  audio,
+}) => {
   const { width, height } = useVideoConfig();
   return (
-    <LayoutCtx.Provider value={{ width, height, portrait }}>
+    <LayoutCtx.Provider value={{ width, height, portrait, segs: CUTS[cut] }}>
       <AbsoluteFill style={{ backgroundColor: C.projection }}>
         <Room />
         <Bulbs />
         <Phone />
         <Captions />
+        {audio && <Html5Audio src={staticFile(audio)} />}
       </AbsoluteFill>
     </LayoutCtx.Provider>
   );
@@ -134,7 +159,7 @@ const SRC_H = 1688;
 const Phone: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  const { width, height, portrait } = useLayout();
+  const { width, height, portrait, segs: SEGS } = useLayout();
 
   const screenH = portrait ? 1250 : 900;
   const screenW = (screenH * SRC_W) / SRC_H;
@@ -231,6 +256,7 @@ const Clip: React.FC<{ seg: Seg; first: boolean; w: number; h: number }> = ({ se
 // ---- captions -----------------------------------------------------------------------
 const Captions: React.FC = () => {
   const { fps } = useVideoConfig();
+  const { segs: SEGS } = useLayout();
   // Merge consecutive clips that share a caption into one caption block.
   const blocks: { cap: number; from: number; dur: number; fast: boolean }[] = [];
   let t = 0;

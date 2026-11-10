@@ -1,0 +1,16 @@
+{
+  "voiceId": "XrExE9yKIg1WjnnlVkGX",
+  "model": "eleven_multilingual_v2",
+  "outputDir": "public",
+  "outputFile": "voiceover.mp3",
+  "totalDurationSeconds": 30,
+  "sections": [
+    { "id": "intro", "text": "One phone. Two of you. One film tonight.", "startTime": 0.3, "emotion": "confident" },
+    { "id": "mood", "text": "Each of you picks a mood.", "startTime": 3.8, "emotion": "warm" },
+    { "id": "pass", "text": "Pass the phone. Your picks stay hidden.", "startTime": 6.1, "emotion": "warm" },
+    { "id": "react", "text": "React to eight films. Not sure is fine. It counts for nothing.", "startTime": 8.8, "emotion": "warm" },
+    { "id": "shortlist", "text": "Then pick every film you'd watch. Only ones on your services.", "startTime": 16.4, "emotion": "confident" },
+    { "id": "match", "text": "There it is. A film you both picked, and where to watch it.", "startTime": 21.3, "emotion": "warm" },
+    { "id": "cta", "text": "Try it with someone tonight.", "startTime": 26.5, "emotion": "confident" }
+  ]
+}
