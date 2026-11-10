@@ -2,9 +2,10 @@
 
 **A short game for two people on one phone that ends on a film you both picked, on a service you already have, tonight.**
 
-https://github.com/user-attachments/assets/2f0a2710-3e80-4398-8917-0559a1a69a93
-
-<p align="center"><sub>The 2.0 video, 61 s with sound: one full game on the live beta with two demo players, and what happens behind the scenes. The AI waits are cut and some parts are sped up.</sub></p>
+<p align="center">
+  <a href="#watch-the-20-video"><img src="docs/media/movie-match-full-game.gif" width="800" alt="One full game of Movie Match on a phone: both players pick moods, pass the phone, react to films, pick finalists, and land on a film they both picked with where to watch it" /></a>
+</p>
+<p align="center"><sub>One full game on the live beta with two demo players. The two AI waits are cut and the swipes are sped up. <a href="#watch-the-20-video">Watch the 61 s version with sound</a>, which also shows what happens behind the scenes.</sub></p>
 
 ## Try it
 
@@ -56,7 +57,7 @@ I run a small AI team with separate roles: Otto (Claude) writes the briefs, Arth
 
 **Status:** live beta, 2.0 in progress. Embeddings went live on 7 Nov 2026 and the "Picture Palace" redesign's latest polish on 9 Nov. Rate limiting, an event log and saved services come before any public launch.
 
-**Stack:** Next.js 16, React 19, TypeScript, Tailwind CSS 4, Motion, Claude Sonnet 4.6 via the Anthropic SDK (two calls per game), TMDB, Supabase Postgres with pgvector, Vitest, Vercel.
+**Stack:** Next.js 16, React 19, TypeScript, Tailwind CSS 4, Motion, Claude Sonnet 4.6 via the Anthropic SDK (two calls per game), TMDB, embeddings in Supabase Postgres with pgvector, Vitest, Vercel.
 
 ## How it works
 
@@ -105,6 +106,12 @@ npx tsc --noEmit
 npm test
 npm run build
 ```
+
+## Watch the 2.0 video
+
+https://github.com/user-attachments/assets/2f0a2710-3e80-4398-8917-0559a1a69a93
+
+<p align="center"><sub>61 s with sound: one full game on the live beta with two demo players, and what happens behind the scenes. The AI waits are cut and some parts are sped up.</sub></p>
 
 ## Credits and license
 
