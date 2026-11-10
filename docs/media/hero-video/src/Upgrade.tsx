@@ -28,22 +28,22 @@ const PHONE_A: Seg[] = [
   { from: 8.45, to: 9.95, rate: 1, cap: 2 }, // pass the phone
   { from: 9.95, to: 9.95, rate: 1, cap: 2, hold: 0.6 },
   { from: 21.9, to: 31.0, rate: 1.6, cap: 11 }, // 19.2 s: Round 2
-  { from: 33.0, to: 35.0, rate: 1, cap: 11 },
+  { from: 33.0, to: 34.2, rate: 1, cap: 11 },
 ];
 const PHONE_B: Seg[] = [
-  { from: 59.8, to: 62.3, rate: 1, cap: 4 }, // 44.0 s: Round 3
+  { from: 59.8, to: 62.3, rate: 1, cap: 4 }, // 48.1 s: Round 3
   { from: 65.9, to: 67.3, rate: 1, cap: 4 },
-  { from: 67.6, to: 72.9, rate: 1, cap: 5 }, // the match
-  { from: 72.9, to: 72.9, rate: 1, cap: 6, hold: 3.8 }, // end card
+  { from: 67.6, to: 72.9, rate: 1, cap: 16 }, // the match and its score
+  { from: 72.9, to: 72.9, rate: 1, cap: 6, hold: 3.6 }, // end card
 ];
 const phoneFrames = (segs: Seg[]) => segs.reduce((n, s) => n + segFrames(s, FPS), 0);
 
 const SCENES = {
   couch: sec(9.6), // 0 s
   phoneA: phoneFrames(PHONE_A), // 9.6 s
-  map: sec(11.5), // 26.9 s
-  filter: sec(5.6), // 38.4 s
-  phoneB: phoneFrames(PHONE_B), // 44.0 s
+  map: sec(16.6), // 26.1 s
+  filter: sec(5.4), // 42.7 s
+  phoneB: phoneFrames(PHONE_B), // 48.1 s
 };
 export const upgradeFrames = Object.values(SCENES).reduce((a, b) => a + b, 0);
 
@@ -291,15 +291,31 @@ const near = (px: number, py: number, k: number, skip: Set<number> = new Set()) 
     .sort((a, b) => a.d - b.d)
     .slice(0, k);
 // Each player's Round 2 likes: four films around two spots on the map.
-const LIKES = [near(330, 400, 4).map((e) => e.i), near(690, 590, 4).map((e) => e.i)];
+const LIKES = [near(370, 430, 4).map((e) => e.i), near(650, 565, 4).map((e) => e.i)];
 const PRINTS = LIKES.map((ids) => ({
   x: ids.reduce((s, i) => s + DOTS[i].x, 0) / ids.length,
   y: ids.reduce((s, i) => s + DOTS[i].y, 0) / ids.length,
 }));
 const NEAREST = PRINTS.map((p, k) => near(p.x, p.y, 40, new Set(LIKES[k])));
+// The shared seed: the midpoint of the closest pair of likes across the two players.
+// The films nearest it go on both lists (up to 3), so a match is more likely.
+const PAIR = (() => {
+  let best = { a: LIKES[0][0], b: LIKES[1][0], d: Infinity };
+  for (const a of LIKES[0])
+    for (const b of LIKES[1]) {
+      const d = Math.hypot(DOTS[a].x - DOTS[b].x, DOTS[a].y - DOTS[b].y);
+      if (d < best.d) best = { a, b, d };
+    }
+  return best;
+})();
+const MID = { x: (DOTS[PAIR.a].x + DOTS[PAIR.b].x) / 2, y: (DOTS[PAIR.a].y + DOTS[PAIR.b].y) / 2 };
+const SHARED = near(MID.x, MID.y, 40, new Set([...LIKES[0], ...LIKES[1]]));
+const BOTH = new Set(SHARED.slice(0, 3).map((e) => e.i));
 const PLAYER_COLOR = [C.brass, C.signal];
+const TWO_TONE = `linear-gradient(135deg, ${C.brass} 0 50%, ${C.signal} 50% 100%)`;
 
-const M = { dots: 0.1, likes: 2.0, prints: 2.6, search: 3.6, rank: 6.4 };
+const M = { dots: 0.1, likes: 2.0, prints: 2.6, search: 3.6, shared: 6.4, rank: 11.8 };
+const WIDE = 1.55; // how far the circles open up to meet
 
 const MapScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -308,14 +324,21 @@ const MapScene: React.FC = () => {
   const likeIn = spring({ frame: frame - sec(M.likes), fps: FPS, config: { damping: 14, stiffness: 160 }, durationInFrames: 18 });
   const printIn = interpolate(t, [M.prints, M.prints + 0.7], [0, 1], clamp);
   const reach = interpolate(t, [M.search, M.search + 1.6], [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
+  const widen = interpolate(t, [M.shared, M.shared + 1.2], [1, WIDE], { ...clamp, easing: Easing.inOut(Easing.cubic) });
+  const pairIn = interpolate(t, [M.shared + 0.9, M.shared + 1.4], [0, 1], clamp);
+  const sharedReach = interpolate(t, [M.shared + 1.5, M.shared + 2.8], [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
+  const bothIn = spring({ frame: frame - sec(M.shared + 2.9), fps: FPS, config: { damping: 12, stiffness: 140 }, durationInFrames: 20 });
   const toRank = interpolate(t, [M.rank, M.rank + 0.5], [0, 1], clamp);
-  const step = t < M.search ? 0 : t < M.rank ? 1 : 2;
-  const stepIn = interpolate(t, [[M.likes, M.search, M.rank][step], [M.likes, M.search, M.rank][step] + 0.4], [0, 1], clamp);
+  const marks = [M.likes, M.search, M.shared, M.rank];
+  const step = t < M.search ? 0 : t < M.shared ? 1 : t < M.rank ? 2 : 3;
+  const stepIn = interpolate(t, [marks[step], marks[step] + 0.4], [0, 1], clamp);
   const steps = [
     "Your likes, averaged: a taste fingerprint",
-    "The 40 nearest films · cosine similarity · pgvector",
-    "Claude Sonnet 4.6 ranks each list: mood + taste",
+    "40 nearest each · cosine similarity · pgvector",
+    "Where your tastes meet: up to 3 films for both lists",
+    "Claude Sonnet 4.6 ranks both lists together",
   ];
+  const sharedR = SHARED[SHARED.length - 1].d;
 
   return (
     <>
@@ -337,7 +360,7 @@ const MapScene: React.FC = () => {
               const lit = interpolate(reach * 1.08, [e.d / list[list.length - 1].d - 0.08, e.d / list[list.length - 1].d], [0, 1], clamp);
               const d = DOTS[e.i];
               return (
-                <g key={`${k}-${e.i}`} opacity={lit}>
+                <g key={`${k}-${e.i}`} opacity={lit * (1 - 0.45 * pairIn)}>
                   <line x1={PRINTS[k].x} y1={PRINTS[k].y} x2={d.x} y2={d.y} stroke={PLAYER_COLOR[k]} strokeWidth={1.4} opacity={0.45} />
                   <circle cx={d.x} cy={d.y} r={5.5} fill={PLAYER_COLOR[k]} />
                 </g>
@@ -346,7 +369,7 @@ const MapScene: React.FC = () => {
           )}
           {PRINTS.map((p, k) => {
             const full = NEAREST[k][NEAREST[k].length - 1].d;
-            const radius = full * reach;
+            const radius = full * reach * widen;
             return (
               <g key={k}>
                 {LIKES[k].map((i) => (
@@ -359,13 +382,39 @@ const MapScene: React.FC = () => {
                 <g opacity={printIn}>
                   <circle cx={p.x} cy={p.y} r={19} fill={C.projection} stroke={PLAYER_COLOR[k]} strokeWidth={5} />
                   <circle cx={p.x} cy={p.y} r={7} fill={PLAYER_COLOR[k]} />
-                  <text x={p.x} y={k === 0 ? p.y - full - 18 : p.y + full + 38} textAnchor="middle" fontFamily={mono} fontWeight={700} fontSize={20} letterSpacing="2" fill={PLAYER_COLOR[k]}>
+                  <text x={p.x} y={k === 0 ? p.y - full * WIDE - 18 : p.y + full * WIDE + 38} textAnchor="middle" fontFamily={mono} fontWeight={700} fontSize={20} letterSpacing="2" fill={PLAYER_COLOR[k]}>
                     {`PLAYER ${k + 1}`}
                   </text>
                 </g>
               </g>
             );
           })}
+
+          {/* where the two tastes meet */}
+          <line
+            x1={DOTS[PAIR.a].x}
+            y1={DOTS[PAIR.a].y}
+            x2={DOTS[PAIR.b].x}
+            y2={DOTS[PAIR.b].y}
+            stroke={C.cream}
+            strokeWidth={2.5}
+            strokeDasharray="4 7"
+            opacity={pairIn * 0.85}
+          />
+          {SHARED.map((e) => {
+            const lit = interpolate(sharedReach * 1.08, [e.d / sharedR - 0.08, e.d / sharedR], [0, 1], clamp);
+            return <circle key={`s${e.i}`} cx={DOTS[e.i].x} cy={DOTS[e.i].y} r={5} fill={C.cream} opacity={lit * 0.9} />;
+          })}
+          <circle cx={MID.x} cy={MID.y} r={sharedR * sharedReach} fill="rgba(242,232,213,0.06)" stroke={C.cream} strokeWidth={3} opacity={sharedReach > 0 ? 0.9 : 0} />
+          {[...BOTH].map((i) => (
+            <g key={`b${i}`} opacity={bothIn}>
+              <circle cx={DOTS[i].x} cy={DOTS[i].y} r={15 * bothIn} fill="none" stroke={C.brass} strokeWidth={4} />
+              <circle cx={DOTS[i].x} cy={DOTS[i].y} r={9 * bothIn} fill={C.signal} />
+            </g>
+          ))}
+          <g opacity={pairIn} transform={`translate(${MID.x} ${MID.y}) rotate(45)`}>
+            <rect x={-10} y={-10} width={20} height={20} fill={C.cream} stroke={C.projection} strokeWidth={3} />
+          </g>
         </svg>
 
         {toRank > 0 && <RankedLists />}
@@ -384,7 +433,8 @@ const MapScene: React.FC = () => {
       </Stage>
       <StageCaptions
         blocks={[
-          { cap: 12, from: 0, dur: sec(M.rank) },
+          { cap: 12, from: 0, dur: sec(M.shared) },
+          { cap: 15, from: sec(M.shared), dur: sec(M.rank - M.shared) },
           { cap: 13, from: sec(M.rank), dur: SCENES.map - sec(M.rank) },
         ]}
       />
@@ -392,11 +442,12 @@ const MapScene: React.FC = () => {
   );
 };
 
-// Each player's candidates, put in order by Claude.
+// Each player's candidates, put in order by Claude. Two films are on both lists.
 const START_ORDER = [
   [3, 0, 5, 1, 4, 2],
   [2, 4, 0, 5, 1, 3],
 ];
+const ON_BOTH = [new Set([1, 3]), new Set([0, 2])]; // ranks (0-based) of the shared films
 const RankedLists: React.FC = () => {
   const frame = useCurrentFrame();
   const local = frame - sec(M.rank);
@@ -423,6 +474,7 @@ const RankedLists: React.FC = () => {
             {START_ORDER[k].map((rankIdx, slot) => {
               const sorted = spring({ frame: local - sec(1.2) - rankIdx * 3, fps: FPS, config: { damping: 18, stiffness: 120 }, durationInFrames: 30 });
               const y = 48 + interpolate(sorted, [0, 1], [slot, rankIdx]) * 98;
+              const both = ON_BOTH[k].has(rankIdx);
               const color = TILE_COLORS[(rankIdx * 3 + k * 2) % TILE_COLORS.length];
               return (
                 <div
@@ -434,8 +486,8 @@ const RankedLists: React.FC = () => {
                     width: 410,
                     height: 84,
                     borderRadius: 14,
-                    backgroundColor: "rgba(242,232,213,0.06)",
-                    border: `2px solid ${rankIdx === 0 ? PLAYER_COLOR[k] : "rgba(242,232,213,0.12)"}`,
+                    backgroundColor: both ? "rgba(242,232,213,0.1)" : "rgba(242,232,213,0.06)",
+                    border: `2px solid ${both ? "rgba(242,232,213,0.55)" : rankIdx === 0 ? PLAYER_COLOR[k] : "rgba(242,232,213,0.12)"}`,
                     display: "flex",
                     alignItems: "center",
                     gap: 16,
@@ -446,10 +498,14 @@ const RankedLists: React.FC = () => {
                   <span style={{ fontFamily: display, fontWeight: 900, fontSize: 40, width: 30, color: rankIdx === 0 ? PLAYER_COLOR[k] : C.cream, opacity: sorted }}>
                     {rankIdx + 1}
                   </span>
-                  <div style={{ width: 40, height: 58, borderRadius: 6, backgroundColor: color }} />
+                  <div style={{ width: 40, height: 58, borderRadius: 6, background: both ? TWO_TONE : color }} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div style={{ width: 210 - rankIdx * 14, height: 12, borderRadius: 6, backgroundColor: "rgba(242,232,213,0.55)" }} />
-                    <div style={{ width: 120, height: 9, borderRadius: 5, backgroundColor: "rgba(214,162,74,0.55)" }} />
+                    <div style={{ width: 200 - rankIdx * 14, height: 12, borderRadius: 6, backgroundColor: "rgba(242,232,213,0.55)" }} />
+                    {both ? (
+                      <div style={{ fontFamily: mono, fontWeight: 700, fontSize: 14, letterSpacing: "0.16em", color: C.cream }}>BOTH LISTS</div>
+                    ) : (
+                      <div style={{ width: 120, height: 9, borderRadius: 5, backgroundColor: "rgba(214,162,74,0.55)" }} />
+                    )}
                   </div>
                 </div>
               );

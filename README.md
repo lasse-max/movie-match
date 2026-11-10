@@ -5,7 +5,7 @@
 <p align="center">
   <a href="docs/media/movie-match-behind-the-scenes.mp4"><img src="docs/media/movie-match-full-game.gif" width="800" alt="One full game of Movie Match on a phone: both players pick moods, pass the phone, react to films, pick finalists, and land on a film they both picked with where to watch it" /></a>
 </p>
-<p align="center"><sub>One full game on the live beta with two demo players. The two AI waits are cut and the swipes are sped up. Click for a 57 s version with sound that also shows what happens behind the scenes (<a href="docs/media/movie-match-behind-the-scenes-portrait.mp4">portrait</a>).</sub></p>
+<p align="center"><sub>One full game on the live beta with two demo players. The two AI waits are cut and the swipes are sped up. Click for a 61 s version with sound that also shows what happens behind the scenes (<a href="docs/media/movie-match-behind-the-scenes-portrait.mp4">portrait</a>).</sub></p>
 
 ## Try it
 

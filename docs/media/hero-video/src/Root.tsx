@@ -44,7 +44,7 @@ export const RemotionRoot: React.FC = () => (
       width={1080}
       height={1920}
     />
-    {/* 57 s, the 2.0 video with what happens behind the scenes. Render with --props='{"audio":"upgrade-with-music.mp3"}'. */}
+    {/* 61 s, the 2.0 video with what happens behind the scenes. Render with --props='{"audio":"upgrade-with-music.mp3"}'. */}
     <Composition
       id="Upgrade-Landscape"
       component={Upgrade}

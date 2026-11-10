@@ -33,7 +33,7 @@ export const C = {
 // ---- the cut list: one full game recorded on the live beta (390 px, 2x) ------------
 // Times are seconds in public/game.mp4. The two AI waits are cut; some parts run faster.
 export type Seg = { from: number; to: number; rate: number; cap: number; hold?: number };
-export type Cap = { kicker: string; title: string[]; accent?: number; note?: string; url?: string };
+export type Cap = { kicker: string; title: string[]; accent?: number; note?: string; url?: string; tech?: string };
 
 export const CAPS: Cap[] = [
   { kicker: "Movie Match", title: ["One phone.", "Two of you.", "One film."], accent: 2 },
@@ -52,6 +52,8 @@ export const CAPS: Cap[] = [
   { kicker: "Behind the scenes", title: ["Every film,", "mapped"], accent: 1, note: "Searched for films close to what you both liked" },
   { kicker: "Behind the scenes", title: ["AI ranks", "your list"], accent: 1, note: "Tonight's mood and your movie taste" },
   { kicker: "Behind the scenes", title: ["Only what you", "can stream"], accent: 1, note: "Your services, in your region" },
+  { kicker: "Behind the scenes", title: ["Built for", "both of you"], accent: 1, note: "Both your moods and tastes, not one each" },
+  { kicker: "The match", title: ["You both", "picked it"], accent: 1, note: "And where to watch it tonight", tech: "Match score: where it ranks on both your lists" },
 ];
 
 const CUTS = {
@@ -351,6 +353,21 @@ export const Caption: React.FC<{ cap: Cap; dur: number; fast: boolean; last: boo
       {cap.note && (
         <div style={{ fontFamily: sans, fontWeight: 500, fontSize: portrait ? 38 : 40, color: "rgba(242,232,213,0.78)", opacity: line(cap.title.length) }}>
           {cap.note}
+        </div>
+      )}
+      {cap.tech && (
+        <div
+          style={{
+            fontFamily: mono,
+            fontWeight: 700,
+            fontSize: portrait ? 22 : 24,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: C.brass,
+            opacity: line(cap.title.length + 1),
+          }}
+        >
+          {cap.tech}
         </div>
       )}
       {cap.url && (

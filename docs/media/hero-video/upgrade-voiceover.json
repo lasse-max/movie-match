@@ -3,19 +3,20 @@
   "model": "eleven_multilingual_v2",
   "outputDir": "public",
   "outputFile": "upgrade-voiceover.mp3",
-  "totalDurationSeconds": 57,
+  "totalDurationSeconds": 61,
   "sections": [
-    { "id": "scroll", "text": "Endless scrolling, and still nothing you both want to watch?", "startTime": 0.4, "emotion": "warm" },
-    { "id": "notonit", "text": "And the film you finally agree on isn't on your streaming service?", "startTime": 4.0, "emotion": "warm" },
-    { "id": "giveup", "text": "About to give up?", "startTime": 7.7, "emotion": "warm" },
-    { "id": "meet", "text": "Meet Movie Match. One phone, two of you, one film tonight.", "startTime": 9.9, "emotion": "confident" },
-    { "id": "setup", "text": "Tick the services you pay for, pick a mood each, and pass the phone.", "startTime": 14.0, "emotion": "warm" },
-    { "id": "react", "text": "Then react to a few films. It gets to know your taste as you play. No watch history needed.", "startTime": 19.5, "emotion": "warm" },
-    { "id": "search", "text": "Behind the scenes, it searches over fifteen thousand films for ones close to what you both liked.", "startTime": 27.3, "emotion": "confident" },
-    { "id": "rank", "text": "Then AI ranks them for tonight's mood and your personal movie taste.", "startTime": 33.8, "emotion": "confident" },
-    { "id": "filter", "text": "Only films on your subscriptions make the cut, so no more checking app after app.", "startTime": 38.8, "emotion": "confident" },
-    { "id": "pick", "text": "You each pick the ones you'd watch.", "startTime": 44.3, "emotion": "warm" },
-    { "id": "match", "text": "Where your lists meet, that's your film, and where to watch it.", "startTime": 48.4, "emotion": "warm" },
-    { "id": "cta", "text": "Movie Match. Try it with someone tonight.", "startTime": 53.6, "emotion": "confident" }
+    {"id": "scroll", "text": "Endless scrolling, and still nothing you both want to watch?", "startTime": 0.4, "emotion": "warm"},
+    {"id": "notonit", "text": "And the film you finally agree on isn't on your streaming service?", "startTime": 4.0, "emotion": "warm"},
+    {"id": "giveup", "text": "About to give up?", "startTime": 7.7, "emotion": "warm"},
+    {"id": "meet", "text": "Meet Movie Match. One phone, two of you, one film tonight.", "startTime": 9.9, "emotion": "confident"},
+    {"id": "setup", "text": "Tick the services you pay for, pick a mood each, and pass the phone.", "startTime": 14.0, "emotion": "warm"},
+    {"id": "react", "text": "Then react to a few films. It gets to know your taste as you play. No watch history needed.", "startTime": 19.5, "emotion": "warm"},
+    {"id": "search", "text": "Behind the scenes, it searches over fifteen thousand films for ones close to what you both liked.", "startTime": 26.5, "emotion": "confident"},
+    {"id": "both", "text": "Every pick is chosen for the two of you together, so a match isn't left to luck.", "startTime": 32.9, "emotion": "confident"},
+    {"id": "rank", "text": "Then AI ranks them for tonight's mood and your personal movie taste.", "startTime": 38.1, "emotion": "confident"},
+    {"id": "filter", "text": "Only films on your subscriptions make the cut, so no more checking app after app.", "startTime": 43.1, "emotion": "confident"},
+    {"id": "pick", "text": "You each pick the ones you'd watch.", "startTime": 48.4, "emotion": "warm"},
+    {"id": "match", "text": "Where your lists meet, that's your film, with a match score and where to watch it.", "startTime": 52.4, "emotion": "warm"},
+    {"id": "cta", "text": "Movie Match. Try it with someone tonight.", "startTime": 57.8, "emotion": "confident"}
   ]
 }
